@@ -83,8 +83,12 @@ validation_results/
 *.png
 test_screenshot.png
 
-# Data (large files)
+# Data (large files - DO NOT COMMIT)
 data/exports_vlm_full/
+data/process_docs/
+data/test_direct.csv
+backend/data/process_docs/*.pdf
+backend/data/extracted/
 
 # Claude Code
 .claude/settings.local.json
