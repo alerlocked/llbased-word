@@ -1,7 +1,16 @@
 """
 共享配置模块 - 集中管理配置常量
+
+注意: MinerU配置已迁移到 app.config.py，这里保留向后兼容的别名
 """
 from typing import Set
+
+# 从主配置导入MinerU配置，保持向后兼容
+try:
+    from app.config import settings as _settings
+    _mineru_settings_available = True
+except ImportError:
+    _mineru_settings_available = False
 
 # 不可靠域名列表 - 集中管理，避免重复定义
 UNRELIABLE_DOMAINS: Set[str] = {
@@ -105,16 +114,37 @@ PDF_PARSER_CONFIG = {
 # MinerU VLM高精度表格解析配置
 # 用于复杂模式（有表格的PDF）
 # RTX 5080需要使用CUDA 12.8版本的PyTorch
-MINERU_VLM_CONFIG = {
-    "enabled": True,
-    "backend": "vlm-auto-engine",  # VLM高精度模式，自动选择最佳引擎
-    "table_enable": True,
-    "lang": "ch",  # 中文优化
-    "enable_table_merge": True,
-    "fallback_to_pdfplumber": False,  # VLM模式下不回退
-    "timeout_seconds": 600,
-    "parse_method": "auto",
-}
+# 配置已迁移到 app.config.py，这里使用动态获取
+def _get_mineru_config() -> dict:
+    """动态获取MinerU配置，优先从主配置获取"""
+    if _mineru_settings_available:
+        return {
+            "enabled": _settings.MINERU_ENABLED,
+            "backend": _settings.MINERU_BACKEND,
+            "table_enable": _settings.MINERU_TABLE_ENABLE,
+            "lang": _settings.MINERU_LANG,
+            "enable_table_merge": _settings.MINERU_TABLE_MERGE_ENABLE,
+            "fallback_to_pdfplumber": _settings.MINERU_FALLBACK_TO_PDFPLUMBER,
+            "timeout_seconds": _settings.MINERU_TIMEOUT_SECONDS,
+            "parse_method": _settings.MINERU_PARSE_METHOD,
+            "table_model": _settings.MINERU_TABLE_MODEL,
+            "version": _settings.MINERU_VERSION,
+        }
+    # 回退到默认配置
+    return {
+        "enabled": True,
+        "backend": "vlm-auto-engine",
+        "table_enable": True,
+        "lang": "ch",
+        "enable_table_merge": True,
+        "fallback_to_pdfplumber": False,
+        "timeout_seconds": 600,
+        "parse_method": "auto",
+        "table_model": "rapid_table",
+        "version": "0.7.6",
+    }
+
+MINERU_VLM_CONFIG = _get_mineru_config()
 
 # 向后兼容别名
 MINERU_CONFIG = MINERU_VLM_CONFIG

@@ -326,9 +326,10 @@
       "priority": "high",
       "description": "PDM 系统集成",
       "source": "backend/app/services/pdm_service.py",
-      "status": "pending",
+      "status": "skipped",
       "passes": false,
-      "has_tests": false
+      "has_tests": false,
+      "notes": "跳过 - 2026-03-14 用户决定暂不实施"
     },
     {
       "id": "F032",
@@ -336,9 +337,10 @@
       "priority": "low",
       "description": "Windows 7 兼容",
       "source": "backend/app/compatibility/win7_compat.py",
-      "status": "partial",
+      "status": "skipped",
       "passes": false,
-      "has_tests": false
+      "has_tests": false,
+      "notes": "跳过 - 2026-03-14 用户决定暂不实施"
     },
     {
       "id": "F033",
@@ -346,9 +348,10 @@
       "priority": "low",
       "description": "麒麟系统兼容",
       "source": "backend/app/compatibility/kylin_compat.py",
-      "status": "partial",
+      "status": "skipped",
       "passes": false,
-      "has_tests": false
+      "has_tests": false,
+      "notes": "跳过 - 2026-03-14 用户决定暂不实施"
     },
     {
       "id": "F034",

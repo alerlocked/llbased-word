@@ -265,3 +265,177 @@ class TestTableConversion:
 # 运行测试
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ============ API 兼容性测试 ============
+# 测试不同后端的兼容性
+
+@pytest.mark.integration
+class TestMinerUAPICompatibility:
+    """
+    MinerU API兼容性测试
+
+    测试三种后端的兼容性:
+    - vlm-auto-engine: 高精度VLM模式
+    - pipeline: 通用解析模式
+    - hybrid-auto-engine: 混合模式
+    """
+
+    def test_config_backend_vlm_auto_engine(self):
+        """测试VLM自动引擎后端配置"""
+        from app.tools.table_extractors.mineru_extractor import MinerUTableExtractor
+
+        config = {
+            "mineru_config": {
+                "backend": "vlm-auto-engine",
+                "enabled": True,
+            }
+        }
+
+        extractor = MinerUTableExtractor(config)
+        info = extractor.get_backend_info()
+
+        assert info["backend"] == "vlm-auto-engine"
+        assert "vlm-auto-engine" in info["supported_backends"]
+
+    def test_config_backend_pipeline(self):
+        """测试Pipeline后端配置"""
+        from app.tools.table_extractors.mineru_extractor import MinerUTableExtractor
+
+        config = {
+            "mineru_config": {
+                "backend": "pipeline",
+                "enabled": True,
+            }
+        }
+
+        extractor = MinerUTableExtractor(config)
+        info = extractor.get_backend_info()
+
+        assert info["backend"] == "pipeline"
+        assert "pipeline" in info["supported_backends"]
+
+    def test_config_backend_hybrid_auto_engine(self):
+        """测试混合自动引擎后端配置"""
+        from app.tools.table_extractors.mineru_extractor import MinerUTableExtractor
+
+        config = {
+            "mineru_config": {
+                "backend": "hybrid-auto-engine",
+                "enabled": True,
+            }
+        }
+
+        extractor = MinerUTableExtractor(config)
+        info = extractor.get_backend_info()
+
+        assert info["backend"] == "hybrid-auto-engine"
+        assert "hybrid-auto-engine" in info["supported_backends"]
+
+    def test_unified_config_integration(self):
+        """测试统一配置集成"""
+        # 从主配置获取MinerU配置
+        try:
+            from app.config import settings
+
+            # 验证配置项存在
+            assert hasattr(settings, 'MINERU_VERSION')
+            assert hasattr(settings, 'MINERU_BACKEND')
+            assert hasattr(settings, 'MINERU_TABLE_ENABLE')
+            assert hasattr(settings, 'MINERU_TIMEOUT_SECONDS')
+
+            # 验证默认值
+            assert settings.MINERU_VERSION == "0.7.6"
+            assert settings.MINERU_BACKEND in [
+                "pipeline", "vlm-auto-engine", "hybrid-auto-engine"
+            ]
+            assert settings.MINERU_TABLE_ENABLE == True
+            assert settings.MINERU_TIMEOUT_SECONDS > 0
+
+        except ImportError:
+            pytest.skip("Settings module not available")
+
+    def test_shared_config_backward_compatibility(self):
+        """测试共享配置向后兼容性"""
+        from app.shared.config import MINERU_VLM_CONFIG, MINERU_CONFIG
+
+        # 验证配置字典存在
+        assert isinstance(MINERU_VLM_CONFIG, dict)
+        assert isinstance(MINERU_CONFIG, dict)
+
+        # 验证必要字段
+        required_keys = [
+            "enabled", "backend", "table_enable",
+            "lang", "timeout_seconds"
+        ]
+        for key in required_keys:
+            assert key in MINERU_VLM_CONFIG, f"Missing key: {key}"
+            assert key in MINERU_CONFIG, f"Missing key in MINERU_CONFIG: {key}"
+
+        # 验证别名相同
+        assert MINERU_VLM_CONFIG is MINERU_CONFIG
+
+    def test_error_handling_and_fallback(self):
+        """测试错误处理和回退机制"""
+        from app.tools.table_extractors.mineru_extractor import MinerUTableExtractor
+
+        # 测试回退配置
+        config_with_fallback = {
+            "mineru_config": {
+                "enabled": True,
+                "fallback_to_pdfplumber": True,
+            }
+        }
+
+        extractor = MinerUTableExtractor(config_with_fallback)
+        info = extractor.get_backend_info()
+
+        assert info["fallback_enabled"] == True
+
+    @pytest.mark.asyncio
+    async def test_invalid_backend_handling(self):
+        """测试无效后端处理"""
+        from app.tools.table_extractors.mineru_extractor import MinerUTableExtractor
+
+        config = {
+            "mineru_config": {
+                "backend": "invalid-backend",
+                "enabled": True,
+                "fallback_to_pdfplumber": True,
+            }
+        }
+
+        extractor = MinerUTableExtractor(config)
+
+        # 无效后端应该能初始化（但实际解析会失败或回退）
+        assert extractor.mineru_config.get("backend") == "invalid-backend"
+
+
+class TestMinerUVersionLock:
+    """测试MinerU版本锁定"""
+
+    def test_version_in_requirements(self):
+        """测试requirements.txt中的版本锁定"""
+        from pathlib import Path
+
+        req_path = Path(__file__).parent.parent.parent / "requirements.txt"
+
+        if not req_path.exists():
+            pytest.skip("requirements.txt not found")
+
+        content = req_path.read_text(encoding="utf-8")
+
+        # 检查版本锁定
+        assert "magic-pdf" in content, "magic-pdf not in requirements.txt"
+        assert "==0.7.6" in content, "Version not locked to 0.7.6"
+
+    def test_config_version_matches_requirements(self):
+        """测试配置版本与requirements.txt匹配"""
+        try:
+            from app.config import settings
+
+            # 配置中的版本应该是0.7.6
+            assert settings.MINERU_VERSION == "0.7.6"
+
+        except ImportError:
+            pytest.skip("Settings module not available")

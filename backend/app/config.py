@@ -97,6 +97,36 @@ class Settings(BaseSettings):
     # 语义去重配置
     CONTEXT_SEMANTIC_DEDUP_THRESHOLD: float = 0.85  # 语义相似度阈值，超过此值视为重复
 
+    # ============ MinerU 配置 (集中管理) ============
+    # 版本锁定 - 确保API稳定性
+    MINERU_VERSION: str = "0.7.6"
+
+    # 后端选择: pipeline / vlm-auto-engine / hybrid-auto-engine
+    MINERU_BACKEND: str = "vlm-auto-engine"
+
+    # VLM 配置
+    MINERU_VLM_MODEL: str = "default"
+    MINERU_VLM_DEVICE: str = "cuda"
+
+    # 解析参数
+    MINERU_PARSE_METHOD: str = "auto"  # auto / txt / ocr
+    MINERU_TABLE_ENABLE: bool = True
+    MINERU_FORMULA_ENABLE: bool = False
+    MINERU_LANG: str = "ch"  # 中文优化
+
+    # 表格处理
+    MINERU_TABLE_MERGE_ENABLE: bool = True
+    MINERU_TABLE_MODEL: str = "rapid_table"
+
+    # 输出配置
+    MINERU_OUTPUT_FORMAT: str = "html"
+    MINERU_IMAGE_DPI: int = 200
+
+    # 性能配置
+    MINERU_TIMEOUT_SECONDS: int = 600
+    MINERU_FALLBACK_TO_PDFPLUMBER: bool = False  # VLM模式下不回退
+    MINERU_ENABLED: bool = True
+
     # 结构化提取配置
     CONTEXT_STRUCTURED_EXTRACTION_ENABLED: bool = True  # 是否启用结构化提取
     CONTEXT_DIMENSION_KEYWORDS: Dict[str, List[str]] = {

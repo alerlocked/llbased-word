@@ -43,11 +43,12 @@ pdfplumber==0.10.0  # 增强表格提取
 Pillow==10.2.0  # 图像处理
 docx2pdf==0.1.8  # Word转PDF
 
-# 可选：MinerU高精度表格解析（需单独安装）
-# 取消下行注释以启用（约1-2GB模型下载）
-# mineru>=2.7.0
-# 简化安装：pip install mineru
-# 完整安装（含VLM加速）：pip install mineru[all]
+# MinerU高精度表格解析 - 版本锁定
+# 安装选项:
+#   基础安装: pip install magic-pdf==0.7.6
+#   完整安装(含VLM): pip install magic-pdf[full]==0.7.6
+# 注意: RTX 5080需要CUDA 12.8版本的PyTorch
+magic-pdf[full]==0.7.6
 
 # 数据处理
 pandas==2.0.0  # DataFrame操作和CSV导出
