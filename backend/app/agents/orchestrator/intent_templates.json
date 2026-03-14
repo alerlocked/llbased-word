@@ -1,0 +1,335 @@
+{
+  "intent_templates": {
+    "create_document": {
+      "name": "创建工艺文件",
+      "description": "创建新的工艺文件，包括工序、参数、工具和质量要求",
+      "example_inputs": [
+        "为零件A创建加工工艺",
+        "编写装配工艺规程",
+        "制定焊接工艺文件",
+        "创建数控加工工艺卡"
+      ],
+      "required_entities": ["part_name", "process_type"],
+      "optional_entities": ["material", "quantity", "deadline"],
+      "suggested_tasks": [
+        "检索类似工艺案例",
+        "对齐工艺术语",
+        "生成工艺文档",
+        "检查合规性"
+      ]
+    },
+    "edit_document": {
+      "name": "编辑工艺文件",
+      "description": "修改现有工艺文件的内容，如工序、参数或质量要求",
+      "example_inputs": [
+        "修改工序3的切削参数",
+        "更新工艺文件版本",
+        "调整加工顺序",
+        "添加新的质量要求"
+      ],
+      "required_entities": ["document_id", "edit_type"],
+      "optional_entities": ["specific_section", "new_value", "reason"],
+      "suggested_tasks": [
+        "解析现有文档",
+        "验证编辑内容",
+        "检查合规性",
+        "用户确认"
+      ]
+    },
+    "review_document": {
+      "name": "审核工艺文件",
+      "description": "检查工艺文件的完整性、正确性和合规性",
+      "example_inputs": [
+        "审核工艺文件P-2024-001",
+        "检查工艺参数是否正确",
+        "验证工序顺序是否合理",
+        "确认质量要求是否完整"
+      ],
+      "required_entities": ["document_id"],
+      "optional_entities": ["review_focus", "standard_to_check"],
+      "suggested_tasks": [
+        "详细合规检查",
+        "数据完整性验证",
+        "生成审核报告",
+        "用户确认"
+      ]
+    },
+    "generate_document": {
+      "name": "生成工艺文件",
+      "description": "将工艺内容生成为标准格式的输出文件",
+      "example_inputs": [
+        "生成PDF格式的工艺文件",
+        "导出工艺卡到Word文档",
+        "打印工艺流程图",
+        "生成工艺文件包"
+      ],
+      "required_entities": ["document_id", "output_format"],
+      "optional_entities": ["template", "include_attachments"],
+      "suggested_tasks": [
+        "应用文档模板",
+        "生成输出文件",
+        "验证生成结果",
+        "用户确认"
+      ]
+    },
+    "parse_pdf": {
+      "name": "解析PDF工艺文件",
+      "description": "从PDF格式的工艺文件中提取结构化信息",
+      "example_inputs": [
+        "解析这个PDF工艺文件",
+        "提取工艺表格数据",
+        "识别工艺参数",
+        "分析工艺流程图"
+      ],
+      "required_entities": ["pdf_file"],
+      "optional_entities": ["extract_type", "accuracy_requirement"],
+      "suggested_tasks": [
+        "PDF文档解析",
+        "数据验证",
+        "结构化输出",
+        "用户确认"
+      ]
+    },
+    "search_knowledge": {
+      "name": "搜索工艺知识",
+      "description": "从工艺知识库中检索相关信息",
+      "example_inputs": [
+        "搜索数控加工参数",
+        "查找焊接工艺标准",
+        "检索类似零件工艺",
+        "查询工具选用规范"
+      ],
+      "required_entities": ["search_query"],
+      "optional_entities": ["knowledge_type", "relevance_threshold"],
+      "suggested_tasks": [
+        "知识检索",
+        "结果排序",
+        "相关性分析",
+        "用户确认"
+      ]
+    },
+    "align_terminology": {
+      "name": "对齐工艺术语",
+      "description": "将用户描述转换为标准的工艺术语",
+      "example_inputs": [
+        "将这个描述转换为标准术语",
+        "对齐加工工艺术语",
+        "标准化工艺参数表达",
+        "统一工具名称"
+      ],
+      "required_entities": ["source_terms"],
+      "optional_entities": ["target_standard", "allow_suggestions"],
+      "suggested_tasks": [
+        "术语识别",
+        "标准映射",
+        "置信度评估",
+        "用户确认"
+      ]
+    },
+    "check_compliance": {
+      "name": "检查合规性",
+      "description": "检查工艺文件是否符合标准和规范",
+      "example_inputs": [
+        "检查工艺合规性",
+        "验证是否符合安全标准",
+        "检查环保要求",
+        "确认行业规范符合性"
+      ],
+      "required_entities": ["document_id", "compliance_type"],
+      "optional_entities": ["specific_standard", "check_level"],
+      "suggested_tasks": [
+        "标准检索",
+        "规则匹配",
+        "问题识别",
+        "生成报告"
+      ]
+    },
+    "export_to_pdm": {
+      "name": "导出到PDM系统",
+      "description": "将工艺文件导出到产品数据管理系统",
+      "example_inputs": [
+        "导出到PDM系统",
+        "同步工艺文件到ERP",
+        "上传到产品数据库",
+        "发布工艺文件"
+      ],
+      "required_entities": ["document_id", "pdm_system"],
+      "optional_entities": ["export_format", "overwrite_option"],
+      "suggested_tasks": [
+        "格式转换",
+        "数据验证",
+        "系统对接",
+        "用户确认"
+      ]
+    }
+  },
+  "entity_definitions": {
+    "part_name": {
+      "description": "零件名称或编号",
+      "examples": ["零件A", "P-2024-001", "主轴箱", "齿轮"],
+      "validation_pattern": "^[\\w\\d\\-\\s]+$"
+    },
+    "process_type": {
+      "description": "工艺类型",
+      "examples": ["加工", "装配", "焊接", "热处理", "检测"],
+      "allowed_values": ["加工", "装配", "焊接", "热处理", "检测", "其他"]
+    },
+    "document_id": {
+      "description": "工艺文件标识符",
+      "examples": ["P-2024-001", "PROC-001", "工艺卡-2024-01"],
+      "validation_pattern": "^[A-Za-z0-9\\-\\_]+$"
+    },
+    "edit_type": {
+      "description": "编辑类型",
+      "examples": ["修改", "添加", "删除", "更新"],
+      "allowed_values": ["修改", "添加", "删除", "更新"]
+    },
+    "output_format": {
+      "description": "输出文件格式",
+      "examples": ["PDF", "Word", "Excel", "XML"],
+      "allowed_values": ["PDF", "Word", "Excel", "XML", "JSON"]
+    },
+    "pdf_file": {
+      "description": "PDF文件路径或内容",
+      "examples": ["/path/to/file.pdf", "PDF数据流"],
+      "validation": "file_exists_or_valid_data"
+    },
+    "search_query": {
+      "description": "搜索查询语句",
+      "examples": ["数控加工参数", "焊接工艺标准", "工具选用"],
+      "validation": "non_empty_string"
+    },
+    "source_terms": {
+      "description": "源术语列表",
+      "examples": ["切削", "铣削", "钻孔"],
+      "validation": "array_of_strings"
+    },
+    "compliance_type": {
+      "description": "合规检查类型",
+      "examples": ["安全", "质量", "环保", "行业"],
+      "allowed_values": ["安全", "质量", "环保", "行业", "企业"]
+    },
+    "pdm_system": {
+      "description": "PDM系统名称",
+      "examples": ["Teamcenter", "Windchill", "SAP", "自定义系统"],
+      "validation": "non_empty_string"
+    }
+  },
+  "task_templates": {
+    "pdf_parsing": {
+      "name": "PDF文档解析",
+      "description": "解析PDF格式的工艺文件，提取结构化信息",
+      "parameters": {
+        "extract_tables": true,
+        "extract_text": true,
+        "identify_structure": true,
+        "accuracy_threshold": 0.97
+      },
+      "output_schema": {
+        "tables": "array of extracted tables",
+        "text": "extracted text content",
+        "structure": "document structure information",
+        "metadata": "file metadata"
+      }
+    },
+    "rag_retrieval": {
+      "name": "工艺知识检索",
+      "description": "从知识库中检索相关工艺信息",
+      "parameters": {
+        "search_query": "用户查询",
+        "top_k": 5,
+        "rerank": true,
+        "use_cache": true
+      },
+      "output_schema": {
+        "documents": "retrieved documents",
+        "scores": "relevance scores",
+        "snippets": "relevant text snippets",
+        "sources": "document sources"
+      }
+    },
+    "terminology_alignment": {
+      "name": "工艺术语对齐",
+      "description": "将用户术语映射到标准工艺术语",
+      "parameters": {
+        "source_terms": "用户输入的术语",
+        "target_standard": "企业工艺术语标准",
+        "allow_suggestions": true
+      },
+      "output_schema": {
+        "mappings": "术语映射关系",
+        "confidence_scores": "映射置信度",
+        "alternatives": "备选术语",
+        "standard_definitions": "标准术语定义"
+      }
+    },
+    "compliance_check": {
+      "name": "合规性检查",
+      "description": "检查工艺文件是否符合标准和规范",
+      "parameters": {
+        "check_level": "detailed",
+        "include_standards": ["企业标准", "行业规范", "安全要求"],
+        "generate_report": true
+      },
+      "output_schema": {
+        "issues": "发现的问题",
+        "suggestions": "改进建议",
+        "compliance_score": "合规性评分",
+        "report": "详细检查报告"
+      }
+    },
+    "document_generation": {
+      "name": "工艺文档生成",
+      "description": "生成标准格式的工艺文件",
+      "parameters": {
+        "output_formats": ["pdf", "word"],
+        "template": "standard_process_template",
+        "include_metadata": true
+      },
+      "output_schema": {
+        "generated_files": "生成的文件列表",
+        "metadata": "文件元数据",
+        "preview_url": "预览链接",
+        "download_urls": "下载链接"
+      }
+    }
+  },
+  "workflow_patterns": {
+    "create_new_process": {
+      "description": "创建新工艺文件的完整流程",
+      "steps": [
+        "意图识别：创建工艺文件",
+        "任务分解：知识检索 → 术语对齐 → 文档生成 → 合规检查 → 用户确认",
+        "执行任务序列",
+        "结果聚合和输出"
+      ],
+      "estimated_duration": "5-10分钟",
+      "success_criteria": ["文档生成成功", "合规检查通过", "用户确认完成"]
+    },
+    "edit_existing_process": {
+      "description": "编辑现有工艺文件的流程",
+      "steps": [
+        "意图识别：编辑工艺文件",
+        "任务分解：文档解析 → 数据验证 → 合规检查 → 用户确认",
+        "执行编辑操作",
+        "验证编辑结果"
+      ],
+      "estimated_duration": "3-8分钟",
+      "success_criteria": ["编辑操作成功", "数据验证通过", "用户确认完成"]
+    },
+    "quick_export": {
+      "description": "快速导出工艺文件到PDM系统",
+      "steps": [
+        "意图识别：导出到PDM",
+        "任务分解：格式转换 → 数据验证 → 系统对接 → 用户确认",
+        "执行导出操作",
+        "验证导出结果"
+      ],
+      "estimated_duration": "2-5分钟",
+      "success_criteria": ["文件格式正确", "数据完整", "导出成功"]
+    }
+  },
+  "version": "1.0.0",
+  "last_updated": "2026-02-18",
+  "notes": "此模板文件定义了工艺文件辅助编辑系统的意图、实体和任务模板，用于指导意图识别和任务分解过程。"
+}

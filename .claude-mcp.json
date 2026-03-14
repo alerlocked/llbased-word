@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "archon": {
+      "url": "http://localhost:8051",
+      "timeout": 30,
+      "description": "Archon MCP Server for Craft Document Assistant project",
+      "env": {
+        "PROJECT_ID": "f9ecaf8b-ff17-467d-bf29-37aae558bb4e",
+        "WORKSPACE_PATH": "D:\\ai_idea\\localknowledgebase-word"
+      }
+    }
+  }
+}

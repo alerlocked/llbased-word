@@ -1,0 +1,24 @@
+{
+  "longRunningAgent": {
+    "enabled": true,
+    "workflowFile": ".claude/long_running_agent_workflow.md",
+    "agentConfig": ".claude/agents/long-running-agent.md",
+    "commandConfig": ".claude/commands/long-running-agent.md",
+    "archonIntegration": {
+      "enabled": true,
+      "projectId": "f9ecaf8b-ff17-467d-bf29-37aae558bb4e",
+      "apiUrl": "http://localhost:8181/api",
+      "mcpUrl": "http://localhost:8051"
+    },
+    "stateManagement": {
+      "progressFile": "claude-progress.txt",
+      "featureListFile": "feature_list.json",
+      "initScript": "init.sh"
+    },
+    "testing": {
+      "requireEndToEndTests": true,
+      "minAccuracyThreshold": 0.97,
+      "autoValidator": true
+    }
+  }
+}

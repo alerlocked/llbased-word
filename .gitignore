@@ -1,0 +1,90 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+environment*.yml
+
+# Node
+node_modules/
+.npm/
+package-lock.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment variables (CRITICAL - NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Secrets and keys (NEVER COMMIT)
+*.pem
+*.key
+secrets/
+.secrets/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build outputs
+dist/
+build/
+*.spec
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Test outputs
+validation_results/
+*.png
+test_screenshot.png
+
+# Data (large files)
+data/exports_vlm_full/
+
+# Claude Code
+.claude/settings.local.json

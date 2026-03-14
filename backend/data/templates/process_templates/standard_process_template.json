@@ -1,0 +1,60 @@
+{
+  "template_name": "standard_process_template",
+  "version": "1.0.0",
+  "description": "标准工艺文件模板",
+  "sections": {
+    "header": {
+      "document_id": "{{document.id}}",
+      "document_name": "{{document.name}}",
+      "part_info": "{{document.part_info}}",
+      "created_at": "{{current_date}}",
+      "version": "{{document.version}}",
+      "status": "{{document.status}}"
+    },
+    "operations": {
+      "title": "工序列表",
+      "items": "{{document.operations}}",
+      "format": "table",
+      "columns": [
+        {"name": "序号", "field": "sequence"},
+        {"name": "工序名称", "field": "name"},
+        {"name": "工序描述", "field": "description"},
+        {"name": "使用工具", "field": "tools"},
+        {"name": "工艺参数", "field": "parameters"}
+      ]
+    },
+    "parameters": {
+      "title": "工艺参数",
+      "items": "{{document.parameters}}",
+      "format": "key_value"
+    },
+    "quality_requirements": {
+      "title": "质量要求",
+      "items": "{{document.quality_requirements}}",
+      "format": "list"
+    },
+    "footer": {
+      "approval_info": "{{document.approval_info}}",
+      "notes": "{{document.notes}}",
+      "generated_by": "工艺文件辅助编辑系统",
+      "generated_at": "{{current_timestamp}}"
+    }
+  },
+  "formatting": {
+    "font_family": "Arial",
+    "font_size": 12,
+    "line_spacing": 1.5,
+    "margins": {
+      "top": 25,
+      "bottom": 25,
+      "left": 30,
+      "right": 25
+    }
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2026-02-18",
+    "last_modified": "2026-02-18",
+    "compatible_formats": ["pdf", "word", "json"]
+  }
+}

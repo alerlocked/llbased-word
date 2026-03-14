@@ -1,0 +1,97 @@
+{
+  "accuracy_thresholds": {
+    "pdf_parsing": 0.97,
+    "terminology_alignment": 0.95,
+    "rag_retrieval": 0.95,
+    "compliance_checking": 0.90,
+    "document_generation": 0.95,
+    "end_to_end_workflow": 1.0
+  },
+  "test_data_dir": "test_data",
+  "output_dir": "validation_results",
+  "enable_detailed_logging": true,
+  "max_concurrent_tests": 5,
+  "timeout_seconds": 300,
+  "test_files": {
+    "pdf_parsing": [
+      "cable_assembly.pdf",
+      "mechanical_process.pdf"
+    ],
+    "terminology_alignment": [
+      {
+        "input": "车床加工外圆",
+        "expected": "车削外圆"
+      },
+      {
+        "input": "用螺栓固定零件",
+        "expected": "螺栓连接"
+      },
+      {
+        "input": "加热后快速冷却",
+        "expected": "淬火"
+      }
+    ],
+    "rag_retrieval": [
+      "数控车削参数",
+      "不锈钢焊接标准",
+      "热处理工艺规范"
+    ],
+    "compliance_checking": [
+      {
+        "id": "valid_doc",
+        "name": "有效工艺文件",
+        "operations": [
+          {
+            "id": "op1",
+            "name": "工序1",
+            "description": "描述",
+            "sequence": 1
+          }
+        ],
+        "expected_compliance": true
+      },
+      {
+        "id": "invalid_doc",
+        "name": "无效工艺文件",
+        "operations": [],
+        "expected_compliance": false
+      }
+    ],
+    "document_generation": {
+      "id": "test_doc",
+      "name": "测试工艺文件",
+      "operations": [
+        {
+          "id": "op1",
+          "name": "测试工序",
+          "description": "测试描述",
+          "sequence": 1
+        }
+      ]
+    },
+    "end_to_end_workflow": [
+      "为零件A创建车削工艺",
+      "修改工序3的切削参数",
+      "审核工艺文件P-2024-001"
+    ]
+  },
+  "performance_requirements": {
+    "response_time_seconds": 3,
+    "memory_usage_mb": 2048,
+    "concurrent_users": 10
+  },
+  "validation_criteria": [
+    "PDF解析准确性 ≥ 97%",
+    "术语对齐准确性 ≥ 95%",
+    "RAG检索相关性 ≥ 95%",
+    "合规检查完整性 ≥ 90%",
+    "文档生成质量 ≥ 95%",
+    "端到端工作流成功率 = 100%"
+  ],
+  "failure_handling": {
+    "retry_on_failure": true,
+    "max_retries": 3,
+    "detailed_error_logging": true,
+    "notification_on_failure": false
+  }
+}

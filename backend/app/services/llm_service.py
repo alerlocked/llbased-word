@@ -1,0 +1,340 @@
+"""
+大语言模型服务
+使用通义千问qwen-plus模型进行文本生成
+"""
+import time
+from typing import List, Dict, Optional, Literal
+from openai import OpenAI
+
+from app.config import settings
+from app.utils.logger import logger, log_api_call
+
+class QwenLLMService:
+    """通义千问文本生成服务"""
+    
+    def __init__(self):
+        """
+        初始化通义千问客户端
+        使用OpenAI兼容格式调用
+        """
+        self.client = OpenAI(
+            api_key=settings.DASHSCOPE_API_KEY,
+            base_url=settings.DASHSCOPE_BASE_URL
+        )
+        self.model = settings.QWEN_TEXT_MODEL
+        
+    async def generate_article(
+        self,
+        content: str,
+        article_type: Literal["news", "feature", "investigation"],
+        word_count: int = 500
+    ) -> Dict[str, str]:
+        """
+        基于素材内容生成稿件
+
+        Args:
+            content: 素材文本内容
+            article_type: 稿件类型（快讯/特写/调查报道）
+            word_count: 目标字数
+
+        Returns:
+            包含title和content的字典
+        """
+        start_time = time.time()
+
+        try:
+            # 根据稿件类型构建不同的提示词
+            article_type_prompts = {
+                "news": {
+                    "name": "新闻快讯",
+                    "style": "简洁明快，突出时效性和新闻价值，采用倒金字塔结构",
+                    "requirements": "标题简洁有力，导语概括核心信息，正文层层递进补充细节"
+                },
+                "feature": {
+                    "name": "人物特写",
+                    "style": "生动细腻，注重细节描写和情感表达，展现人物特点",
+                    "requirements": "标题富有感染力，开头引人入胜，通过具体事例和细节刻画人物形象"
+                },
+                "investigation": {
+                    "name": "调查报道",
+                    "style": "深入客观，逻辑严密，数据详实，揭示问题本质",
+                    "requirements": "标题点明核心问题，结构清晰，论据充分，提供背景分析和多方观点"
+                }
+            }
+
+            type_info = article_type_prompts[article_type]
+
+            # 构建提示词
+            prompt = f"""你是一位专业的记者和编辑。请基于以下素材内容，撰写一篇{type_info['name']}。
+
+【素材内容】
+{content}
+
+【写作要求】
+1. 稿件类型：{type_info['name']}
+2. 写作风格：{type_info['style']}
+3. 具体要求：{type_info['requirements']}
+4. 目标字数：约{word_count}字
+5. 输出格式：
+   - 第一行：文章标题（不要包含"标题："等前缀）
+   - 空一行
+   - 正文内容（分段清晰，每段之间空一行）
+
+【注意事项】
+- 确保信息准确，不添加转写内容中没有的信息
+- 语言流畅自然，符合新闻写作规范
+- 如果转写内容不足以支撑完整稿件，请基于现有信息尽力完成
+- 直接输出标题和正文，不要包含任何说明性文字
+
+请开始撰写："""
+
+            logger.info(f"📝 开始生成{type_info['name']}稿件...")
+            
+            # 调用通义千问API
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是一位经验丰富的专业新闻记者和编辑，擅长将采访内容整理成高质量的新闻稿件。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=2000
+            )
+            
+            # 解析响应
+            generated_text = response.choices[0].message.content.strip()
+            
+            # 分离标题和正文
+            lines = generated_text.split('\n')
+            title = lines[0].strip()
+            
+            # 移除标题可能包含的前缀
+            for prefix in ["标题：", "标题:", "# ", "## "]:
+                if title.startswith(prefix):
+                    title = title[len(prefix):].strip()
+            
+            # 提取正文（跳过空行）
+            content_lines = []
+            for line in lines[1:]:
+                if line.strip():
+                    content_lines.append(line.strip())
+            content = '\n\n'.join(content_lines)
+            
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", f"生成{type_info['name']}", "success", duration_ms)
+            
+            logger.info(f"✅ 稿件生成完成: 标题《{title}》, 耗时{duration_ms:.2f}ms")
+            
+            return {
+                "title": title,
+                "content": content
+            }
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "生成稿件", "error", duration_ms)
+            logger.error(f"❌ 稿件生成失败: {str(e)}")
+            raise
+    
+    async def summarize_text(
+        self,
+        text: str,
+        max_length: int = 200
+    ) -> str:
+        """
+        生成文本摘要
+        
+        Args:
+            text: 原始文本
+            max_length: 摘要最大长度
+        
+        Returns:
+            摘要文本
+        """
+        start_time = time.time()
+        
+        try:
+            logger.info(f"📄 开始生成文本摘要...")
+            
+            prompt = f"""请为以下文本生成一个简洁的摘要，要求：
+1. 提取核心信息和关键观点
+2. 长度控制在{max_length}字以内
+3. 语言简洁明了
+4. 直接输出摘要内容，不要包含"摘要："等前缀
+
+【原文】
+{text}
+
+请生成摘要："""
+            
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是一位专业的文本摘要专家。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5,
+                max_tokens=500
+            )
+            
+            summary = response.choices[0].message.content.strip()
+            
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "生成摘要", "success", duration_ms)
+            
+            logger.info(f"✅ 摘要生成完成, 耗时{duration_ms:.2f}ms")
+            
+            return summary
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "生成摘要", "error", duration_ms)
+            logger.error(f"❌ 摘要生成失败: {str(e)}")
+            raise
+    
+    async def extract_entities(
+        self,
+        text: str
+    ) -> List[Dict[str, str]]:
+        """
+        从文本中提取实体（人名、地名、机构名等）
+        
+        Args:
+            text: 原始文本
+        
+        Returns:
+            实体列表，每个实体包含name和type
+        """
+        start_time = time.time()
+        
+        try:
+            logger.info(f"🔍 开始提取实体...")
+            
+            prompt = f"""请从以下文本中提取关键实体信息，包括：
+- 人名（person）
+- 地名（location）
+- 机构组织（organization）
+- 时间（time）
+- 事件（event）
+
+要求：
+1. 只提取明确出现的实体
+2. 按JSON格式输出，格式如下：
+[
+  {{"name": "实体名称", "type": "实体类型"}},
+  ...
+]
+3. 直接输出JSON数组，不要包含任何其他文字
+
+【文本】
+{text}
+
+请提取实体："""
+            
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是一位专业的信息提取专家，擅长从文本中识别和提取关键实体。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=1000
+            )
+            
+            result_text = response.choices[0].message.content.strip()
+            
+            # 尝试解析JSON
+            import json
+            # 移除可能的markdown代码块标记
+            if result_text.startswith("```"):
+                result_text = result_text.split("```")[1]
+                if result_text.startswith("json"):
+                    result_text = result_text[4:]
+            
+            entities = json.loads(result_text.strip())
+            
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "提取实体", "success", duration_ms)
+            
+            logger.info(f"✅ 实体提取完成: 共{len(entities)}个实体, 耗时{duration_ms:.2f}ms")
+            
+            return entities
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "提取实体", "error", duration_ms)
+            logger.error(f"❌ 实体提取失败: {str(e)}")
+            # 返回空列表而不是抛出异常
+            return []
+    
+    async def generate_text(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 2000
+    ) -> Dict:
+        """
+        通用文本生成方法
+        
+        Args:
+            prompt: 提示词
+            temperature: 温度参数
+            max_tokens: 最大token数
+        
+        Returns:
+            包含status和content的字典
+        """
+        start_time = time.time()
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "文本生成", "success", duration_ms)
+            
+            return {
+                "status": "success",
+                "content": content
+            }
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "文本生成", "error", duration_ms)
+            logger.error(f"❌ 文本生成失败: {str(e)}")
+            
+            return {
+                "status": "error",
+                "error": str(e),
+                "content": ""
+            }
+
+# 创建全局实例
+llm_service = QwenLLMService()
+
+
+def get_llm():
+    """
+    获取LangChain兼容的LLM实例
+    用于Agent和风格学习等需要LangChain接口的场景
+    
+    Returns:
+        ChatOpenAI实例(兼容通义千问)
+    """
+    from langchain_openai import ChatOpenAI
+    
+    return ChatOpenAI(
+        model=settings.QWEN_TEXT_MODEL,
+        openai_api_key=settings.DASHSCOPE_API_KEY,
+        openai_api_base=settings.DASHSCOPE_BASE_URL,
+        temperature=0.7,
+        max_tokens=2000
+    )

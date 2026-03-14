@@ -1,0 +1,26 @@
+# E2E Test Dependencies
+# Install with: pip install -r tests/e2e/requirements.txt
+
+# Testing Framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-playwright>=0.4.0
+
+# HTTP Client
+httpx>=0.24.0
+
+# Playwright
+playwright>=1.40.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Async Support
+asyncio>=3.4.3
+
+# Type hints
+typing-extensions>=4.5.0
+
+# Utilities
+Pillow>=10.0.0

@@ -1,0 +1,414 @@
+{
+  "project": "localknowledgebase-word",
+  "description": "智能工艺文件辅助编辑系统 - 工艺意图→标准工艺术语→工艺文件生成",
+  "version": "0.1.0",
+  "created_at": "2026-03-05",
+  "migrated": true,
+
+  "statistics": {
+    "total_features": 35,
+    "completed": 29,
+    "partial": 0,
+    "pending": 6,
+    "completion_rate": "83%"
+  },
+
+  "features": [
+    {
+      "id": "F001",
+      "category": "api",
+      "priority": "high",
+      "description": "文档处理 API",
+      "source": "backend/app/api/process_documents.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F002",
+      "category": "api",
+      "priority": "high",
+      "description": "创作管理 API",
+      "source": "backend/app/api/creation.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F003",
+      "category": "api",
+      "priority": "high",
+      "description": "RAG 检索 API",
+      "source": "backend/app/api/rag.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F004",
+      "category": "api",
+      "priority": "high",
+      "description": "Agent API",
+      "source": "backend/app/api/agent.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F005",
+      "category": "api",
+      "priority": "medium",
+      "description": "AI 助手 API",
+      "source": "backend/app/api/assistant.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": false
+    },
+    {
+      "id": "F006",
+      "category": "api",
+      "priority": "medium",
+      "description": "任务管理 API",
+      "source": "backend/app/api/task_router.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F007",
+      "category": "agent",
+      "priority": "high",
+      "description": "主控 Orchestrator Agent",
+      "source": "backend/app/agents/orchestrator/orchestrator.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F008",
+      "category": "agent",
+      "priority": "high",
+      "description": "会话状态机",
+      "source": "backend/app/agents/orchestrator/state_machine.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F009",
+      "category": "agent",
+      "priority": "high",
+      "description": "意图识别模块",
+      "source": "backend/app/agents/orchestrator/intent_recognizer.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F010",
+      "category": "agent",
+      "priority": "high",
+      "description": "任务分解模块",
+      "source": "backend/app/agents/orchestrator/task_decomposer.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F011",
+      "category": "agent",
+      "priority": "high",
+      "description": "PDF 解析子 Agent",
+      "source": "backend/app/agents/sub_agents/pdf_parser_agent.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true,
+      "notes": "≥97% 准确性"
+    },
+    {
+      "id": "F012",
+      "category": "agent",
+      "priority": "high",
+      "description": "RAG 检索子 Agent",
+      "source": "backend/app/agents/sub_agents/rag_agent.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F013",
+      "category": "agent",
+      "priority": "high",
+      "description": "术语对齐子 Agent",
+      "source": "backend/app/agents/functional/terminology_agent.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true,
+      "notes": "支持标准化/转换/验证/建议四种模式"
+    },
+    {
+      "id": "F014",
+      "category": "agent",
+      "priority": "high",
+      "description": "合规检查子 Agent",
+      "source": "backend/app/agents/functional/compliance_agent.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true,
+      "notes": "支持快速/标准/详细三级检查，风险评估，报告生成"
+    },
+    {
+      "id": "F015",
+      "category": "agent",
+      "priority": "high",
+      "description": "文档生成子 Agent",
+      "source": "backend/app/agents/functional/document_agent.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": false
+    },
+    {
+      "id": "F016",
+      "category": "service",
+      "priority": "high",
+      "description": "文档处理服务",
+      "source": "backend/app/services/process_document_service.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F017",
+      "category": "service",
+      "priority": "high",
+      "description": "文件系统服务",
+      "source": "backend/app/services/file_system_service.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F018",
+      "category": "service",
+      "priority": "medium",
+      "description": "对话管理服务",
+      "source": "backend/app/services/conversation_service.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F019",
+      "category": "service",
+      "priority": "high",
+      "description": "LLM 调用服务",
+      "source": "backend/app/services/llm_service.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F020",
+      "category": "tool",
+      "priority": "high",
+      "description": "PDF 解析工具",
+      "source": "backend/app/tools/pdf_parser.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F021",
+      "category": "tool",
+      "priority": "high",
+      "description": "向量存储工具",
+      "source": "backend/app/tools/vector_store.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true
+    },
+    {
+      "id": "F022",
+      "category": "tool",
+      "priority": "medium",
+      "description": "术语映射工具",
+      "source": "backend/app/tools/terminology_mapper.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true,
+      "notes": "支持规则映射+LLM智能映射，56个预定义映射，7种术语分类"
+    },
+    {
+      "id": "F023",
+      "category": "tool",
+      "priority": "medium",
+      "description": "合规检查工具",
+      "source": "backend/app/tools/compliance_checker.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true,
+      "notes": "支持5类标准(企业/安全/质量/工艺/材料)，22条规则+LLM语义检查"
+    },
+    {
+      "id": "F024",
+      "category": "tool",
+      "priority": "medium",
+      "description": "文档生成工具",
+      "source": "backend/app/tools/document_generator.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": true,
+      "notes": "支持4种模板(工艺规程/作业指导书/检验标准/通用)，LLM辅助章节生成"
+    },
+    {
+      "id": "F025",
+      "category": "model",
+      "priority": "high",
+      "description": "DeepSeek-R1 本地推理",
+      "source": "backend/app/models/deepseek_r1.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": false
+    },
+    {
+      "id": "F026",
+      "category": "model",
+      "priority": "high",
+      "description": "BGE-Embedding 向量化",
+      "source": "backend/app/models/bge_embedding.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": false
+    },
+    {
+      "id": "F027",
+      "category": "model",
+      "priority": "medium",
+      "description": "BGE-Rerank 重排序",
+      "source": "backend/app/models/bge_rerank.py",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": false
+    },
+    {
+      "id": "F028",
+      "category": "ui",
+      "priority": "high",
+      "description": "工作区页面",
+      "source": "frontend/src/pages/WorkspacePage.tsx",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": false
+    },
+    {
+      "id": "F029",
+      "category": "ui",
+      "priority": "high",
+      "description": "创作页面",
+      "source": "frontend/src/pages/CreationPage.tsx",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": false
+    },
+    {
+      "id": "F030",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Agent 创作页面",
+      "source": "frontend/src/pages/AgentCreationPage.tsx",
+      "status": "implemented",
+      "passes": true,
+      "has_tests": false
+    },
+    {
+      "id": "F031",
+      "category": "integration",
+      "priority": "high",
+      "description": "PDM 系统集成",
+      "source": "backend/app/services/pdm_service.py",
+      "status": "pending",
+      "passes": false,
+      "has_tests": false
+    },
+    {
+      "id": "F032",
+      "category": "compatibility",
+      "priority": "low",
+      "description": "Windows 7 兼容",
+      "source": "backend/app/compatibility/win7_compat.py",
+      "status": "partial",
+      "passes": false,
+      "has_tests": false
+    },
+    {
+      "id": "F033",
+      "category": "compatibility",
+      "priority": "low",
+      "description": "麒麟系统兼容",
+      "source": "backend/app/compatibility/kylin_compat.py",
+      "status": "partial",
+      "passes": false,
+      "has_tests": false
+    },
+    {
+      "id": "F034",
+      "category": "ui",
+      "priority": "low",
+      "description": "WebAssembly PDF 预览",
+      "source": "frontend/src/wasm/",
+      "status": "pending",
+      "passes": false,
+      "has_tests": false
+    },
+    {
+      "id": "F035",
+      "category": "testing",
+      "priority": "medium",
+      "description": "端到端测试",
+      "source": "backend/tests/",
+      "status": "partial",
+      "passes": false,
+      "has_tests": true,
+      "notes": "有测试但覆盖不足"
+    }
+  ],
+
+  "milestones": [
+    {
+      "name": "阶段1: 架构基础",
+      "tasks": ["F007", "F008", "F009", "F010"],
+      "status": "completed",
+      "completion": "100%"
+    },
+    {
+      "name": "阶段2: 子Agent开发",
+      "tasks": ["F011", "F012", "F013", "F014", "F015"],
+      "status": "in_progress",
+      "completion": "80%"
+    },
+    {
+      "name": "阶段3: 模型集成",
+      "tasks": ["F025", "F026", "F027"],
+      "status": "completed",
+      "completion": "100%"
+    },
+    {
+      "name": "阶段4: 前端交互",
+      "tasks": ["F028", "F029", "F030", "F031", "F034"],
+      "status": "in_progress",
+      "completion": "60%"
+    },
+    {
+      "name": "阶段5: 跨平台兼容",
+      "tasks": ["F032", "F033"],
+      "status": "pending",
+      "completion": "0%"
+    },
+    {
+      "name": "阶段6: 测试验证",
+      "tasks": ["F035"],
+      "status": "in_progress",
+      "completion": "30%"
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "enterprise_standard": {
+    "required_fields": ["id", "name", "template_id", "part_info", "operations"],
+    "id_pattern": "^[A-Za-z0-9\\-_]+$",
+    "document_rules": {
+      "basic_info": {
+        "min_operations": 1,
+        "max_operations": 100,
+        "required_sections": ["part_info", "operations", "parameters"]
+      },
+      "operations": {
+        "required_fields": ["id", "name", "description", "sequence"],
+        "optional_fields": ["tools", "parameters", "quality_requirements"],
+        "validation_rules": {
+          "sequence_must_be_consecutive": true,
+          "operation_name_max_length": 100,
+          "description_min_length": 10
+        }
+      },
+      "parameters": {
+        "required_for_machining": ["cutting_speed", "feed_rate", "depth_of_cut"],
+        "required_for_assembly": ["torque", "clamping_force"],
+        "required_for_heat_treatment": ["temperature", "time", "cooling_method"]
+      },
+      "quality_requirements": {
+        "required_for_critical_parts": true,
+        "min_requirements_per_operation": 1,
+        "allowed_types": ["dimensional", "geometric", "surface_finish", "material_properties"]
+      }
+    },
+    "safety_rules": {
+      "machining": {
+        "required_safety_equipment": ["protective_glasses", "gloves", "hearing_protection"],
+        "prohibited_conditions": ["wet_hands", "loose_clothing", "fatigue"]
+      },
+      "assembly": {
+        "required_safety_equipment": ["gloves", "safety_shoes"],
+        "prohibited_conditions": ["unauthorized_personnel", "improper_tools"]
+      },
+      "heat_treatment": {
+        "required_safety_equipment": ["heat_resistant_gloves", "face_shield", "apron"],
+        "prohibited_conditions": ["flammable_materials_nearby", "inadequate_ventilation"]
+      }
+    }
+  },
+  "industry_standard": {
+    "required_fields": ["id", "name", "operations", "quality_requirements"],
+    "id_pattern": "^[A-Z]{2,4}[0-9]{6,8}$",
+    "document_rules": {
+      "basic_info": {
+        "min_operations": 1,
+        "required_sections": ["operations", "quality_requirements", "safety_precautions"]
+      },
+      "operations": {
+        "required_fields": ["id", "name", "description", "tools", "parameters"],
+        "validation_rules": {
+          "operation_name_format": "^[A-Z][a-z]+(?:[A-Z][a-z]+)*$",
+          "description_min_length": 20
+        }
+      },
+      "quality_requirements": {
+        "required_for_all_documents": true,
+        "must_include_inspection_methods": true,
+        "must_include_acceptance_criteria": true
+      }
+    },
+    "formatting_rules": {
+      "font_family": "Arial",
+      "font_size": 12,
+      "line_spacing": 1.5,
+      "margins": {
+        "top": 25,
+        "bottom": 25,
+        "left": 30,
+        "right": 25
+      }
+    }
+  },
+  "safety_standard": {
+    "required_fields": ["id", "name", "operations", "safety_precautions"],
+    "safety_rules": {
+      "general": {
+        "emergency_procedures_required": true,
+        "safety_equipment_list_required": true,
+        "hazard_identification_required": true
+      },
+      "machining": {
+        "machine_guarding_required": true,
+        "lockout_tagout_procedures_required": true,
+        "chip_control_measures_required": true
+      },
+      "assembly": {
+        "ergonomic_assessment_required": true,
+        "lifting_equipment_specification_required": true,
+        "chemical_handling_procedures_required": true
+      },
+      "heat_treatment": {
+        "fire_prevention_measures_required": true,
+        "temperature_monitoring_required": true,
+        "gas_detection_system_required": true
+      }
+    },
+    "documentation_rules": {
+      "safety_precautions_section_required": true,
+      "emergency_contacts_required": true,
+      "ppe_requirements_detailed": true
+    }
+  }
+}

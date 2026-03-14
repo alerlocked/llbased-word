@@ -1,0 +1,401 @@
+{
+  "total_tables": 44,
+  "total_rows": 1039,
+  "processed_at": "2026-02-24T01:40:37.677660",
+  "tables": [
+    {
+      "index": 0,
+      "page": 1,
+      "rows": 13,
+      "cols": 13,
+      "caption": []
+    },
+    {
+      "index": 1,
+      "page": 2,
+      "rows": 25,
+      "cols": 20,
+      "caption": [
+        "G4a "
+      ]
+    },
+    {
+      "index": 2,
+      "page": 3,
+      "rows": 24,
+      "cols": 22,
+      "caption": [
+        "G5a "
+      ]
+    },
+    {
+      "index": 3,
+      "page": 4,
+      "rows": 35,
+      "cols": 19,
+      "caption": [
+        "G10a "
+      ]
+    },
+    {
+      "index": 4,
+      "page": 5,
+      "rows": 25,
+      "cols": 21,
+      "caption": [
+        "B12a "
+      ]
+    },
+    {
+      "index": 5,
+      "page": 6,
+      "rows": 25,
+      "cols": 22,
+      "caption": [
+        "G12a "
+      ]
+    },
+    {
+      "index": 6,
+      "page": 7,
+      "rows": 30,
+      "cols": 21,
+      "caption": [
+        "G14a "
+      ]
+    },
+    {
+      "index": 7,
+      "page": 8,
+      "rows": 15,
+      "cols": 19,
+      "caption": [
+        "G19a "
+      ]
+    },
+    {
+      "index": 8,
+      "page": 9,
+      "rows": 26,
+      "cols": 21,
+      "caption": [
+        "G18a "
+      ]
+    },
+    {
+      "index": 9,
+      "page": 10,
+      "rows": 23,
+      "cols": 14,
+      "caption": [
+        "G18b "
+      ]
+    },
+    {
+      "index": 10,
+      "page": 11,
+      "rows": 23,
+      "cols": 14,
+      "caption": [
+        "G18b "
+      ]
+    },
+    {
+      "index": 11,
+      "page": 12,
+      "rows": 21,
+      "cols": 15,
+      "caption": [
+        "G18b "
+      ]
+    },
+    {
+      "index": 12,
+      "page": 13,
+      "rows": 24,
+      "cols": 22,
+      "caption": [
+        "G22a "
+      ]
+    },
+    {
+      "index": 13,
+      "page": 14,
+      "rows": 31,
+      "cols": 14,
+      "caption": [
+        "G22b "
+      ]
+    },
+    {
+      "index": 14,
+      "page": 15,
+      "rows": 24,
+      "cols": 22,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 15,
+      "page": 16,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 16,
+      "page": 17,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 17,
+      "page": 18,
+      "rows": 22,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 18,
+      "page": 19,
+      "rows": 24,
+      "cols": 20,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 19,
+      "page": 20,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 20,
+      "page": 21,
+      "rows": 21,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 21,
+      "page": 22,
+      "rows": 29,
+      "cols": 21,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 22,
+      "page": 23,
+      "rows": 23,
+      "cols": 20,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 23,
+      "page": 24,
+      "rows": 18,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 24,
+      "page": 25,
+      "rows": 23,
+      "cols": 20,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 25,
+      "page": 26,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 26,
+      "page": 27,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 27,
+      "page": 28,
+      "rows": 19,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 28,
+      "page": 29,
+      "rows": 28,
+      "cols": 20,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 29,
+      "page": 30,
+      "rows": 26,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 30,
+      "page": 31,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 31,
+      "page": 32,
+      "rows": 25,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 32,
+      "page": 33,
+      "rows": 24,
+      "cols": 20,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 33,
+      "page": 34,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 34,
+      "page": 35,
+      "rows": 18,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 35,
+      "page": 36,
+      "rows": 23,
+      "cols": 20,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 36,
+      "page": 37,
+      "rows": 24,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 37,
+      "page": 38,
+      "rows": 23,
+      "cols": 16,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 38,
+      "page": 39,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 39,
+      "page": 40,
+      "rows": 23,
+      "cols": 21,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 40,
+      "page": 41,
+      "rows": 23,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    },
+    {
+      "index": 41,
+      "page": 42,
+      "rows": 30,
+      "cols": 21,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 42,
+      "page": 43,
+      "rows": 23,
+      "cols": 20,
+      "caption": [
+        "G25a "
+      ]
+    },
+    {
+      "index": 43,
+      "page": 44,
+      "rows": 22,
+      "cols": 15,
+      "caption": [
+        "G25b "
+      ]
+    }
+  ]
+}

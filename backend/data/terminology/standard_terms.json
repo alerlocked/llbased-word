@@ -1,0 +1,292 @@
+{
+  "enterprise_standard": {
+    "machining": {
+      "车削": {
+        "definition": "使用车床对旋转工件进行切削加工的工艺方法",
+        "alias": ["车床加工", "turning"],
+        "category": "machining",
+        "parameters": {
+          "cutting_speed": "m/min",
+          "feed_rate": "mm/rev",
+          "depth_of_cut": "mm"
+        }
+      },
+      "铣削": {
+        "definition": "使用铣床对工件进行平面、曲面或沟槽加工的工艺方法",
+        "alias": ["铣床加工", "milling"],
+        "category": "machining",
+        "parameters": {
+          "spindle_speed": "rpm",
+          "feed_rate": "mm/min",
+          "depth_of_cut": "mm"
+        }
+      },
+      "钻孔": {
+        "definition": "使用钻头在工件上加工圆孔的工艺方法",
+        "alias": ["钻削", "drilling"],
+        "category": "machining",
+        "parameters": {
+          "spindle_speed": "rpm",
+          "feed_rate": "mm/rev",
+          "hole_diameter": "mm"
+        }
+      },
+      "磨削": {
+        "definition": "使用砂轮对工件表面进行精加工的工艺方法",
+        "alias": ["研磨", "grinding"],
+        "category": "machining",
+        "parameters": {
+          "wheel_speed": "m/s",
+          "workpiece_speed": "m/min",
+          "depth_of_cut": "mm"
+        }
+      },
+      "镗孔": {
+        "definition": "使用镗刀对已有孔进行扩大和精加工的工艺方法",
+        "alias": ["boring"],
+        "category": "machining",
+        "parameters": {
+          "spindle_speed": "rpm",
+          "feed_rate": "mm/rev",
+          "bore_diameter": "mm"
+        }
+      }
+    },
+    "assembly": {
+      "螺栓连接": {
+        "definition": "使用螺栓、螺母和垫圈将零件连接在一起的装配方法",
+        "alias": ["bolted_joint", "螺栓紧固"],
+        "category": "assembly",
+        "parameters": {
+          "torque": "N·m",
+          "bolt_grade": "grade",
+          "preload": "N"
+        }
+      },
+      "焊接": {
+        "definition": "通过加热或加压使金属材料连接在一起的工艺方法",
+        "alias": ["welding", "熔接"],
+        "category": "assembly",
+        "parameters": {
+          "current": "A",
+          "voltage": "V",
+          "welding_speed": "mm/min"
+        }
+      },
+      "铆接": {
+        "definition": "使用铆钉将零件连接在一起的机械连接方法",
+        "alias": ["riveting"],
+        "category": "assembly",
+        "parameters": {
+          "rivet_diameter": "mm",
+          "rivet_length": "mm",
+          "clamping_force": "N"
+        }
+      },
+      "粘接": {
+        "definition": "使用胶粘剂将材料连接在一起的工艺方法",
+        "alias": ["bonding", "胶接"],
+        "category": "assembly",
+        "parameters": {
+          "curing_time": "min",
+          "curing_temperature": "°C",
+          "bond_strength": "MPa"
+        }
+      }
+    },
+    "heat_treatment": {
+      "淬火": {
+        "definition": "将钢加热到临界温度以上，然后快速冷却以获得高硬度的热处理工艺",
+        "alias": ["quenching", "水淬"],
+        "category": "heat_treatment",
+        "parameters": {
+          "heating_temperature": "°C",
+          "soaking_time": "min",
+          "cooling_medium": "medium"
+        }
+      },
+      "回火": {
+        "definition": "将淬火后的钢重新加热到较低温度，然后冷却以降低脆性的热处理工艺",
+        "alias": ["tempering"],
+        "category": "heat_treatment",
+        "parameters": {
+          "tempering_temperature": "°C",
+          "holding_time": "min",
+          "cooling_method": "method"
+        }
+      },
+      "退火": {
+        "definition": "将金属加热到适当温度，保温后缓慢冷却以改善组织和性能的热处理工艺",
+        "alias": ["annealing"],
+        "category": "heat_treatment",
+        "parameters": {
+          "annealing_temperature": "°C",
+          "holding_time": "min",
+          "cooling_rate": "°C/h"
+        }
+      },
+      "正火": {
+        "definition": "将钢加热到临界温度以上，保温后在空气中冷却的热处理工艺",
+        "alias": ["normalizing"],
+        "category": "heat_treatment",
+        "parameters": {
+          "normalizing_temperature": "°C",
+          "holding_time": "min",
+          "cooling_in_air": true
+        }
+      }
+    },
+    "measurement": {
+      "尺寸测量": {
+        "definition": "使用量具对工件的几何尺寸进行测量的工艺方法",
+        "alias": ["dimensional_measurement", "尺寸检测"],
+        "category": "measurement",
+        "parameters": {
+          "measurement_accuracy": "mm",
+          "measuring_instrument": "instrument",
+          "environmental_conditions": "conditions"
+        }
+      },
+      "形位公差测量": {
+        "definition": "对工件的形状和位置公差进行测量的工艺方法",
+        "alias": ["geometric_tolerance_measurement", "形位检测"],
+        "category": "measurement",
+        "parameters": {
+          "tolerance_type": "type",
+          "measurement_method": "method",
+          "accuracy_class": "class"
+        }
+      },
+      "表面粗糙度测量": {
+        "definition": "对工件表面粗糙度进行测量的工艺方法",
+        "alias": ["surface_roughness_measurement", "粗糙度检测"],
+        "category": "measurement",
+        "parameters": {
+          "roughness_parameter": "parameter",
+          "measurement_length": "mm",
+          "cutoff_wavelength": "mm"
+        }
+      }
+    },
+    "tools": {
+      "高速钢刀具": {
+        "definition": "由高速钢制成的切削刀具，具有良好的红硬性和耐磨性",
+        "alias": ["HSS_tool", "高速钢刀"],
+        "category": "tools",
+        "parameters": {
+          "hardness": "HRC",
+          "cutting_speed_limit": "m/min",
+          "tool_life": "min"
+        }
+      },
+      "硬质合金刀具": {
+        "definition": "由硬质合金制成的切削刀具，具有高硬度和耐磨性",
+        "alias": ["carbide_tool", "硬质合金刀"],
+        "category": "tools",
+        "parameters": {
+          "hardness": "HRA",
+          "cutting_speed_limit": "m/min",
+          "tool_life": "min"
+        }
+      },
+      "陶瓷刀具": {
+        "definition": "由陶瓷材料制成的切削刀具，适用于高速切削",
+        "alias": ["ceramic_tool", "陶瓷刀"],
+        "category": "tools",
+        "parameters": {
+          "hardness": "HRA",
+          "cutting_speed_limit": "m/min",
+          "brittleness": "high"
+        }
+      },
+      "立方氮化硼刀具": {
+        "definition": "由立方氮化硼制成的超硬切削刀具，适用于淬硬钢加工",
+        "alias": ["CBN_tool", "CBN刀具"],
+        "category": "tools",
+        "parameters": {
+          "hardness": "HV",
+          "cutting_speed_limit": "m/min",
+          "application": "hardened_steel"
+        }
+      }
+    },
+    "materials": {
+      "45号钢": {
+        "definition": "含碳量约为0.45%的优质碳素结构钢",
+        "alias": ["45_steel", "45#钢"],
+        "category": "materials",
+        "parameters": {
+          "carbon_content": "0.42-0.50%",
+          "tensile_strength": "≥600 MPa",
+          "yield_strength": "≥355 MPa"
+        }
+      },
+      "Q235钢": {
+        "definition": "屈服强度为235MPa的碳素结构钢",
+        "alias": ["Q235", "A3钢"],
+        "category": "materials",
+        "parameters": {
+          "yield_strength": "235 MPa",
+          "tensile_strength": "375-500 MPa",
+          "elongation": "≥26%"
+        }
+      },
+      "铝合金": {
+        "definition": "以铝为基础加入其他元素形成的合金材料",
+        "alias": ["aluminum_alloy", "铝材"],
+        "category": "materials",
+        "parameters": {
+          "density": "2.7 g/cm³",
+          "thermal_conductivity": "good",
+          "corrosion_resistance": "excellent"
+        }
+      },
+      "不锈钢": {
+        "definition": "含有铬等合金元素，具有耐腐蚀性能的合金钢",
+        "alias": ["stainless_steel", "不锈铁"],
+        "category": "materials",
+        "parameters": {
+          "chromium_content": "≥10.5%",
+          "corrosion_resistance": "excellent",
+          "strength": "variable"
+        }
+      }
+    }
+  },
+  "industry_standard": {
+    "machining": {
+      "粗加工": {
+        "definition": "去除大部分余量的初步加工过程",
+        "alias": ["rough_machining", "粗车", "粗铣"],
+        "category": "machining"
+      },
+      "精加工": {
+        "definition": "达到最终尺寸和表面质量要求的最终加工过程",
+        "alias": ["finish_machining", "精车", "精铣"],
+        "category": "machining"
+      },
+      "半精加工": {
+        "definition": "介于粗加工和精加工之间的中间加工过程",
+        "alias": ["semi_finish_machining", "半精车", "半精铣"],
+        "category": "machining"
+      }
+    },
+    "quality_control": {
+      "首件检验": {
+        "definition": "批量生产前对第一件产品进行的全面检验",
+        "alias": ["first_article_inspection", "首检"],
+        "category": "quality_control"
+      },
+      "过程检验": {
+        "definition": "在生产过程中对产品质量进行的检验",
+        "alias": ["in_process_inspection", "巡检"],
+        "category": "quality_control"
+      },
+      "最终检验": {
+        "definition": "产品完成后的最终质量检验",
+        "alias": ["final_inspection", "终检"],
+        "category": "quality_control"
+      }
+    }
+  }
+}

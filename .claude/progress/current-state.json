@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "session": {
+    "id": null,
+    "started_at": null,
+    "last_active": null
+  },
+  "project": {
+    "id": null,
+    "name": null
+  },
+  "current_task": {
+    "description": null,
+    "status": "idle",
+    "step": null,
+    "archon_task_id": null
+  },
+  "progress": {
+    "total_tasks": 0,
+    "completed_tasks": [],
+    "current_step": null,
+    "next_step": null
+  },
+  "files": {
+    "modified": [],
+    "created": [],
+    "pending_review": []
+  },
+  "context": {
+    "key_decisions": [],
+    "blockers": [],
+    "notes": []
+  },
+  "metadata": {
+    "created_at": null,
+    "updated_at": null
+  }
+}
