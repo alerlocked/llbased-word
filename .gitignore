@@ -80,6 +80,7 @@ temp/
 
 # Test outputs
 validation_results/
+output/
 *.png
 test_screenshot.png
 
