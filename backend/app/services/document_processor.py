@@ -66,7 +66,7 @@ class DocumentProcessor:
         # 如果是Word文档，先转换为PDF
         if file_ext in [".docx", ".doc"]:
             logger.info(f"🔄 将Word转换为PDF: {file_path.name}")
-        try:
+            try:
                 # 只有在Windows或macOS上且安装了Word才能使用docx2pdf
                 if platform.system() == "Windows":
                     pdf_path = file_path.with_suffix(".pdf")
@@ -76,7 +76,7 @@ class DocumentProcessor:
                 else:
                     logger.warning("⚠️ 非Windows环境，Word转PDF可能受限，尝试直接处理")
                     # 这里可以添加其他转换逻辑
-        except Exception as e:
+            except Exception as e:
                 logger.error(f"❌ Word转PDF失败: {str(e)}")
                 raise ValueError(f"Word转PDF失败: {str(e)}")
 
@@ -154,7 +154,7 @@ class DocumentProcessor:
                 page_record = MaterialPage(
                     material_id=material_id,
                     page_number=page_num,
-                    image_path=str(image_path.relative_to(settings.BASE_DIR)),
+                    image_path=str(image_path.relative_to(settings.DATA_DIR)),
                     text_content=page_content,
                     figures=page_figures  # 存储该页提取的图表元数据
                 )
@@ -162,7 +162,7 @@ class DocumentProcessor:
                 
                 extracted_pages.append({
                     "page_number": page_num,
-                    "image_path": str(image_path.relative_to(settings.BASE_DIR)),
+                    "image_path": str(image_path.relative_to(settings.DATA_DIR)),
                     "content": page_content
                 })
                         
@@ -176,7 +176,7 @@ class DocumentProcessor:
                         
                         figure = Figure(
                             material_id=material_id,
-                            file_path=str(image_path.relative_to(settings.BASE_DIR)), # 复用页面图
+                            file_path=str(image_path.relative_to(settings.DATA_DIR)), # 复用页面图
                             caption=fig_data.get("caption", "无标题图表"),
                             page_number=page_num
                         )
