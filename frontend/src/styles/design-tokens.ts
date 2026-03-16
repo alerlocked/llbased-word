@@ -1,47 +1,49 @@
 /**
  * Design Tokens - 设计系统变量
- * 白色系简洁风格，参考图片背景色
+ * 主题配色：蓝(#1890ff) 白(#ffffff) 灰(#f0f2f5)
  */
 
 // 颜色系统
 export const colors = {
-  // 主色 - 温暖黄（保留用于强调）
-  primary: '#F5A623',
-  primaryHover: '#E6991A',
-  primaryActive: '#D18915',
-  primaryLight: '#FFF4E0',
-  
+  // 主色 - 蓝色系
+  primary: '#1890ff',
+  primaryHover: '#40a9ff',
+  primaryActive: '#096dd9',
+  primaryLight: '#e6f7ff',
+  primaryBg: '#f0f5ff',
+
   // 辅助色
-  secondary: '#1F1F1F',
-  secondaryLight: '#4A4A4A',
-  
+  secondary: '#262626',
+  secondaryLight: '#595959',
+
   // 背景色 - 白色系
-  bgPrimary: '#FFFFFF',      // 纯白背景
-  bgSecondary: '#FAFAFA',    // 浅灰背景，用于卡片等
-  bgTertiary: '#F5F5F5',     // 更浅的灰，用于hover状态
-  
+  bgPrimary: '#ffffff',      // 纯白背景
+  bgSecondary: '#fafafa',    // 浅灰背景
+  bgTertiary: '#f0f2f5',     // 灰色背景，用于页面背景
+  bgHover: '#f5f5f5',        // hover状态背景
+
   // 强调色
-  accent: '#FF6B35',
-  accentLight: '#FFE8E0',
-  
+  accent: '#1890ff',
+  accentLight: '#e6f7ff',
+
   // 文字色
-  textPrimary: '#1F1F1F',
-  textSecondary: '#666666',
-  textTertiary: '#999999',
-  textInverse: '#FFFFFF',
-  
+  textPrimary: '#262626',
+  textSecondary: '#595959',
+  textTertiary: '#8c8c8c',
+  textInverse: '#ffffff',
+
   // 边框色 - 浅灰色系
-  border: '#E8E8E8',
-  borderLight: '#D9D9D9',
-  
+  border: '#d9d9d9',
+  borderLight: '#f0f0f0',
+
   // 状态色
-  success: '#52C41A',
-  warning: '#FAAD14',
-  error: '#FF4D4F',
-  info: '#1890FF',
-  
+  success: '#52c41a',
+  warning: '#faad14',
+  error: '#ff4d4f',
+  info: '#1890ff',
+
   // 特殊
-  overlay: 'rgba(31, 31, 31, 0.6)',
+  overlay: 'rgba(0, 0, 0, 0.45)',
   shadow: 'rgba(0, 0, 0, 0.08)'
 }
 

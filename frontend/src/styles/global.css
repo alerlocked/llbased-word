@@ -1,45 +1,46 @@
 /**
  * Global Styles - 全局样式
- * 覆盖 Ant Design 默认样式，应用白色系简洁风格
+ * 主题配色：蓝(#1890ff) 白(#ffffff) 灰(#f0f2f5)
  */
 
 /* ========== CSS 变量 ========== */
 :root {
-  /* 主色 */
-  --color-primary: #F5A623;
-  --color-primary-hover: #E6991A;
-  --color-primary-active: #D18915;
-  --color-primary-light: #FFF4E0;
-  
+  /* 主色 - 蓝色系 */
+  --color-primary: #1890ff;
+  --color-primary-hover: #40a9ff;
+  --color-primary-active: #096dd9;
+  --color-primary-light: #e6f7ff;
+  --color-primary-bg: #f0f5ff;
+
   /* 背景 - 白色系 */
-  --color-bg-primary: #FFFFFF;
-  --color-bg-secondary: #FAFAFA;
-  --color-bg-tertiary: #F5F5F5;
-  
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #fafafa;
+  --color-bg-tertiary: #f0f2f5;
+
   /* 文字 */
-  --color-text-primary: #1F1F1F;
-  --color-text-secondary: #666666;
-  --color-text-tertiary: #999999;
-  
+  --color-text-primary: #262626;
+  --color-text-secondary: #595959;
+  --color-text-tertiary: #8c8c8c;
+
   /* 边框 - 浅灰色系 */
-  --color-border: #E8E8E8;
-  --color-border-light: #D9D9D9;
-  
+  --color-border: #d9d9d9;
+  --color-border-light: #f0f0f0;
+
   /* 强调 */
-  --color-accent: #FF6B35;
-  
+  --color-accent: #1890ff;
+
   /* 圆角 */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
-  
+
   /* 阴影 */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-base: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-base: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  
+
   /* 动画 */
   --duration-fast: 0.15s;
   --duration-base: 0.25s;
@@ -81,8 +82,8 @@ html, body {
 .ant-btn-primary {
   background: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
-  color: var(--color-text-primary) !important;
-  box-shadow: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045) !important;
 }
 
 .ant-btn-primary:hover {
@@ -172,7 +173,7 @@ html, body {
 }
 
 .ant-table-tbody > tr:hover > td {
-  background: var(--color-primary-light) !important;
+  background: var(--color-primary-bg) !important;
 }
 
 /* 标签 */
@@ -219,10 +220,28 @@ html, body {
 
 /* ========== 自定义类 ========== */
 
-/* 温暖按钮 */
+/* 主要按钮 - 蓝色主题 */
+.btn-primary {
+  background: var(--color-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-xl);
+  padding: 12px 32px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-base) var(--easing-spring);
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* 兼容旧类名 */
 .btn-warm {
   background: var(--color-primary);
-  color: var(--color-text-primary);
+  color: #ffffff;
   border: none;
   border-radius: var(--radius-xl);
   padding: 12px 32px;
@@ -342,25 +361,169 @@ html, body {
 
 /* ========== 选中高亮 ========== */
 ::selection {
-  background: var(--color-primary);
+  background: var(--color-primary-light);
   color: var(--color-text-primary);
 }
 
 ::-moz-selection {
-  background: var(--color-primary);
+  background: var(--color-primary-light);
   color: var(--color-text-primary);
 }
 
 /* 编辑器内选中高亮 */
 textarea::selection,
 input::selection {
-  background: var(--color-primary);
+  background: var(--color-primary-light);
   color: var(--color-text-primary);
 }
 
 textarea::-moz-selection,
 input::-moz-selection {
-  background: var(--color-primary);
+  background: var(--color-primary-light);
   color: var(--color-text-primary);
 }
 
+/* ========== 加载动画 ========== */
+.loading-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.loading-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 骨架屏加载效果 */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-bg-tertiary) 25%, var(--color-bg-secondary) 50%, var(--color-bg-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ========== 响应式布局 ========== */
+
+/* 平板设备 */
+@media (max-width: 1024px) {
+  .ant-drawer-content-wrapper {
+    max-width: 100% !important;
+  }
+
+  .wasm-pdf-viewer .ant-space {
+    flex-wrap: wrap;
+  }
+
+  .wasm-pdf-viewer .ant-slider {
+    width: 80px !important;
+  }
+}
+
+/* 移动设备 */
+@media (max-width: 768px) {
+  :root {
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+  }
+
+  .ant-btn {
+    padding: 4px 12px !important;
+  }
+
+  .ant-drawer-content-wrapper {
+    max-width: 100% !important;
+  }
+
+  /* PDF viewer 响应式 */
+  .wasm-pdf-viewer {
+    font-size: 12px;
+  }
+
+  .wasm-pdf-viewer .ant-space {
+    gap: 4px !important;
+  }
+
+  .wasm-pdf-viewer .ant-slider {
+    display: none;
+  }
+
+  .wasm-pdf-viewer .ant-input-number {
+    width: 50px !important;
+  }
+
+  /* 隐藏次要操作 */
+  .mobile-hide {
+    display: none !important;
+  }
+}
+
+/* 小屏手机 */
+@media (max-width: 480px) {
+  .wasm-pdf-viewer .ant-space-horizontal {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .wasm-pdf-viewer .ant-btn {
+    min-width: 32px;
+    padding: 4px 8px !important;
+  }
+}
+
+/* ========== 打印样式 ========== */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .ant-drawer {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+}
+
+/* ========== 空状态设计 ========== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 16px;
+}
+
+.empty-state-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+}
+
+.empty-state-description {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  max-width: 320px;
+}

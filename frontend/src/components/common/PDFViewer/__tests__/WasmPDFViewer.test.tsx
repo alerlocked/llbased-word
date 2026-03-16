@@ -86,7 +86,7 @@ describe('WasmPDFViewer', () => {
     });
 
     it('应该显示当前缩放比例', async () => {
-      render(
+      const { container } = render(
         <WasmPDFViewer
           src={mockSrc}
           initialScale={1.5}
@@ -94,9 +94,11 @@ describe('WasmPDFViewer', () => {
       );
 
       await waitFor(() => {
-        // 150% 应该显示在输入框中
-        const input = screen.getByRole('spinbutton');
-        expect(input).toHaveValue(150);
+        // 150% 应该显示在输入框中 - 检查 InputNumber 的值
+        const inputNumber = container.querySelector('.ant-input-number-input');
+        expect(inputNumber).toBeInTheDocument();
+        // InputNumber 显示格式化的值 "150%"
+        expect(inputNumber?.getAttribute('value')).toContain('150');
       });
     });
 

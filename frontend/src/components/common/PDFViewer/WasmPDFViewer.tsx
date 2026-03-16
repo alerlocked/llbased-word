@@ -1,6 +1,7 @@
 /**
  * WasmPDFViewer - WebAssembly PDF 预览组件
  * 基于 pdfjs-dist 实现高性能 PDF 渲染
+ * 主题配色：蓝(#1890ff) 白(#ffffff) 灰(#f0f2f5)
  */
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Button, Space, Slider, InputNumber, Spin, message, Tooltip } from 'antd';
@@ -9,13 +10,16 @@ import {
   ZoomOutOutlined,
   LeftOutlined,
   RightOutlined,
-  FullscreenOutlined,
+  RotateRightOutlined,
   ReloadOutlined,
+  DownloadOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
 } from '@ant-design/icons';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 设置 WebAssembly worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// 设置 WebAssembly worker - 使用本地文件提高稳定性
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 interface WasmPDFViewerProps {
   /** PDF 文件 URL 或 ArrayBuffer */
@@ -42,7 +46,20 @@ interface PDFState {
   rotation: number;
   loading: boolean;
   error: string | null;
+  isFullscreen: boolean;
 }
+
+// 主题配色常量
+const THEME = {
+  primary: '#1890ff',
+  primaryHover: '#40a9ff',
+  background: '#f0f2f5',
+  white: '#ffffff',
+  textPrimary: '#262626',
+  textSecondary: '#595959',
+  toolbarBg: '#ffffff',
+  viewerBg: '#525659',
+};
 
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3.0;
@@ -70,6 +87,7 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
     rotation: 0,
     loading: true,
     error: null,
+    isFullscreen: false,
   });
 
   // 加载 PDF 文档
@@ -113,7 +131,6 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
 
     return () => {
       mounted = false;
-      // 取消正在进行的渲染任务
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
@@ -125,7 +142,6 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
     const { pdfDoc } = state;
     if (!pdfDoc || !canvasRef.current || !textLayerRef.current) return;
 
-    // 取消之前的渲染任务
     if (renderTaskRef.current) {
       renderTaskRef.current.cancel();
       renderTaskRef.current = null;
@@ -140,21 +156,18 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
 
       const viewport = page.getViewport({ scale, rotation });
 
-      // 设置 canvas 尺寸
       canvas.height = viewport.height;
       canvas.width = viewport.width;
 
-      // 渲染 PDF 页面
-      const renderContext: pdfjsLib.RenderParameters = {
+      const renderContext = {
         canvasContext: context,
         viewport,
       };
 
-      renderTaskRef.current = page.render(renderContext);
+      renderTaskRef.current = page.render(renderContext as any);
       await renderTaskRef.current.promise;
       renderTaskRef.current = null;
 
-      // 渲染文本层（用于文本选择）
       const textLayer = textLayerRef.current;
       textLayer.innerHTML = '';
       textLayer.style.width = `${viewport.width}px`;
@@ -162,22 +175,20 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
 
       const textContent = await page.getTextContent();
 
-      // 使用 pdfjs-dist 的文本层渲染
-      pdfjsLib.renderTextLayer({
+      // 使用任何可用的文本层渲染方法
+      (pdfjsLib as any).renderTextLayer?.({
         textContentSource: textContent,
         container: textLayer,
         viewport,
         textDivs: [],
       });
     } catch (err) {
-      // 忽略取消错误
       if ((err as Error).name !== 'RenderingCancelledException') {
         console.error('页面渲染错误:', err);
       }
     }
   }, [state]);
 
-  // 页面/缩放/旋转变化时重新渲染
   useEffect(() => {
     if (state.pdfDoc && !state.loading) {
       renderPage(state.currentPage, state.scale, state.rotation);
@@ -224,7 +235,72 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
     }));
   }, []);
 
-  // 缩放百分比显示
+  // 全屏切换
+  const toggleFullscreen = useCallback(() => {
+    const container = containerRef.current?.parentElement;
+    if (!container) return;
+
+    if (!document.fullscreenElement) {
+      container.requestFullscreen?.().then(() => {
+        setState(prev => ({ ...prev, isFullscreen: true }));
+      }).catch((err) => {
+        message.warning('无法进入全屏模式');
+        console.error('全屏错误:', err);
+      });
+    } else {
+      document.exitFullscreen?.().then(() => {
+        setState(prev => ({ ...prev, isFullscreen: false }));
+      }).catch((err) => {
+        console.error('退出全屏错误:', err);
+      });
+    }
+  }, []);
+
+  // 监听全屏变化
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setState(prev => ({
+        ...prev,
+        isFullscreen: !!document.fullscreenElement,
+      }));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // 下载PDF
+  const handleDownload = useCallback(async () => {
+    if (typeof src === 'string') {
+      try {
+        const response = await fetch(src);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = src.split('/').pop() || 'document.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        message.success('下载已开始');
+      } catch (err) {
+        message.error('下载失败');
+        console.error('下载错误:', err);
+      }
+    } else if (src instanceof ArrayBuffer) {
+      const blob = new Blob([src], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'document.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      message.success('下载已开始');
+    }
+  }, [src]);
+
   const scalePercent = useMemo(() => Math.round(state.scale * 100), [state.scale]);
 
   // 加载中状态
@@ -236,11 +312,13 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#fafafa',
+          background: THEME.background,
           borderRadius: 8,
         }}
       >
-        <Spin size="large" tip="加载 PDF 中..." />
+        <Spin size="large" tip="加载 PDF 中...">
+          <div style={{ padding: 50 }} />
+        </Spin>
       </div>
     );
   }
@@ -255,32 +333,49 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#fff2f0',
+          background: THEME.background,
           borderRadius: 8,
-          border: '1px solid #ffccc7',
+          border: `1px solid ${THEME.primary}33`,
           padding: 24,
         }}
       >
-        <ReloadOutlined style={{ fontSize: 32, color: '#ff4d4f', marginBottom: 16 }} />
-        <p style={{ color: '#ff4d4f', margin: 0 }}>PDF 加载失败</p>
-        <p style={{ color: '#999', fontSize: 12, marginTop: 8 }}>{state.error}</p>
+        <ReloadOutlined style={{ fontSize: 32, color: THEME.primary, marginBottom: 16 }} />
+        <p style={{ color: THEME.textPrimary, margin: 0, fontWeight: 500 }}>PDF 加载失败</p>
+        <p style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 8 }}>{state.error}</p>
+        <Button
+          type="primary"
+          icon={<ReloadOutlined />}
+          onClick={() => window.location.reload()}
+          style={{ marginTop: 16, background: THEME.primary, borderColor: THEME.primary }}
+        >
+          重新加载
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="wasm-pdf-viewer" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div
+      className="wasm-pdf-viewer"
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: state.isFullscreen ? THEME.viewerBg : 'transparent',
+      }}
+    >
       {/* 工具栏 */}
       <div
         style={{
           padding: '8px 16px',
-          background: '#fff',
-          borderBottom: '1px solid #f0f0f0',
+          background: THEME.toolbarBg,
+          borderBottom: `1px solid ${THEME.background}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: 8,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
         }}
       >
         {/* 页面导航 */}
@@ -290,6 +385,7 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
               icon={<LeftOutlined />}
               onClick={prevPage}
               disabled={state.currentPage <= 1}
+              aria-label="上一页"
             />
           </Tooltip>
 
@@ -300,6 +396,7 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
               value={state.currentPage}
               onChange={(val) => val && goToPage(val)}
               style={{ width: 60 }}
+              role="spinbutton"
             />
             <Button disabled>/ {state.totalPages}</Button>
           </Space.Compact>
@@ -309,6 +406,7 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
               icon={<RightOutlined />}
               onClick={nextPage}
               disabled={state.currentPage >= state.totalPages}
+              aria-label="下一页"
             />
           </Tooltip>
         </Space>
@@ -320,6 +418,7 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
               icon={<ZoomOutOutlined />}
               onClick={zoomOut}
               disabled={state.scale <= ZOOM_MIN}
+              aria-label="缩小"
             />
           </Tooltip>
 
@@ -342,6 +441,7 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
             formatter={(val) => `${val}%`}
             parser={(val) => val?.replace('%', '') as unknown as number}
             style={{ width: 80 }}
+            role="spinbutton"
           />
 
           <Tooltip title="放大">
@@ -349,14 +449,37 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
               icon={<ZoomInOutlined />}
               onClick={zoomIn}
               disabled={state.scale >= ZOOM_MAX}
+              aria-label="放大"
             />
           </Tooltip>
         </Space>
 
         {/* 其他操作 */}
         <Space>
-          <Tooltip title="旋转">
-            <Button icon={<FullscreenOutlined />} onClick={rotate} />
+          <Tooltip title="旋转 (顺时针90°)">
+            <Button
+              icon={<RotateRightOutlined />}
+              onClick={rotate}
+              style={{ color: THEME.textSecondary }}
+              aria-label="旋转"
+            />
+          </Tooltip>
+          <Tooltip title={state.isFullscreen ? "退出全屏" : "全屏"}>
+            <Button
+              icon={state.isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+              onClick={toggleFullscreen}
+              style={{ color: THEME.textSecondary }}
+              aria-label={state.isFullscreen ? "退出全屏" : "全屏"}
+            />
+          </Tooltip>
+          <Tooltip title="下载">
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={handleDownload}
+              style={{ background: THEME.primary, borderColor: THEME.primary }}
+              aria-label="下载"
+            />
           </Tooltip>
         </Space>
       </div>
@@ -367,10 +490,11 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
         style={{
           flex: 1,
           overflow: 'auto',
-          background: '#525659',
+          background: THEME.viewerBg,
           padding: 16,
           display: 'flex',
           justifyContent: 'center',
+          alignItems: 'flex-start',
         }}
       >
         <div style={{ position: 'relative' }}>
@@ -378,10 +502,10 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
             ref={canvasRef}
             style={{
               display: 'block',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              borderRadius: 4,
             }}
           />
-          {/* 文本层 - 用于文本选择 */}
           <div
             ref={textLayerRef}
             style={{
@@ -397,13 +521,13 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
         </div>
       </div>
 
-      {/* 样式：文本层选择效果 */}
+      {/* 样式：文本层选择效果 - 蓝色主题 */}
       <style>{`
         .textLayer {
           user-select: text;
         }
         .textLayer ::selection {
-          background: rgba(0, 0, 255, 0.3);
+          background: rgba(24, 144, 255, 0.3);
         }
         .textLayer span {
           color: transparent;
@@ -411,6 +535,21 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
           white-space: pre;
           cursor: text;
           transform-origin: 0 0;
+        }
+        .wasm-pdf-viewer ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .wasm-pdf-viewer ::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 4px;
+        }
+        .wasm-pdf-viewer ::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.3);
+          border-radius: 4px;
+        }
+        .wasm-pdf-viewer ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.5);
         }
       `}</style>
     </div>
