@@ -7,10 +7,17 @@
 
 交互流程：
 1. 意图识别 → 2. 信息完整性评估 → 3. 信息收集(如需) → 4. 预览生成 → 5. 用户确认 → 6. 任务执行
+
+支持多轮迭代：
+- 最大3轮迭代
+- 用户反馈处理
+- 增量修改
 """
 from typing import Dict, List, Any, Optional, Union
 from enum import Enum
+from dataclasses import dataclass, field
 import asyncio
+import time
 
 from app.shared.logging import get_logger
 from .state_machine import ProcessStateMachine, ProcessState
@@ -35,6 +42,140 @@ from app.agents.core import AgentRegistry, WorkflowRegistry
 from app.agents.functional import discover_agents
 
 logger = get_logger(__name__)
+
+
+class IterationResult(str, Enum):
+    """迭代结果状态"""
+    CONTINUE = "continue"
+    COMPLETE = "complete"
+    MAX_REACHED = "max_reached"
+    ABORT = "abort"
+
+
+@dataclass
+class UserFeedback:
+    """用户反馈"""
+    type: str  # accept/modify/reject
+    content: str = ""
+    suggestions: List[str] = field(default_factory=list)
+
+
+@dataclass
+class IterationHistory:
+    """迭代历史记录"""
+    iteration: int
+    content: str
+    feedback: Optional[UserFeedback] = None
+    timestamp: float = field(default_factory=time.time)
+    result: Optional[Dict[str, Any]] = None
+
+
+class IterationManager:
+    """
+    迭代管理器
+
+    管理多轮迭代循环：
+    - 最大迭代次数：3
+    - 用户反馈处理
+    - 迭代历史记录
+    """
+
+    MAX_ITERATIONS = 3
+
+    def __init__(self, max_iterations: int = 3):
+        """
+        初始化迭代管理器
+
+        Args:
+            max_iterations: 最大迭代次数
+        """
+        self.max_iterations = max_iterations
+        self._current_iteration = 0
+        self._history: List[IterationHistory] = []
+
+    @property
+    def current_iteration(self) -> int:
+        """当前迭代次数"""
+        return self._current_iteration
+
+    @property
+    def can_continue(self) -> bool:
+        """是否可以继续迭代"""
+        return self._current_iteration < self.max_iterations
+
+    def process_feedback(self, feedback: UserFeedback) -> IterationResult:
+        """
+        处理用户反馈
+
+        Args:
+            feedback: 用户反馈
+
+        Returns:
+            迭代结果状态
+        """
+        if feedback.type == "accept":
+            return IterationResult.COMPLETE
+        elif feedback.type == "modify":
+            if self.can_continue:
+                return IterationResult.CONTINUE
+            else:
+                return IterationResult.MAX_REACHED
+        else:  # reject
+            return IterationResult.ABORT
+
+    def start_iteration(self) -> int:
+        """
+        开始新一轮迭代
+
+        Returns:
+            新的迭代编号
+        """
+        self._current_iteration += 1
+        return self._current_iteration
+
+    def record_history(
+        self,
+        content: str,
+        feedback: Optional[UserFeedback] = None,
+        result: Optional[Dict[str, Any]] = None
+    ):
+        """
+        记录迭代历史
+
+        Args:
+            content: 当前内容
+            feedback: 用户反馈
+            result: 执行结果
+        """
+        history = IterationHistory(
+            iteration=self._current_iteration,
+            content=content,
+            feedback=feedback,
+            result=result
+        )
+        self._history.append(history)
+
+    def get_history(self) -> List[Dict[str, Any]]:
+        """
+        获取迭代历史
+
+        Returns:
+            迭代历史列表
+        """
+        return [
+            {
+                "iteration": h.iteration,
+                "content": h.content[:500] + "..." if len(h.content) > 500 else h.content,
+                "feedback_type": h.feedback.type if h.feedback else None,
+                "timestamp": h.timestamp
+            }
+            for h in self._history
+        ]
+
+    def reset(self):
+        """重置迭代状态"""
+        self._current_iteration = 0
+        self._history.clear()
 
 
 class ProcessOrchestrator:
@@ -129,12 +270,18 @@ class ProcessOrchestrator:
         # 当前收集的信息缓存
         self._collected_info: Dict[str, Any] = {}
 
+        # 迭代管理器
+        self._iteration_manager = IterationManager(
+            max_iterations=self.config.get("max_iterations", 3)
+        )
+
         logger.info(
             "process_orchestrator_initialized",
             config_keys=list(self.config.keys()),
             has_repository=repository is not None,
             has_context_builder=context_builder is not None,
             available_agents=list(self._agents.keys()),
+            max_iterations=self._iteration_manager.max_iterations
         )
 
     def _init_agents(self):
@@ -1150,4 +1297,318 @@ class ProcessOrchestrator:
             "pending_interaction": self.interaction_manager.get_pending_interaction(),
             "current_state": self.state_machine.current_state.value,
             "collected_info_keys": list(self._collected_info.keys()),
+        }
+
+    # ============== 多轮迭代支持 ==============
+
+    async def generate_with_iteration(
+        self,
+        user_input: str,
+        context: Optional[Dict[str, Any]] = None,
+        task_name: Optional[str] = None,
+        source_docs: Optional[List[str]] = None,
+        user_feedback: Optional[UserFeedback] = None
+    ) -> Dict[str, Any]:
+        """
+        带多轮迭代支持的内容生成
+
+        流程：
+        1. 首次生成内容
+        2. 等待用户反馈
+        3. 根据反馈进行增量修改（最多3轮）
+        4. 返回最终结果
+
+        Args:
+            user_input: 用户输入
+            context: 执行上下文
+            task_name: 任务名称
+            source_docs: 源文档列表
+            user_feedback: 用户反馈（用于增量修改）
+
+        Returns:
+            生成结果
+        """
+        try:
+            # 如果有用户反馈，处理反馈
+            if user_feedback is not None:
+                return await self._handle_iteration_feedback(user_feedback, context)
+
+            # 重置迭代状态
+            self._iteration_manager.reset()
+
+            # 开始第一轮迭代
+            iteration_num = self._iteration_manager.start_iteration()
+
+            logger.info(
+                "iteration_started",
+                iteration=iteration_num,
+                max_iterations=self._iteration_manager.max_iterations
+            )
+
+            # 执行首次生成
+            result = await self.process_intent(
+                user_input=user_input,
+                context=context,
+                task_name=task_name,
+                source_docs=source_docs
+            )
+
+            if not result.get("success"):
+                return result
+
+            # 获取生成的内容
+            generated_content = self._extract_generated_content(result)
+
+            # 记录历史
+            self._iteration_manager.record_history(
+                content=generated_content,
+                result=result
+            )
+
+            # 返回预览，等待用户反馈
+            return {
+                "success": True,
+                "iteration": iteration_num,
+                "status": "preview",
+                "content": generated_content,
+                "requires_feedback": True,
+                "max_iterations": self._iteration_manager.max_iterations,
+                "feedback_options": [
+                    {"label": "确认通过", "value": "accept"},
+                    {"label": "需要修改", "value": "modify"},
+                    {"label": "取消", "value": "reject"}
+                ]
+            }
+
+        except Exception as e:
+            logger.error("generate_with_iteration_failed", error=str(e))
+            return {
+                "success": False,
+                "error": str(e),
+                "error_code": "ITERATION_GENERATION_FAILED"
+            }
+
+    async def _handle_iteration_feedback(
+        self,
+        feedback: UserFeedback,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        处理迭代过程中的用户反馈
+
+        Args:
+            feedback: 用户反馈
+            context: 执行上下文
+
+        Returns:
+            处理结果
+        """
+        iteration_result = self._iteration_manager.process_feedback(feedback)
+
+        if iteration_result == IterationResult.COMPLETE:
+            # 用户满意，完成任务
+            logger.info(
+                "iteration_completed",
+                total_iterations=self._iteration_manager.current_iteration
+            )
+
+            # 获取最后一轮的内容
+            last_history = self._iteration_manager._history[-1] if self._iteration_manager._history else None
+
+            return {
+                "success": True,
+                "status": "completed",
+                "iteration": self._iteration_manager.current_iteration,
+                "content": last_history.content if last_history else "",
+                "history": self._iteration_manager.get_history()
+            }
+
+        elif iteration_result == IterationResult.MAX_REACHED:
+            # 达到最大迭代次数
+            logger.info(
+                "iteration_max_reached",
+                total_iterations=self._iteration_manager.current_iteration
+            )
+
+            last_history = self._iteration_manager._history[-1] if self._iteration_manager._history else None
+
+            return {
+                "success": True,
+                "status": "max_iterations_reached",
+                "iteration": self._iteration_manager.current_iteration,
+                "content": last_history.content if last_history else "",
+                "message": "已达到最大修改次数（3次）",
+                "history": self._iteration_manager.get_history()
+            }
+
+        elif iteration_result == IterationResult.ABORT:
+            # 用户中止
+            logger.info("iteration_aborted")
+
+            return {
+                "success": True,
+                "status": "aborted",
+                "iteration": self._iteration_manager.current_iteration,
+                "message": "用户已取消"
+            }
+
+        elif iteration_result == IterationResult.CONTINUE:
+            # 继续迭代，进行增量修改
+            new_iteration = self._iteration_manager.start_iteration()
+
+            logger.info(
+                "iteration_continue",
+                iteration=new_iteration,
+                feedback_content=feedback.content[:100] if feedback.content else ""
+            )
+
+            # 获取上一轮的内容
+            last_history = self._iteration_manager._history[-1] if self._iteration_manager._history else None
+            original_content = last_history.content if last_history else ""
+
+            # 调用 Writing Agent 进行增量修改
+            modified_result = await self._incremental_modify_content(
+                original_content=original_content,
+                feedback=feedback,
+                context=context
+            )
+
+            if not modified_result.get("success"):
+                return modified_result
+
+            modified_content = modified_result.get("content", "")
+
+            # 记录历史
+            self._iteration_manager.record_history(
+                content=modified_content,
+                feedback=feedback,
+                result=modified_result
+            )
+
+            # 返回新的预览
+            return {
+                "success": True,
+                "iteration": new_iteration,
+                "status": "preview",
+                "content": modified_content,
+                "requires_feedback": True,
+                "max_iterations": self._iteration_manager.max_iterations,
+                "feedback_options": [
+                    {"label": "确认通过", "value": "accept"},
+                    {"label": "继续修改", "value": "modify"},
+                    {"label": "取消", "value": "reject"}
+                ],
+                "changes": modified_result.get("changes", [])
+            }
+
+        return {
+            "success": False,
+            "error": f"未知的迭代结果: {iteration_result}"
+        }
+
+    async def _incremental_modify_content(
+        self,
+        original_content: str,
+        feedback: UserFeedback,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        增量修改内容
+
+        Args:
+            original_content: 原始内容
+            feedback: 用户反馈
+            context: 执行上下文
+
+        Returns:
+            修改结果
+        """
+        if "writing" not in self._agents:
+            return {
+                "success": False,
+                "error": "Writing Agent 不可用"
+            }
+
+        writing_agent = self._agents["writing"]
+
+        # 构建修改任务
+        modify_task = {
+            "action": "modify",
+            "content": original_content,
+            "feedback": {
+                "type": feedback.type,
+                "content": feedback.content,
+                "suggestions": feedback.suggestions
+            }
+        }
+
+        # 调用 Writing Agent 的 handle_feedback 方法
+        if hasattr(writing_agent, 'handle_feedback'):
+            from app.agents.functional.writing_agent import UserFeedback as WritingFeedback, FeedbackType
+
+            # 转换反馈类型
+            feedback_type = FeedbackType.MODIFY
+            if feedback.type == "accept":
+                feedback_type = FeedbackType.ACCEPT
+            elif feedback.type == "reject":
+                feedback_type = FeedbackType.REJECT
+
+            writing_feedback = WritingFeedback(
+                type=feedback_type,
+                content=feedback.content,
+                suggestions=feedback.suggestions
+            )
+
+            result = await writing_agent.handle_feedback(writing_feedback, modify_task)
+        else:
+            # 回退到普通的 process 方法
+            result = await writing_agent.process(modify_task, context)
+
+        logger.info(
+            "incremental_modify_completed",
+            success=result.get("success"),
+            has_content=bool(result.get("content"))
+        )
+
+        return result
+
+    def _extract_generated_content(self, result: Dict[str, Any]) -> str:
+        """
+        从处理结果中提取生成的内容
+
+        Args:
+            result: 处理结果
+
+        Returns:
+            提取的内容
+        """
+        # 尝试从不同的位置提取内容
+        if "result" in result:
+            inner_result = result["result"]
+            if isinstance(inner_result, dict):
+                if "generated_content" in inner_result:
+                    return inner_result["generated_content"]
+                if "content" in inner_result:
+                    return inner_result["content"]
+
+        if "generated_content" in result:
+            return result["generated_content"]
+
+        if "content" in result:
+            return result["content"]
+
+        return ""
+
+    def get_iteration_status(self) -> Dict[str, Any]:
+        """
+        获取迭代状态
+
+        Returns:
+            迭代状态信息
+        """
+        return {
+            "current_iteration": self._iteration_manager.current_iteration,
+            "max_iterations": self._iteration_manager.max_iterations,
+            "can_continue": self._iteration_manager.can_continue,
+            "history_count": len(self._iteration_manager._history)
         }
