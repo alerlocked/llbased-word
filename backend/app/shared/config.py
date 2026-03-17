@@ -148,3 +148,29 @@ MINERU_VLM_CONFIG = _get_mineru_config()
 
 # 向后兼容别名
 MINERU_CONFIG = MINERU_VLM_CONFIG
+
+# ============ Search Agent 配置 ============
+import os
+
+# RAG 服务开关（默认禁用）
+ENABLE_RAG = os.getenv("ENABLE_RAG", "false").lower() == "true"
+
+# Search Agent 缓存配置
+SEARCH_AGENT_CONFIG = {
+    "cache_size": int(os.getenv("SEARCH_AGENT_CACHE_SIZE", "1000")),
+    "cache_ttl": int(os.getenv("SEARCH_AGENT_CACHE_TTL", "300")),  # 秒
+}
+
+# Search Agent Token 预算配置
+SEARCH_TOKEN_CONFIG = {
+    "max_tokens": int(os.getenv("SEARCH_MAX_TOKENS", "4000")),
+    "files_ratio": float(os.getenv("SEARCH_FILES_RATIO", "0.6")),
+    "knowledge_ratio": float(os.getenv("SEARCH_KNOWLEDGE_RATIO", "0.3")),
+    "buffer_ratio": float(os.getenv("SEARCH_BUFFER_RATIO", "0.1")),
+}
+
+# 多轮迭代配置
+ITERATION_CONFIG = {
+    "max_iterations": int(os.getenv("MAX_ITERATIONS", "3")),
+    "timeout": int(os.getenv("ITERATION_TIMEOUT", "60")),  # 秒
+}

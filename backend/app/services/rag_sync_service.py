@@ -1,7 +1,12 @@
 """
 RAG同步服务
 将转写、文章、编辑器内容、上传文档同步到ChromaDB向量库
+
+已弃用：请使用 Search Agent 进行统一检索
+此服务保留用于向后兼容和对比测试
 """
+import os
+import warnings
 from typing import List, Dict, Optional
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -9,6 +14,17 @@ import json
 
 from app.utils.logger import logger
 from app.config import settings
+
+# 弃用警告
+warnings.warn(
+    "RAGSyncService 已弃用，请使用 Search Agent 进行统一检索。"
+    "此服务将在 3 个月后移除。",
+    DeprecationWarning,
+    stacklevel=2
+)
+
+# Feature Flag: 是否启用 RAG 服务
+ENABLE_RAG = os.getenv("ENABLE_RAG", "false").lower() == "true"
 
 
 class RAGSyncService:

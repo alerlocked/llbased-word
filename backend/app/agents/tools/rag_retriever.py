@@ -1,24 +1,55 @@
 """
 RAGRetrieverTool - RAG向量检索工具
 从向量知识库检索相关背景知识
+
+已弃用：请使用 Search Agent (app.agents.search.SearchAgent) 进行统一检索
+此工具保留用于向后兼容和对比测试，将在 3 个月后移除。
+
+迁移指南:
+    旧代码:
+        result = await agent.use_tool("rag_retriever", query, {"top_k": 5})
+
+    新代码:
+        from app.agents.search import SearchAgent, SearchMode
+        search_agent = SearchAgent()
+        result = await search_agent.search(
+            mode=SearchMode.FILES_ONLY,
+            query=query,
+            token_budget=4000
+        )
 """
 import json
+import os
+import warnings
 from typing import List, Dict
 from pathlib import Path
 
 from app.utils.logger import logger
+
+# 弃用警告
+warnings.warn(
+    "RAGRetrieverTool 已弃用，请使用 Search Agent (app.agents.search.SearchAgent) 进行统一检索。"
+    "此工具将在 3 个月后移除。",
+    DeprecationWarning,
+    stacklevel=2
+)
+
+# Feature Flag: 是否启用 RAG 服务
+ENABLE_RAG = os.getenv("ENABLE_RAG", "false").lower() == "true"
 
 
 class RAGRetrieverTool:
     """
     RAG检索工具 - 向量知识库检索
     使用ChromaDB存储和检索文档向量
+
+    已弃用：请使用 Search Agent 进行统一检索
     """
-    
+
     def __init__(self, config):
         """
         初始化RAG检索工具
-        
+
         Args:
             config: 配置对象
         """
@@ -26,6 +57,13 @@ class RAGRetrieverTool:
         self.vectorstore = None
         self.embeddings = None
         self.text_splitter = None
+
+        # 检查是否启用 RAG
+        if not ENABLE_RAG:
+            logger.warning(
+                "RAG service is disabled. Use Search Agent instead. "
+                "Set ENABLE_RAG=true to enable this tool for testing."
+            )
     
     def _init_components(self):
         """延迟初始化组件"""
@@ -76,17 +114,41 @@ class RAGRetrieverTool:
     def retrieve(self, query: str, k: int = 5, project_id: int = None) -> str:
         """
         检索相关文档
-        
+
         Args:
             query: 语义查询
             k: 返回结果数量
             project_id: 项目ID（用于过滤，防止素材污染）
-        
+
         Returns:
             检索结果（JSON格式字符串）
         """
         logger.info(f"📚 开始知识库检索: {query} (项目过滤: {project_id})")
-        
+
+        # 检查是否启用 RAG
+        if not ENABLE_RAG:
+            logger.warning(
+                "RAG service is disabled. Returning empty results. "
+                "Use Search Agent (app.agents.search.SearchAgent) instead."
+            )
+            return json.dumps({
+                "status": "disabled",
+                "error": "RAG service is disabled. Use Search Agent instead.",
+                "results": [],
+                "migration_guide": {
+                    "old_code": 'await agent.use_tool("rag_retriever", query, {"top_k": 5})',
+                    "new_code": '''
+                        from app.agents.search import SearchAgent, SearchMode
+                        search_agent = SearchAgent()
+                        result = await search_agent.search(
+                            mode=SearchMode.FILES_ONLY,
+                            query=query,
+                            token_budget=4000
+                        )
+                    '''
+                }
+            }, ensure_ascii=False, indent=2)
+
         try:
             # 初始化组件
             self._init_components()
