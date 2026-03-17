@@ -3,8 +3,72 @@
  * 测试 PDF 渲染、缩放和导航功能
  */
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { WasmPDFViewer } from '../WasmPDFViewer';
+
+// Mock HTMLCanvasElement.getContext - jsdom doesn't implement canvas
+HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
+  fillRect: jest.fn(),
+  clearRect: jest.fn(),
+  getImageData: jest.fn(() => ({
+    data: new Uint8ClampedArray(4),
+  })),
+  putImageData: jest.fn(),
+  createImageData: jest.fn(() => ({
+    data: new Uint8ClampedArray(4),
+  })),
+  setTransform: jest.fn(),
+  drawImage: jest.fn(),
+  save: jest.fn(),
+  restore: jest.fn(),
+  scale: jest.fn(),
+  rotate: jest.fn(),
+  translate: jest.fn(),
+  transform: jest.fn(),
+  beginPath: jest.fn(),
+  moveTo: jest.fn(),
+  lineTo: jest.fn(),
+  closePath: jest.fn(),
+  stroke: jest.fn(),
+  fill: jest.fn(),
+  arc: jest.fn(),
+  rect: jest.fn(),
+  clip: jest.fn(),
+  measureText: jest.fn(() => ({ width: 0 })),
+  fillText: jest.fn(),
+  strokeText: jest.fn(),
+  createLinearGradient: jest.fn(),
+  createRadialGradient: jest.fn(),
+  createPattern: jest.fn(),
+  font: '',
+  textAlign: '',
+  textBaseline: '',
+  fillStyle: '',
+  strokeStyle: '',
+  globalAlpha: 1,
+  globalCompositeOperation: '',
+  lineWidth: 1,
+  lineCap: '',
+  lineJoin: '',
+  miterLimit: 10,
+  shadowOffsetX: 0,
+  shadowOffsetY: 0,
+  shadowBlur: 0,
+  shadowColor: '',
+})) as any;
+
+// Mock canvas width/height setters
+Object.defineProperty(HTMLCanvasElement.prototype, 'width', {
+  set: jest.fn(),
+  get: jest.fn(() => 800),
+  configurable: true,
+});
+
+Object.defineProperty(HTMLCanvasElement.prototype, 'height', {
+  set: jest.fn(),
+  get: jest.fn(() => 600),
+  configurable: true,
+});
 
 // Mock pdfjs-dist
 jest.mock('pdfjs-dist', () => {
@@ -61,7 +125,9 @@ describe('WasmPDFViewer', () => {
     });
 
     it('应该使用默认高度', async () => {
-      render(<WasmPDFViewer src={mockSrc} />);
+      await act(async () => {
+        render(<WasmPDFViewer src={mockSrc} />);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /上一页/i })).toBeInTheDocument();
@@ -86,19 +152,25 @@ describe('WasmPDFViewer', () => {
     });
 
     it('应该显示当前缩放比例', async () => {
-      const { container } = render(
-        <WasmPDFViewer
-          src={mockSrc}
-          initialScale={1.5}
-        />
-      );
+      await act(async () => {
+        render(
+          <WasmPDFViewer
+            src={mockSrc}
+            initialScale={1.5}
+          />
+        );
+      });
 
       await waitFor(() => {
-        // 150% 应该显示在输入框中 - 检查 InputNumber 的值
-        const inputNumber = container.querySelector('.ant-input-number-input');
-        expect(inputNumber).toBeInTheDocument();
-        // InputNumber 显示格式化的值 "150%"
-        expect(inputNumber?.getAttribute('value')).toContain('150');
+        // 找到所有 input 元素
+        const inputs = document.querySelectorAll('input');
+        // 风格输入框的 formatter 会添加 %，所以找包含 % 的值
+        const scaleInput = Array.from(inputs).find(
+          input => input.getAttribute('value')?.includes('%')
+        );
+        expect(scaleInput).toBeTruthy();
+        // 验证初始缩放比例 150% 正确显示
+        expect(scaleInput?.getAttribute('value')).toBe('150%');
       });
     });
 
