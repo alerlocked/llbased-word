@@ -8,8 +8,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Select, Button, Space, message, Modal, Input, Tooltip, Popconfirm } from 'antd'
 import {
   PlusOutlined, SaveOutlined, UndoOutlined,
-  CloudUploadOutlined, DatabaseOutlined, SettingOutlined, RobotOutlined, DeleteOutlined,
-  FileTextOutlined
+  CloudUploadOutlined, DatabaseOutlined, SettingOutlined, RobotOutlined, DeleteOutlined
 } from '@ant-design/icons'
 import { useCreationStore } from '../stores/creationStore'
 import FloatingToolbar from '../components/workspace/FloatingToolbar'
@@ -21,7 +20,6 @@ import AIChatPanel from '../components/AICreation/AIChatPanel'
 import { EmptyStateIllustration } from '../components/Illustrations/RecordingAnimation'
 import InlineDiff, { FloatingConfirmBar } from '../components/common/InlineDiff'
 import MarkdownTiptapEditor from '../components/common/MarkdownTiptapEditor'
-import PDFViewerDrawer from '../components/workspace/PDFViewerDrawer'
 import { markdownToHtml } from '../utils/markdownConverter'
 import { colors } from '../styles/design-tokens'
 import '../styles/global.css'
@@ -59,7 +57,6 @@ const WorkspacePage: React.FC = () => {
   const [materialDrawerVisible, setMaterialDrawerVisible] = useState(false)
   const [settingsDrawerVisible, setSettingsDrawerVisible] = useState(false)
   const [imageModalVisible, setImageModalVisible] = useState(false)
-  const [pdfViewerVisible, setPdfViewerVisible] = useState(false)
 
   // AI交互状态
   const [_selectedText, _setSelectedText] = useState('')
@@ -512,14 +509,6 @@ const WorkspacePage: React.FC = () => {
 
         {/* 右侧：功能入口 */}
         <Space size={8}>
-          <Tooltip title="PDF工艺文档">
-            <Button
-              type="text"
-              icon={<FileTextOutlined />}
-              onClick={() => setPdfViewerVisible(true)}
-              style={{ color: colors.textSecondary }}
-            />
-          </Tooltip>
           <Tooltip title="上传素材">
             <Button
               type="text"
@@ -694,11 +683,6 @@ const WorkspacePage: React.FC = () => {
       </div>
 
       {/* 抽屉组件 */}
-      <PDFViewerDrawer
-        visible={pdfViewerVisible}
-        onClose={() => setPdfViewerVisible(false)}
-      />
-
       <UploadDrawer
         visible={uploadDrawerVisible}
         onClose={() => setUploadDrawerVisible(false)}
