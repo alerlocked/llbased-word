@@ -2,10 +2,14 @@
 审查 Agent
 
 负责合规性检查、合理性验证、风险提示
+
+集成 Search Agent 进行统一检索
+支持标准检索和缓存复用
 """
 from typing import Dict, Any, Optional, List
 from app.agents.base_agent import BaseAgent
 from app.agents.core import AgentRegistry
+from app.agents.search import SearchAgent, SearchMode
 from app.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -20,11 +24,13 @@ class ReviewAgent(BaseAgent):
     - 合规性检查
     - 合理性验证
     - 风险提示
+
+    使用 Search Agent 进行标准检索
     """
 
     name = "review"
     description = "负责合规性检查、合理性验证、风险提示"
-    tools = ["rag_retriever", "compliance_checker"]
+    tools = ["compliance_checker"]  # 移除 rag_retriever，使用 Search Agent
 
     # 检查类型
     CHECK_TYPES = ["compliance", "rationality", "risk", "all"]
@@ -47,6 +53,81 @@ class ReviewAgent(BaseAgent):
             "default_standards",
             ["enterprise", "safety"]
         )
+
+        # Search Agent 实例（依赖注入）
+        self._search_agent: Optional[SearchAgent] = None
+
+    @property
+    def search_agent(self) -> SearchAgent:
+        """获取或创建 Search Agent 实例"""
+        if self._search_agent is None:
+            self._search_agent = SearchAgent(self.config.get("search_agent", {}))
+        return self._search_agent
+
+    @search_agent.setter
+    def search_agent(self, agent: SearchAgent):
+        """设置 Search Agent 实例（依赖注入）"""
+        self._search_agent = agent
+
+    async def _search_standards(
+        self,
+        query: str,
+        standards: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        使用 Search Agent 检索标准
+
+        Args:
+            query: 查询字符串
+            standards: 标准类型列表
+
+        Returns:
+            检索结果
+        """
+        try:
+            # 使用 standards_only 模式检索标准
+            filters = {}
+            if standards:
+                filters["entity_types"] = standards
+
+            search_context = await self.search_agent.search(
+                mode=SearchMode.STANDARDS_ONLY,
+                query=query,
+                token_budget=2000,
+                filters=filters
+            )
+
+            # 转换为兼容格式
+            results = []
+            for ctx in search_context.contexts:
+                results.append({
+                    "content": ctx.content,
+                    "source": ctx.source,
+                    "score": ctx.relevance_score,
+                    "entity_type": ctx.entity_type,
+                    "metadata": ctx.metadata
+                })
+
+            logger.info(
+                "search_standards_completed",
+                query=query[:50],
+                results_count=len(results),
+                cache_hit=search_context.cache_hit
+            )
+
+            return {
+                "success": True,
+                "results": results,
+                "cache_hit": search_context.cache_hit
+            }
+
+        except Exception as e:
+            logger.error("search_standards_failed", error=str(e), query=query[:50])
+            return {
+                "success": False,
+                "error": str(e),
+                "results": []
+            }
 
     async def process(
         self,
@@ -239,11 +320,10 @@ class ReviewAgent(BaseAgent):
         warnings = []
         recommendations = []
 
-        # 1. 检索相关知识进行对比
-        knowledge = await self.use_tool(
-            "rag_retriever",
+        # 1. 使用 Search Agent 检索相关知识进行对比
+        knowledge = await self._search_standards(
             f"合理性验证: {content[:100]}",
-            {"top_k": 3}
+            standards=["Standard", "Process"]
         )
 
         # 2. 基本逻辑检查
@@ -290,7 +370,10 @@ class ReviewAgent(BaseAgent):
                 # 简单的知识对比
                 kb_content = results[0].get("content", "")
                 # 这里可以做更复杂的对比
-                pass
+                logger.debug(
+                    "rationality_knowledge_check",
+                    kb_content_length=len(kb_content)
+                )
 
         passed = len([w for w in warnings if w.get("severity") == "critical"]) == 0
 
@@ -299,7 +382,8 @@ class ReviewAgent(BaseAgent):
             "warnings": warnings,
             "recommendations": recommendations,
             "checked_numbers": len(numbers),
-            "found_processes": found_keywords
+            "found_processes": found_keywords,
+            "cache_hit": knowledge.get("cache_hit", False) if knowledge else False
         }
 
     async def _check_risk(
