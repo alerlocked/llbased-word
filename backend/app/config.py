@@ -127,6 +127,14 @@ class Settings(BaseSettings):
     MINERU_FALLBACK_TO_PDFPLUMBER: bool = False  # VLM模式下不回退
     MINERU_ENABLED: bool = True
 
+    # ============ VLService 配置 (多后端 + 并行处理) ============
+    # 后端选择: mineru / qwen
+    VL_SERVICE_BACKEND: str = "mineru"
+    # 并行处理数（避免内存溢出，默认4）
+    VL_SERVICE_MAX_WORKERS: int = 4
+    # MinerU失败时是否回退到Qwen
+    VL_SERVICE_FALLBACK_TO_QWEN: bool = True
+
     # 结构化提取配置
     CONTEXT_STRUCTURED_EXTRACTION_ENABLED: bool = True  # 是否启用结构化提取
     CONTEXT_DIMENSION_KEYWORDS: Dict[str, List[str]] = {
