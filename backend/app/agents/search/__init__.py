@@ -10,6 +10,7 @@ from .search_agent import (
     SearchMode,
     SearchResult,
     CacheStats,
+    TokenBudget,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "SearchMode",
     "SearchResult",
     "CacheStats",
+    "TokenBudget",
 ]
