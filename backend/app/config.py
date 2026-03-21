@@ -156,6 +156,7 @@ class Settings(BaseSettings):
 
     # 模型配置 - pydantic v2语法
     model_config = SettingsConfigDict(
+        extra="allow",
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True

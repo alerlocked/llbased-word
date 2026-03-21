@@ -65,8 +65,11 @@ class ChatRequest(BaseModel):
 
 class GenerateStreamRequest(BaseModel):
     """流式生成请求"""
-    session_id: str = Field(..., description="会话ID")
-    content: str = Field(..., description="生成内容描述")
+    session_id: Optional[str] = Field(None, description="会话ID")
+    content: Optional[str] = Field(None, description="生成内容描述")
+    user_input: Optional[str] = Field(None, description="用户输入（兼容旧版）")
+    user_id: Optional[int] = Field(None, description="用户ID")
+    project_id: Optional[int] = Field(None, description="项目ID")
 
 
 class SelectSolutionRequest(BaseModel):
@@ -578,32 +581,78 @@ async def generate_stream(request: GenerateStreamRequest):
     流式生成内容
 
     以SSE方式流式返回生成的内容
+    调用真正的LLM服务进行内容生成
     """
-    logger.info(f"🌊 流式生成: session={request.session_id}")
+    # 获取用户输入（支持多种字段名）
+    user_input = request.content or request.user_input or ""
+    session_id = request.session_id
+    project_id = request.project_id
+    user_id = request.user_id or 1
+
+    logger.info(f"[AI助手] 收到请求: prompt={user_input[:50]}..., session={session_id}, project={project_id}")
 
     async def generate():
-        yield f"data: {json.dumps({'type': 'start', 'message': '开始生成...'})}\n\n"
+        try:
+            logger.info(f"[AI助手] 开始处理请求")
 
-        # 模拟流式生成
-        content_parts = [
-            "# 工艺文件\n\n",
-            "## 1. 概述\n\n",
-            "本工艺文件描述了...",
-            "\n\n## 2. 工艺流程\n\n",
-            "1. 准备工作\n",
-            "2. 加工操作\n",
-            "3. 检验验收\n",
-            "\n\n## 3. 参数要求\n\n",
-            "- 加工温度: 常温\n",
-            "- 加工精度: ±0.1mm\n",
-            "\n\n[生成完成]"
-        ]
+            # 导入LLM服务
+            from app.services.llm_service import llm_service
+            from app.config import settings
 
-        for part in content_parts:
-            await asyncio.sleep(0.1)  # 模拟延迟
-            yield f"data: {json.dumps({'type': 'content', 'content': part})}\n\n"
+            # 检查API配置
+            if not settings.DASHSCOPE_API_KEY:
+                logger.error("[AI助手] DASHSCOPE_API_KEY 未配置")
+                yield f"data: {json.dumps({'type': 'error', 'error': 'API密钥未配置，请联系管理员配置DASHSCOPE_API_KEY'})}\n\n"
+                return
 
-        yield f"data: {json.dumps({'type': 'complete', 'message': '生成完成'})}\n\n"
+            # 发送进度：正在分析
+            yield f"data: {json.dumps({'type': 'progress', 'node': 'planner', 'message': '正在分析您的需求...'})}\n\n"
+
+            logger.info(f"[AI助手] 调用LLM: model={settings.QWEN_TEXT_MODEL}")
+
+            # 构建系统提示词
+            system_prompt = """你是一位专业的工艺文件编辑助手。你的职责是帮助工艺师：
+1. 理解和整理工艺意图
+2. 将口语化的描述转化为标准的工艺术语
+3. 生成规范化的工艺文件内容
+
+请用专业但友好的语气回复用户。如果用户的问题不够清晰，请礼貌地询问更多细节。"""
+
+            # 构建用户提示词
+            full_prompt = f"""{system_prompt}
+
+用户输入：{user_input}
+
+请根据用户的输入，提供专业的回复。如果用户想要生成工艺文件，请先了解具体需求。"""
+
+            # 发送进度：正在生成
+            yield f"data: {json.dumps({'type': 'progress', 'node': 'writer', 'message': '正在生成回复...', 'data': {'content_preview': ''}})}\n\n"
+
+            # 调用LLM生成内容
+            logger.info(f"[AI助手] 开始调用LLM API...")
+            result = await llm_service.generate_text(
+                prompt=full_prompt,
+                temperature=0.7,
+                max_tokens=2000
+            )
+
+            if result.get("status") == "error":
+                error_msg = result.get("error", "LLM调用失败")
+                logger.error(f"[AI助手] LLM调用失败: {error_msg}")
+                yield f"data: {json.dumps({'type': 'error', 'error': f'AI服务暂时不可用: {error_msg}'})}\n\n"
+                return
+
+            content = result.get("content", "")
+            logger.info(f"[AI助手] LLM响应成功: 长度={len(content)}")
+
+            # 发送最终结果（前端期望 type: 'result'）
+            yield f"data: {json.dumps({'type': 'result', 'content': content})}\n\n"
+
+            logger.info(f"[AI助手] 流式输出完成")
+
+        except Exception as e:
+            logger.error(f"[AI助手] 处理异常: {str(e)}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'error': f'处理失败: {str(e)}'})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

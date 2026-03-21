@@ -1,17 +1,22 @@
 /**
  * FileList - 文件列表组件
  * 显示当前文件夹下的文件
+ *
+ * 交互行为：
+ * - 点击文件 → 预览文件
+ * - 点击"添加引用"按钮 → 添加引用到编辑栏
  */
-import { useState, useEffect } from 'react'
-import { List, Image, Empty, Spin, message, Dropdown, Tag } from 'antd'
+import { useState } from 'react'
+import { List, Image, Empty, Spin, Dropdown, Tag, Button, Modal, Space } from 'antd'
 import {
   FileImageOutlined,
   FileTextOutlined,
   FilePdfOutlined,
   FileWordOutlined,
-  MoreOutlined,
   DeleteOutlined,
-  FolderOutlined
+  FolderOutlined,
+  PlusOutlined,
+  EyeOutlined
 } from '@ant-design/icons'
 import { colors } from '../../styles/design-tokens'
 
@@ -22,13 +27,15 @@ export interface MaterialFile {
   type: string
   folderId?: string
   created_at: string
+  content?: string  // 文件内容，用于预览
 }
 
 interface FileListProps {
   files: MaterialFile[]
   loading?: boolean
   currentFolder: string
-  onSelect: (file: MaterialFile) => void
+  onPreview: (file: MaterialFile) => void  // 预览文件
+  onInsert: (file: MaterialFile) => void   // 添加引用到编辑栏
   onDelete?: (fileId: number) => void
   onMove?: (fileId: number, folderId: string) => void
   folders: { key: string; title: string }[]
@@ -66,7 +73,8 @@ const FileList: React.FC<FileListProps> = ({
   files,
   loading = false,
   currentFolder,
-  onSelect,
+  onPreview,
+  onInsert,
   onDelete,
   onMove,
   folders
@@ -98,6 +106,29 @@ const FileList: React.FC<FileListProps> = ({
     }))
 
   const menuItems = [
+    {
+      key: 'preview',
+      icon: <EyeOutlined />,
+      label: '预览',
+      onClick: () => {
+        if (contextMenuFile) {
+          onPreview(contextMenuFile)
+          setContextMenuFile(null)
+        }
+      }
+    },
+    {
+      key: 'insert',
+      icon: <PlusOutlined />,
+      label: '添加引用',
+      onClick: () => {
+        if (contextMenuFile) {
+          onInsert(contextMenuFile)
+          setContextMenuFile(null)
+        }
+      }
+    },
+    { type: 'divider' as const },
     {
       key: 'delete',
       icon: <DeleteOutlined />,
@@ -148,7 +179,7 @@ const FileList: React.FC<FileListProps> = ({
           onOpenChange={(open) => !open && setContextMenuFile(null)}
         >
           <List.Item
-            onClick={() => onSelect(item)}
+            onClick={() => onPreview(item)}
             onContextMenu={() => setContextMenuFile(item)}
             style={{
               cursor: 'pointer',
@@ -198,10 +229,21 @@ const FileList: React.FC<FileListProps> = ({
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
-                    maxWidth: 200
+                    maxWidth: 160
                   }}>
                     {item.name}
                   </span>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onInsert(item)
+                    }}
+                    title="添加引用到编辑栏"
+                    style={{ color: colors.primary }}
+                  />
                 </div>
               }
               description={

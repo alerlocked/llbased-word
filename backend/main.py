@@ -92,7 +92,7 @@ async def log_requests(request: Request, call_next):
 # 配置CORS中间件，允许前端跨域访问
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3003", "http://localhost:3004"],  # 前端开发服务器地址
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3003", "http://localhost:3004"],  # 前端开发服务器地址
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

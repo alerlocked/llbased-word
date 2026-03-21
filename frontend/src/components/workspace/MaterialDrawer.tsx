@@ -1,13 +1,18 @@
 /**
  * MaterialDrawer - 素材库抽屉
  * 支持文件夹管理和知识库范围选择
+ *
+ * 交互行为：
+ * - 点击文件 → 预览文件内容
+ * - 点击"添加引用"按钮 → 添加引用到编辑栏
  */
 import { useState, useEffect } from 'react'
-import { Drawer, Upload, Button, message, Tabs, Divider } from 'antd'
+import { Drawer, Upload, Button, message, Tabs, Divider, Modal, Spin } from 'antd'
 import {
   CloudUploadOutlined,
   DatabaseOutlined,
-  FolderOutlined
+  FolderOutlined,
+  FileTextOutlined
 } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
 import { colors } from '../../styles/design-tokens'
@@ -57,6 +62,12 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const [selectedFolder, setSelectedFolder] = useState<string>('root')
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState('files')
+
+  // 预览相关状态
+  const [previewVisible, setPreviewVisible] = useState(false)
+  const [previewFile, setPreviewFile] = useState<MaterialFile | null>(null)
+  const [previewContent, setPreviewContent] = useState<string>('')
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   // 加载文件夹和素材
   useEffect(() => {
@@ -117,7 +128,8 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
               name: doc.name,
               url: '',
               type: doc.type || 'document',
-              created_at: doc.createdAt || new Date().toISOString()
+              created_at: doc.createdAt || new Date().toISOString(),
+              content: doc.content || ''
             })
           })
         }
@@ -135,13 +147,42 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     saveFolders(newFolders)
   }
 
-  // 文件选择处理
-  const handleFileSelect = (file: MaterialFile) => {
+  // 文件预览处理
+  const handleFilePreview = async (file: MaterialFile) => {
+    setPreviewFile(file)
+    setPreviewVisible(true)
+    setPreviewLoading(true)
+    setPreviewContent('')
+
+    try {
+      // 获取文件内容
+      const response = await fetch(
+        `http://localhost:8000/api/creation/projects/${projectId}/materials/${file.id}`
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setPreviewContent(data.content || data.text || '无内容预览')
+      } else {
+        // 如果API不支持，使用本地存储的内容
+        setPreviewContent(file.content || '无法获取文件内容')
+      }
+    } catch (error) {
+      console.error('获取预览内容失败:', error)
+      setPreviewContent(file.content || '获取预览内容失败')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  // 文件添加引用处理
+  const handleFileInsert = (file: MaterialFile) => {
     if (file.type.startsWith('image/') && file.url) {
       onInsert(`![${file.name}](${file.url})`)
     } else {
-      onInsert(file.name)
+      // 添加文件引用
+      onInsert(`【引用：${file.name}】\n${file.content || ''}`)
     }
+    message.success(`已添加引用: ${file.name}`)
     onClose()
   }
 
@@ -214,137 +255,190 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   }
 
   return (
-    <Drawer
-      title={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <DatabaseOutlined style={{ color: colors.primary }} />
-          <span>素材库</span>
-        </div>
-      }
-      placement="right"
-      width={520}
-      onClose={onClose}
-      open={visible}
-      styles={{
-        body: { padding: 0 }
-      }}
-    >
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        style={{ padding: '0 16px' }}
-        items={[
-          {
-            key: 'files',
-            label: (
-              <span>
-                <FolderOutlined />
-                文件管理
-              </span>
-            ),
-            children: (
-              <div style={{ display: 'flex', height: 'calc(100vh - 150px)' }}>
-                {/* 左侧：文件夹树 */}
-                <div style={{
-                  width: 180,
-                  borderRight: `1px solid ${colors.borderLight}`,
-                  overflow: 'auto'
-                }}>
-                  <FolderTree
-                    folders={folders}
-                    selectedFolder={selectedFolder}
-                    onSelect={setSelectedFolder}
-                    onUpdate={handleFoldersUpdate}
-                  />
-                </div>
-
-                {/* 右侧：文件列表 */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  {/* 工具栏 */}
+    <>
+      <Drawer
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <DatabaseOutlined style={{ color: colors.primary }} />
+            <span>素材库</span>
+          </div>
+        }
+        placement="right"
+        width={520}
+        onClose={onClose}
+        open={visible}
+        styles={{
+          body: { padding: 0 }
+        }}
+      >
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          style={{ padding: '0 16px' }}
+          items={[
+            {
+              key: 'files',
+              label: (
+                <span>
+                  <FolderOutlined />
+                  文件管理
+                </span>
+              ),
+              children: (
+                <div style={{ display: 'flex', height: 'calc(100vh - 150px)' }}>
+                  {/* 左侧：文件夹树 */}
                   <div style={{
-                    padding: '8px 16px',
-                    borderBottom: `1px solid ${colors.borderLight}`,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
+                    width: 180,
+                    borderRight: `1px solid ${colors.borderLight}`,
+                    overflow: 'auto'
                   }}>
-                    <span style={{ color: colors.textSecondary, fontSize: 13 }}>
-                      {selectedFolder === 'root' ? '全部文件' :
-                        folders.find(f => f.key === selectedFolder)?.title || '文件'}
-                    </span>
-                    <Upload {...uploadProps}>
-                      <Button
-                        type="primary"
-                        icon={<CloudUploadOutlined />}
-                        size="small"
-                      >
-                        上传
-                      </Button>
-                    </Upload>
-                  </div>
-
-                  {/* 文件列表 */}
-                  <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
-                    <FileList
-                      files={materials}
-                      loading={loading}
-                      currentFolder={selectedFolder}
-                      onSelect={handleFileSelect}
-                      onDelete={handleFileDelete}
-                      onMove={handleFileMove}
-                      folders={getFlatFolders()}
+                    <FolderTree
+                      folders={folders}
+                      selectedFolder={selectedFolder}
+                      onSelect={setSelectedFolder}
+                      onUpdate={handleFoldersUpdate}
                     />
                   </div>
+
+                  {/* 右侧：文件列表 */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    {/* 工具栏 */}
+                    <div style={{
+                      padding: '8px 16px',
+                      borderBottom: `1px solid ${colors.borderLight}`,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <span style={{ color: colors.textSecondary, fontSize: 13 }}>
+                        {selectedFolder === 'root' ? '全部文件' :
+                          folders.find(f => f.key === selectedFolder)?.title || '文件'}
+                      </span>
+                      <Upload {...uploadProps}>
+                        <Button
+                          type="primary"
+                          icon={<CloudUploadOutlined />}
+                          size="small"
+                        >
+                          上传
+                        </Button>
+                      </Upload>
+                    </div>
+
+                    {/* 文件列表 */}
+                    <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+                      <FileList
+                        files={materials}
+                        loading={loading}
+                        currentFolder={selectedFolder}
+                        onPreview={handleFilePreview}
+                        onInsert={handleFileInsert}
+                        onDelete={handleFileDelete}
+                        onMove={handleFileMove}
+                        folders={getFlatFolders()}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )
-          },
-          {
-            key: 'scope',
-            label: (
-              <span>
-                <DatabaseOutlined />
-                知识库范围
-              </span>
-            ),
-            children: (
-              <div style={{ padding: 16 }}>
-                <p style={{
-                  color: colors.textSecondary,
-                  marginBottom: 16,
-                  fontSize: 13
-                }}>
-                  选择 AI 检索时使用的知识库范围。只有选中的文件夹中的内容会被用于检索。
-                </p>
-                <KnowledgeScopeSelector
-                  folders={getScopeFolders()}
-                  selectedScopes={selectedScopes}
-                  onChange={(scopes) => {
-                    setSelectedScopes(scopes)
-                    localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(scopes))
-                  }}
-                />
-                <Divider />
-                <div style={{
-                  padding: 12,
-                  background: colors.bgTertiary,
-                  borderRadius: 8,
-                  fontSize: 12,
-                  color: colors.textSecondary
-                }}>
-                  <strong style={{ color: colors.textPrimary }}>使用提示：</strong>
-                  <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
-                    <li>选择需要检索的文件夹</li>
-                    <li>AI 对话时只会从选中的知识库中检索</li>
-                    <li>选择越精确，检索结果越准确</li>
-                  </ul>
+              )
+            },
+            {
+              key: 'scope',
+              label: (
+                <span>
+                  <DatabaseOutlined />
+                  知识库范围
+                </span>
+              ),
+              children: (
+                <div style={{ padding: 16 }}>
+                  <p style={{
+                    color: colors.textSecondary,
+                    marginBottom: 16,
+                    fontSize: 13
+                  }}>
+                    选择 AI 检索时使用的知识库范围。只有选中的文件夹中的内容会被用于检索。
+                  </p>
+                  <KnowledgeScopeSelector
+                    folders={getScopeFolders()}
+                    selectedScopes={selectedScopes}
+                    onChange={(scopes) => {
+                      setSelectedScopes(scopes)
+                      localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(scopes))
+                    }}
+                  />
+                  <Divider />
+                  <div style={{
+                    padding: 12,
+                    background: colors.bgTertiary,
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: colors.textSecondary
+                  }}>
+                    <strong style={{ color: colors.textPrimary }}>使用提示：</strong>
+                    <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
+                      <li>选择需要检索的文件夹</li>
+                      <li>AI 对话时只会从选中的知识库中检索</li>
+                      <li>选择越精确，检索结果越准确</li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
-            )
-          }
+              )
+            }
+          ]}
+        />
+      </Drawer>
+
+      {/* 文件预览模态框 */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileTextOutlined style={{ color: colors.primary }} />
+            <span>{previewFile?.name || '文件预览'}</span>
+          </div>
+        }
+        open={previewVisible}
+        onCancel={() => setPreviewVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setPreviewVisible(false)}>
+            关闭
+          </Button>,
+          <Button
+            key="insert"
+            type="primary"
+            onClick={() => {
+              if (previewFile) {
+                handleFileInsert(previewFile)
+                setPreviewVisible(false)
+              }
+            }}
+          >
+            添加引用
+          </Button>
         ]}
-      />
-    </Drawer>
+        width={700}
+      >
+        {previewLoading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <Spin size="large" />
+          </div>
+        ) : (
+          <div style={{
+            maxHeight: 400,
+            overflow: 'auto',
+            padding: 16,
+            background: colors.bgSecondary,
+            borderRadius: 8,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            fontSize: 13,
+            lineHeight: 1.6
+          }}>
+            {previewContent || '无内容'}
+          </div>
+        )}
+      </Modal>
+    </>
   )
 }
 
