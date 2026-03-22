@@ -15,6 +15,72 @@ from app.utils.logger import logger
 
 router = APIRouter()
 
+
+# ==================== 模式检测 ====================
+
+def detect_mode(user_input: str) -> str:
+    """检测用户意图模式
+    
+    Returns:
+        'qa' - 问答模式（询问信息）
+        'write' - 写作模式（生成内容）
+    """
+    qa_keywords = ['多少', '是什么', '有没有', '在哪个', '哪些', '怎么', '为什么', '是否', '吗', '什么', '如何']
+    write_keywords = ['写', '生成', '创建', '帮我', '修改', '优化', '完善', '帮我写', '生成一个']
+    
+    input_lower = user_input.lower()
+    
+    # 优先检测问答模式
+    for keyword in qa_keywords:
+        if keyword in input_lower:
+            return 'qa'
+    
+    # 检测写作模式
+    for keyword in write_keywords:
+        if keyword in input_lower:
+            return 'write'
+    
+    # 默认：短句（<20字）为问答，长句为写作
+    return 'qa' if len(user_input) < 20 else 'write'
+
+
+def get_system_prompt(mode: str) -> str:
+    """根据模式返回系统提示词"""
+    if mode == 'qa':
+        return """你是一位专业的工艺文件知识助手。
+
+## 回答原则
+- **简洁优先**：直接回答问题，不要展开太多背景，尽量用 2-3 句话说清楚
+- **基于文档**：优先使用参考文档中的信息
+- **引用来源**：如果提到表格或文档，请注明来源（如"根据 G4a 表格"）
+- **不知即说**：如果参考文档中没有相关信息，如实告知
+
+## 禁止
+- 不要生成长篇大论
+- 不要输出修改标记（+/- 行号）
+- 不要生成可编辑的文档内容
+
+## 回答示例
+用户：装配工艺卡片有多少页？
+助手：根据文档信息，装配工艺卡片共有 15 页。
+
+用户：G4a 表格包含哪些信息？
+助手：G4a 表格包含车削工艺参数，包括切削速度、进给量、切削深度等。
+"""
+    else:
+        return """你是一位专业的工艺文件编辑助手。
+
+## 写作原则
+- **专业规范**：使用标准的工艺术语和格式
+- **结构清晰**：合理分段，使用标题和列表
+- **基于文档**：参考已有文档的风格和内容
+- **可编辑性**：生成的内容应便于后续修改
+
+## 输出格式
+- 生成完整的工艺文件内容
+- 可以包含占位符供用户填写（如 [待补充]）
+"""
+
 # ==================== 请求/响应模型 ====================
 
 class StartConversationRequest(BaseModel):
@@ -605,21 +671,68 @@ async def generate_stream(request: GenerateStreamRequest):
                 yield f"data: {json.dumps({'type': 'error', 'error': 'API密钥未配置，请联系管理员配置DASHSCOPE_API_KEY'})}\n\n"
                 return
 
+            # 检测模式（问答 vs 写作）
+            mode = detect_mode(user_input)
+            logger.info(f"[AI助手] 模式检测: mode={mode}, input={user_input[:30]}...")
+            
+            # 发送模式消息
+            yield f"data: {json.dumps({'type': 'mode', 'mode': mode})}\n\n"
+            
             # 发送进度：正在分析
             yield f"data: {json.dumps({'type': 'progress', 'node': 'planner', 'message': '正在分析您的需求...'})}\n\n"
 
             logger.info(f"[AI助手] 调用LLM: model={settings.QWEN_TEXT_MODEL}")
 
-            # 构建系统提示词
-            system_prompt = """你是一位专业的工艺文件编辑助手。你的职责是帮助工艺师：
-1. 理解和整理工艺意图
-2. 将口语化的描述转化为标准的工艺术语
-3. 生成规范化的工艺文件内容
+            # 根据模式获取系统提示词
+            system_prompt = get_system_prompt(mode)
 
-请用专业但友好的语气回复用户。如果用户的问题不够清晰，请礼貌地询问更多细节。"""
+            # 注入分层上下文（新增功能）
+            doc_context = ""
+            try:
+                from app.services.hierarchical_context import hierarchical_context
+                
+                # 生成或使用现有 session_id
+                current_session_id = session_id or "default"
+                
+                # 发送进度：正在加载上下文
+                yield f"data: {json.dumps({'type': 'progress', 'node': 'context_loader', 'message': '正在加载工艺文档上下文...'})}\n\n"
+                
+                # 构建分层上下文（包含元信息查询优化）
+                doc_context = hierarchical_context.build_context(
+                    query=user_input,
+                    session_id=current_session_id,
+                    max_tokens=15000
+                )
+                
+                # 尝试元信息快速查询
+                meta_answer = hierarchical_context.search_meta_info(user_input)
+                if meta_answer:
+                    logger.info(f"[AI助手] 元信息查询命中: {meta_answer}")
+                    # 元信息查询成功，在上下文前面添加快速回答
+                    doc_context = f"# 快速参考\n\n{meta_answer}\n\n---\n\n{doc_context}"
+                
+                logger.info(f"[AI助手] 上下文注入成功: 长度={len(doc_context)}")
+                
+            except Exception as e:
+                logger.warning(f"[AI助手] 上下文注入失败（将继续无上下文生成）: {e}")
+                # 上下文注入失败不影响主流程，继续生成
+                doc_context = ""
 
-            # 构建用户提示词
-            full_prompt = f"""{system_prompt}
+            # 构建完整提示词
+            if doc_context:
+                full_prompt = f"""{system_prompt}
+
+## 参考文档
+
+{doc_context}
+
+## 用户问题
+
+{user_input}
+
+请基于参考文档回答用户问题。如果参考文档中没有相关信息，请如实告知。"""
+            else:
+                full_prompt = f"""{system_prompt}
 
 用户输入：{user_input}
 

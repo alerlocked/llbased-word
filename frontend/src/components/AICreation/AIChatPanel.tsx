@@ -57,6 +57,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   const [streamController, setStreamController] = useState<AbortController | null>(null)
   // 保存用户原始输入，用于停止时恢复
   const [originalInput, setOriginalInput] = useState<string>('')
+  // 当前模式（qa 或 write）- 使用 useRef 避免异步更新问题
+  const currentModeRef = useRef<'qa' | 'write'>('write')
   
   // 计划选项相关状态
   const [planOptions, setPlanOptions] = useState<PlanOption[]>([])
@@ -543,7 +545,11 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
               if (dataStr === '[DONE]') break
               
               const data = JSON.parse(dataStr)
-              if (data.type === 'improvement_solutions') {
+              if (data.type === 'mode') {
+                // 接收模式消息
+                currentModeRef.current = data.mode
+                logger.info(`[AI助手] 模式: ${data.mode}`)
+              } else if (data.type === 'improvement_solutions') {
                 // 收到改进方案，显示方案选择界面
                 const solutions = Array.isArray(data.solutions) ? data.solutions : []
                 const todos = Array.isArray(data.todo_items) ? data.todo_items : []
@@ -656,17 +662,22 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 setLoading(false)
                 return // 暂停，等待用户选择
               } else if (data.type === 'progress') {
-                if (data.node === 'planner') {
+                // 处理各种进度消息
+                if (data.node === 'context_loader') {
+                  // 新增：处理上下文加载进度
+                  stepsAccumulator[0].status = 'process'
+                  stepsAccumulator[0].description = data.message || '正在加载工艺文档上下文...'
+                } else if (data.node === 'planner') {
                   stepsAccumulator[0].status = 'process'
                   stepsAccumulator[0].description = data.message
                 } else if (data.node === 'retriever') {
                   stepsAccumulator[0].status = 'finish'
                   stepsAccumulator[1].status = 'process'
-                  stepsAccumulator[1].description = `找到 ${data.data.materials_count?.local || 0} 条素材`
+                  stepsAccumulator[1].description = `找到 ${data.data?.materials_count?.local || 0} 条素材`
                 } else if (data.node === 'writer') {
                   stepsAccumulator[1].status = 'finish'
                   stepsAccumulator[2].status = 'process'
-                  contentAccumulator = data.data.content_preview || contentAccumulator
+                  contentAccumulator = data.data?.content_preview || contentAccumulator
                 } else if (data.node === 'reviewer') {
                   stepsAccumulator[2].status = 'finish'
                   stepsAccumulator[3].status = 'process'
@@ -706,8 +717,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
         throw readError
       }
 
-      // 生成完成后，触发预览模式（在主编辑器中显示 InlineDiff）
-      if (contentAccumulator && onPreviewContent) {
+      // 生成完成后，根据模式决定是否触发预览
+      // 只有写作模式才触发预览，问答模式直接显示结果
+      if (contentAccumulator && onPreviewContent && currentModeRef.current === 'write') {
         onPreviewContent(contentAccumulator)
         message.success('生成完成，请在编辑器中预览并确认')
       }
