@@ -1,64 +1,66 @@
 const puppeteer = require('puppeteer');
 const path = require('path');
-const fs = require('fs');
 
-async function takeScreenshot(htmlFile, outputBase, sizes) {
+async function takeScreenshot(browser, htmlFile, outputPath, width, height) {
+    const page = await browser.newPage();
+    await page.setViewport({ width, height });
+
+    await page.goto(`file://${htmlFile}`, {
+        waitUntil: 'networkidle0',
+        timeout: 30000
+    });
+
+    await new Promise(r => setTimeout(r, 500));
+
+    await page.screenshot({
+        path: outputPath,
+        fullPage: false
+    });
+
+    await page.close();
+    console.log(`Generated: ${path.basename(outputPath)}`);
+}
+
+async function main() {
+    const docsPath = __dirname;
     const browser = await puppeteer.launch({
         headless: 'new',
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
-    const page = await browser.newPage();
+    try {
+        // PPT版本 (1920x1080 16:9)
+        await takeScreenshot(
+            browser,
+            path.join(docsPath, 'backend-arch-ppt.html'),
+            path.join(docsPath, 'backend-arch-ppt.png'),
+            1920, 1080
+        );
+        await takeScreenshot(
+            browser,
+            path.join(docsPath, 'frontend-arch-ppt.html'),
+            path.join(docsPath, 'frontend-arch-ppt.png'),
+            1920, 1080
+        );
 
-    for (const size of sizes) {
-        console.log(`Generating ${size.name} version: ${size.width}x${size.height}`);
+        // 手机版本 (1080x1920 9:16)
+        await takeScreenshot(
+            browser,
+            path.join(docsPath, 'backend-arch-phone.html'),
+            path.join(docsPath, 'backend-arch-phone.png'),
+            1080, 1920
+        );
+        await takeScreenshot(
+            browser,
+            path.join(docsPath, 'frontend-arch-phone.html'),
+            path.join(docsPath, 'frontend-arch-phone.png'),
+            1080, 1920
+        );
 
-        await page.setViewport({
-            width: size.width,
-            height: size.height
-        });
-
-        await page.goto(`file://${htmlFile}`, {
-            waitUntil: 'networkidle0',
-            timeout: 30000
-        });
-
-        // 等待字体和样式加载
-        await page.waitForTimeout(1000);
-
-        const outputPath = `${outputBase}-${size.name}.png`;
-        await page.screenshot({
-            path: outputPath,
-            fullPage: false
-        });
-
-        console.log(`Saved: ${outputPath}`);
+        console.log('\nAll images generated successfully!');
+    } finally {
+        await browser.close();
     }
-
-    await browser.close();
-}
-
-async function main() {
-    const docsPath = __dirname;
-    const sizes = [
-        { name: 'ppt', width: 1920, height: 1080 },     // PPT 16:9
-        { name: 'ppt-hd', width: 2560, height: 1440 },  // PPT 高清 16:9
-        { name: 'phone', width: 1080, height: 1920 },   // 手机竖屏 9:16
-        { name: 'phone-wide', width: 1170, height: 2532 } // iPhone 尺寸
-    ];
-
-    const htmlFiles = [
-        { input: 'backend-arch-dark.html', output: 'backend-arch' },
-        { input: 'frontend-arch-dark.html', output: 'frontend-arch' }
-    ];
-
-    for (const file of htmlFiles) {
-        const htmlPath = path.join(docsPath, file.input);
-        console.log(`\nProcessing: ${file.input}`);
-        await takeScreenshot(htmlPath, path.join(docsPath, file.output), sizes);
-    }
-
-    console.log('\nAll done!');
 }
 
 main().catch(console.error);
