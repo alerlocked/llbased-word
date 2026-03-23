@@ -1,8 +1,10 @@
 """
 文档处理器
-实现"全图像"处理流程：PDF/Word -> 图片 -> OCR -> Markdown + 图片提取
+实现"全图像"处理流程：PDF/Word -> 图片 -> OCR -> Markdown + 图片提取 + HTML生成
 """
 import asyncio
+import json
+import sys
 from pathlib import Path
 from typing import List, Dict, Optional
 from io import BytesIO
@@ -17,10 +19,28 @@ from app.config import settings
 from app.models.database import Material, Figure, MaterialPage
 from app.services.vl_service import vl_service
 from app.utils.logger import logger
+from app.utils.markdown_utils import convert_vl_output_to_content_list
 
 # Windows COM 初始化支持
 if platform.system() == "Windows":
     import pythoncom
+
+
+# 动态导入 HTML 生成函数
+def _import_html_generator():
+    """动态导入 HTML 生成模块"""
+    # __file__ = backend/app/services/document_processor.py
+    # 需要向上 4 层到达项目根目录
+    scripts_dir = Path(__file__).parent.parent.parent.parent / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    
+    try:
+        from generate_document_html import generate_document_html, generate_index_json
+        return generate_document_html, generate_index_json
+    except ImportError as e:
+        logger.warning(f"无法导入 HTML 生成模块: {e}")
+        return None, None
 
 
 class DocumentProcessor:
@@ -119,7 +139,7 @@ class DocumentProcessor:
     
     async def process_document(self, file_path: Path, material_id: int, db: Session) -> Dict:
         """
-        处理文档：转图片 -> OCR提取文字 -> 保存
+        处理文档：转图片 -> OCR提取文字 -> 保存 -> 生成HTML
         
         Args:
             file_path: 文档文件路径
@@ -139,6 +159,9 @@ class DocumentProcessor:
             all_markdown_parts = []
             extracted_pages = []
             extracted_figures = []
+            
+            # 收集 VL Service 输出用于生成 HTML
+            vl_pages_data = {}
             
             # 2. 逐页处理：OCR/VL提取
             for i, image_path in enumerate(image_paths):
@@ -160,6 +183,13 @@ class DocumentProcessor:
                 )
                 db.add(page_record)
                 
+                # 收集 VL Service 输出
+                vl_pages_data[page_num] = {
+                    "markdown": page_content,
+                    "figures": page_figures,
+                    "image_path": str(image_path.relative_to(settings.DATA_DIR))
+                }
+                
                 extracted_pages.append({
                     "page_number": page_num,
                     "image_path": str(image_path.relative_to(settings.DATA_DIR)),
@@ -171,22 +201,18 @@ class DocumentProcessor:
                     logger.info(f"  📊 发现 {len(page_figures)} 个图表")
                     for fig_data in page_figures:
                         # 创建 Figure 记录
-                        # 注意：目前我们复用整页图片的路径，因为不知道图表的具体坐标来裁剪
-                        # 如果需要裁剪，需要让模型返回bbox，然后在此处裁剪保存
-                        
                         figure = Figure(
                             material_id=material_id,
-                            file_path=str(image_path.relative_to(settings.DATA_DIR)), # 复用页面图
+                            file_path=str(image_path.relative_to(settings.DATA_DIR)),
                             caption=fig_data.get("caption", "无标题图表"),
                             page_number=page_num
                         )
-                        # 如果有详细描述，可以追加到 caption 或另存字段
                         if fig_data.get("description"):
                             figure.caption = f"{figure.caption}\n\n{fig_data['description']}"
                             
                         db.add(figure)
                         extracted_figures.append({
-                            "id": None, # 待 flush 后获取
+                            "id": None,
                             "file_path": figure.file_path,
                             "caption": figure.caption,
                             "page_number": page_num,
@@ -202,7 +228,74 @@ class DocumentProcessor:
             # 组合最终全文（用于全文检索）
             final_content = "\n".join(all_markdown_parts)
             
-            logger.info(f"✅ 文档处理完成: 共{total_pages}页, 提取 {len(extracted_figures)} 个图表")
+            logger.info(f"✅ OCR完成: 共{total_pages}页, 提取 {len(extracted_figures)} 个图表")
+            
+            # ===== 新增：自动生成 HTML =====
+            try:
+                # 动态导入 HTML 生成函数
+                generate_document_html, generate_index_json = _import_html_generator()
+                if not generate_document_html or not generate_index_json:
+                    logger.warning("HTML 生成模块不可用，跳过 HTML 生成")
+                else:
+                    # 获取 material 对象
+                    material = db.query(Material).filter(Material.id == material_id).first()
+                    if not material:
+                        raise ValueError(f"Material {material_id} not found")
+                    
+                    # 准备文档输出目录
+                    doc_output_dir = settings.DATA_DIR / "documents" / str(material_id)
+                    doc_output_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # 创建 vlm 子目录并复制图片
+                    vlm_dir = doc_output_dir / "vlm"
+                    vlm_dir.mkdir(parents=True, exist_ok=True)
+                    vlm_images_dir = vlm_dir / "images"
+                    vlm_images_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # 复制页面图片到 vlm/images/
+                    import shutil
+                    for image_path in image_paths:
+                        dst_path = vlm_images_dir / image_path.name
+                        if not dst_path.exists():
+                            shutil.copy2(image_path, dst_path)
+                    
+                    # 转换 VL Service 输出为 content_list_v2.json 格式
+                    content_list_data = convert_vl_output_to_content_list(vl_pages_data)
+                    
+                    # 保存 content_list_v2.json
+                    content_list_path = vlm_dir / f"{material.name}_content_list_v2.json"
+                    with open(content_list_path, 'w', encoding='utf-8') as f:
+                        json.dump(content_list_data, f, ensure_ascii=False, indent=2)
+                    logger.info(f"✅ 生成 content_list_v2.json: {content_list_path}")
+                    
+                    # 生成 document.html
+                    html_content = generate_document_html(
+                        doc_name=material.name,
+                        pages_data=content_list_data,
+                        images_base_path="vlm/images"
+                    )
+                    html_path = doc_output_dir / "document.html"
+                    with open(html_path, 'w', encoding='utf-8') as f:
+                        f.write(html_content)
+                    logger.info(f"✅ 生成 document.html: {html_path}")
+                    
+                    # 生成 index.json
+                    index_data = generate_index_json(
+                        doc_name=material.name,
+                        file_name=f"{material.name}.pdf",
+                        pages_data=content_list_data
+                    )
+                    index_path = doc_output_dir / "index.json"
+                    with open(index_path, 'w', encoding='utf-8') as f:
+                        json.dump(index_data, f, ensure_ascii=False, indent=2)
+                    logger.info(f"✅ 生成 index.json: {index_path}")
+                    logger.info(f"   - 表格数: {len(index_data.get('tables', []))}")
+                    
+            except Exception as e:
+                # HTML 生成失败不影响 OCR 结果
+                logger.error(f"⚠️ HTML生成失败（不影响OCR）: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
             
             return {
                 "content": final_content,

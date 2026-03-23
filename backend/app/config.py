@@ -101,8 +101,8 @@ class Settings(BaseSettings):
     # 版本锁定 - 确保API稳定性
     MINERU_VERSION: str = "0.7.6"
 
-    # 后端选择: pipeline / vlm-auto-engine / hybrid-auto-engine
-    MINERU_BACKEND: str = "vlm-auto-engine"
+    # 后端选择: transformers / vllm-engine / vllm-async-engine / lmdeploy-engine / mlx-engine / http-client
+    MINERU_BACKEND: str = "transformers"
 
     # VLM 配置
     MINERU_VLM_MODEL: str = "default"

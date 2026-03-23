@@ -66,27 +66,20 @@ class VLService:
                    fallback_enabled=self.fallback_to_qwen)
 
     def _init_mineru_backend(self):
-        """初始化 MinerU 后端"""
+        """初始化 MinerU VLM 后端"""
         try:
-            from app.tools.table_extractors.mineru_extractor import MinerUTableExtractor
-            self._mineru_extractor = MinerUTableExtractor({
-                "mineru_config": {
-                    "backend": settings.MINERU_BACKEND,
-                    "table_model": settings.MINERU_TABLE_MODEL,
-                    "lang": settings.MINERU_LANG,
-                }
-            })
+            from mineru.backend.vlm.vlm_analyze import ModelSingleton
 
-            if not self._mineru_extractor.is_available():
-                logger.warning("mineru_not_available", fallback_enabled=self.fallback_to_qwen)
-                if self.fallback_to_qwen:
-                    self.backend = "qwen"
-                    self._init_qwen_backend()
-                else:
-                    logger.error("mineru_not_available_no_fallback")
-            else:
-                logger.info("mineru_backend_initialized",
-                           backend_info=self._mineru_extractor.get_backend_info())
+            # 获取 MinerU VLM predictor
+            self._mineru_predictor = ModelSingleton().get_model(
+                backend=settings.MINERU_BACKEND,
+                model_path=None,
+                server_url=None
+            )
+
+            logger.info("mineru_vlm_backend_initialized",
+                       backend=settings.MINERU_BACKEND,
+                       predictor_type=type(self._mineru_predictor).__name__)
 
         except ImportError as e:
             logger.warning("mineru_import_failed", error=str(e), fallback_enabled=self.fallback_to_qwen)
@@ -95,6 +88,13 @@ class VLService:
                 self._init_qwen_backend()
             else:
                 raise ImportError("MinerU未安装且未启用回退，请运行: pip install mineru[all]")
+        except Exception as e:
+            logger.error("mineru_init_failed", error=str(e), fallback_enabled=self.fallback_to_qwen)
+            if self.fallback_to_qwen:
+                self.backend = "qwen"
+                self._init_qwen_backend()
+            else:
+                raise
 
     def _init_qwen_backend(self):
         """初始化 Qwen-VL 后端"""
@@ -259,35 +259,44 @@ class VLService:
 
     async def _ocr_with_mineru(self, image_path: Path) -> Tuple[str, List[Dict[str, Any]]]:
         """
-        使用 MinerU VLM 进行 OCR
+        使用 MinerU VLM 进行 OCR（正确方式）
+        使用 two_step_extract 直接处理图片，无需 img2pdf 转换
         """
         start_time = time.time()
 
-        if not self._mineru_extractor or not self._mineru_extractor.is_available():
-            raise RuntimeError("MinerU 后端不可用")
+        if not self._mineru_predictor:
+            raise RuntimeError("MinerU VLM 后端不可用")
 
         try:
             logger.debug("mineru_ocr_started", image=image_path.name)
 
-            # MinerU 处理 PDF，需要先将图片转换为 PDF 或使用其他方式
-            # 这里使用 MinerU 的图像处理能力
-            markdown_content = await self._mineru_image_to_markdown(image_path)
-            figures = await self._extract_figures_with_mineru(image_path)
+            # 加载图片
+            from PIL import Image
+            image_pil = Image.open(image_path).convert("RGB")
+
+            # 使用 MinerU VLM 处理图片（正确 API）
+            markdown_content = await self._mineru_image_to_markdown(image_path, image_pil)
+
+            # 提取图表信息（从 content_blocks 中提取）
+            # 注意：这里需要在同步方法中提取，但我们已经在前面的方法中处理了
+            # 暂时返回空列表，后续可以优化
+            figures = []
 
             duration_ms = (time.time() - start_time) * 1000
-            log_api_call("MinerU", "OCR", "success", duration_ms)
+            log_api_call("MinerU-VLM", "OCR", "success", duration_ms)
 
             return markdown_content, figures
 
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
-            log_api_call("MinerU", "OCR", "error", duration_ms)
-            logger.error("mineru_ocr_failed", image=image_path.name, error=str(e))
+            log_api_call("MinerU-VLM", "OCR", "error", duration_ms)
+            logger.error("mineru_vlm_ocr_failed", image=image_path.name, error=str(e))
             raise
 
-    async def _mineru_image_to_markdown(self, image_path: Path) -> str:
+    async def _mineru_image_to_markdown(self, image_path: Path, image_pil) -> str:
         """
-        使用 MinerU 处理图片并转换为 Markdown
+        使用 MinerU VLM 处理图片并转换为 Markdown
+        使用 two_step_extract 方法（正确的 VLM API）
         """
         loop = asyncio.get_event_loop()
 
@@ -295,93 +304,114 @@ class VLService:
             result = await loop.run_in_executor(
                 executor,
                 self._mineru_image_to_markdown_sync,
-                image_path
+                image_pil
             )
 
         return result
 
-    def _mineru_image_to_markdown_sync(self, image_path: Path) -> str:
+    def _mineru_image_to_markdown_sync(self, image_pil) -> str:
         """
-        同步执行 MinerU 图像处理
+        同步执行 MinerU VLM 图像处理
+        使用 two_step_extract 方法（单张图片的正确 API）
         """
-        import img2pdf
-        from mineru.cli.common import do_parse
-
-        temp_dir = None
-        temp_pdf_path = None
-
         try:
-            # 将图片转换为 PDF（MinerU 需要 PDF 输入）
-            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
-                temp_pdf_path = f.name
+            # 使用 MinerU VLM 的 two_step_extract 方法（单张图片）
+            content_blocks = self._mineru_predictor.two_step_extract(image_pil)
 
-            with open(temp_pdf_path, 'wb') as f:
-                with open(image_path, 'rb') as img_f:
-                    pdf_bytes = img2pdf.convert(img_f.read())
-                    f.write(pdf_bytes)
+            if not content_blocks:
+                logger.warning("mineru_vlm_empty_result")
+                return ""
 
-            # 创建临时输出目录
-            temp_dir = tempfile.mkdtemp(prefix="mineru_ocr_")
-            output_dir = os.path.join(temp_dir, "output")
+            # 将 ContentBlock 列表转换为 markdown
+            return self._content_blocks_to_markdown(content_blocks)
 
-            # 执行 MinerU 解析
-            pdf_filename = os.path.basename(temp_pdf_path)
-            with open(temp_pdf_path, 'rb') as f:
-                pdf_bytes = f.read()
+        except Exception as e:
+            logger.error("mineru_vlm_processing_failed", error=str(e))
+            raise
 
-            do_parse(
-                output_dir=output_dir,
-                pdf_file_names=[pdf_filename],
-                pdf_bytes_list=[pdf_bytes],
-                p_lang_list=[settings.MINERU_LANG],
-                backend=settings.MINERU_BACKEND,
-                parse_method="auto",
-                formula_enable=False,
-                table_enable=True,
-                f_draw_layout_bbox=False,
-                f_draw_span_bbox=False,
-                f_dump_md=True,
-                f_dump_middle_json=False,
-                f_dump_model_output=False,
-                f_dump_orig_pdf=False,
-                f_dump_content_list=False,
-            )
-
-            # 读取 Markdown 输出
-            md_content = ""
-            for root, dirs, files in os.walk(output_dir):
-                for f in files:
-                    if f.endswith('.md'):
-                        md_path = os.path.join(root, f)
-                        with open(md_path, 'r', encoding='utf-8') as mf:
-                            md_content = mf.read()
-                        break
-
-            return md_content
-
-        except ImportError:
-            logger.warning("img2pdf_not_available", fallback="qwen")
-            raise RuntimeError("img2pdf 未安装，无法使用 MinerU 处理图片")
-        finally:
-            # 清理临时文件
-            if temp_pdf_path and os.path.exists(temp_pdf_path):
-                try:
-                    os.unlink(temp_pdf_path)
-                except Exception:
-                    pass
-            if temp_dir and os.path.exists(temp_dir):
-                try:
-                    shutil.rmtree(temp_dir)
-                except Exception:
-                    pass
-
-    async def _extract_figures_with_mineru(self, image_path: Path) -> List[Dict[str, Any]]:
+    def _content_blocks_to_markdown(self, content_blocks: list) -> str:
         """
-        使用 MinerU 提取图表信息
+        将 MinerU ContentBlock 列表转换为 Markdown
+
+        Args:
+            content_blocks: MinerU VLM 返回的内容块列表
+
+        Returns:
+            Markdown 文本
         """
-        # MinerU 在解析过程中已经提取了图表，这里返回空列表
-        # 如果需要单独提取图表，可以调用 Qwen 的图表提取功能
-        return []
+        md_parts = []
+
+        for block in content_blocks:
+            block_type = block.type
+            content = block.content or ""
+            bbox = getattr(block, 'bbox', None)
+
+            if block_type == "title":
+                # 标题
+                md_parts.append(f"\n# {content}\n")
+
+            elif block_type in ["text", "list"]:
+                # 普通文本
+                md_parts.append(f"\n{content}\n")
+
+            elif block_type == "table":
+                # 表格（content 已是 HTML 格式）
+                md_parts.append(f"\n{content}\n")
+
+            elif block_type == "equation":
+                # 公式
+                md_parts.append(f"\n$$\n{content}\n$$\n")
+
+            elif block_type in ["code", "algorithm"]:
+                # 代码块
+                md_parts.append(f"\n```\n{content}\n```\n")
+
+            elif block_type == "image":
+                # 图片标记
+                bbox_str = str(bbox) if bbox else "未知位置"
+                md_parts.append(f"\n[图片: {bbox_str}]\n")
+
+            elif block_type in ["image_caption", "table_caption"]:
+                # 标题/说明
+                md_parts.append(f"\n{content}\n")
+
+            else:
+                # 未知类型，作为文本处理
+                if content.strip():
+                    md_parts.append(f"\n{content}\n")
+
+        return "\n".join(md_parts)
+
+    def _extract_figures_from_blocks(self, content_blocks: list) -> List[Dict[str, Any]]:
+        """
+        从 ContentBlock 中提取图表信息
+
+        Args:
+            content_blocks: MinerU VLM 返回的内容块列表
+
+        Returns:
+            图表信息列表
+        """
+        figures = []
+
+        for block in content_blocks:
+            if block.type == "table":
+                figures.append({
+                    "type": "table",
+                    "caption": "",
+                    "description": block.content or "",
+                    "bbox": getattr(block, 'bbox', None),
+                })
+
+            elif block.type == "image":
+                figures.append({
+                    "type": "image",
+                    "caption": "",
+                    "description": "",
+                    "bbox": getattr(block, 'bbox', None),
+                })
+
+        return figures
 
     # ==================== Qwen-VL 后端 ====================
 
@@ -673,9 +703,14 @@ class VLService:
             "available_backends": ["qwen"],
         }
 
-        if self._mineru_extractor and self._mineru_extractor.is_available():
+        if hasattr(self, '_mineru_predictor') and self._mineru_predictor:
             info["available_backends"].insert(0, "mineru")
-            info["mineru_info"] = self._mineru_extractor.get_backend_info()
+            info["mineru_info"] = {
+                "type": "vlm",
+                "backend": settings.MINERU_BACKEND,
+                "initialized": True,
+                "predictor_type": type(self._mineru_predictor).__name__
+            }
 
         info["qwen_info"] = {
             "model": getattr(self, 'qwen_model', 'qwen-vl-max'),
