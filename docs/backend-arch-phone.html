@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <title>后端技术架构 - 手机版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            width: 1080px;
+            height: 1920px;
+            overflow: hidden;
+            color: white;
+            padding: 50px;
+        }
+        .container { display: flex; flex-direction: column; height: 100%; }
+        .title { text-align: center; margin-bottom: 40px; }
+        .title h1 {
+            font-size: 52px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .title p { font-size: 22px; color: #8892b0; margin-top: 10px; }
+        .layers { display: flex; flex-direction: column; gap: 20px; flex: 1; }
+        .layer { display: flex; flex-direction: column; gap: 12px; }
+        .layer-label {
+            font-size: 22px;
+            font-weight: 700;
+            color: #64ffda;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+        }
+        .layer-content { display: flex; flex-direction: column; gap: 12px; }
+        .module {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .module-header { display: flex; align-items: center; margin-bottom: 12px; gap: 12px; }
+        .module-icon { font-size: 28px; }
+        .module-name { font-size: 22px; font-weight: 600; }
+        .module-desc { font-size: 18px; color: #a8b2d1; line-height: 1.6; margin-bottom: 10px; }
+        .module-tech { font-size: 16px; color: #64ffda; line-height: 1.6; }
+        .app-layer .module { border-left: 4px solid #667eea; }
+        .gateway-layer .module { border-left: 4px solid #f5576c; }
+        .agent-layer .module { border-left: 4px solid #4facfe; }
+        .base-layer .module { border-left: 4px solid #43e97b; }
+        .tech-tag {
+            display: inline-block;
+            background: rgba(100, 255, 218, 0.1);
+            color: #64ffda;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+            margin: 3px 5px 3px 0;
+        }
+        .highlight { color: #64ffda; font-weight: 600; }
+        .arrow { text-align: center; font-size: 28px; color: #64ffda; margin: 5px 0; }
+        .agent-group {
+            background: rgba(79, 172, 254, 0.08);
+            border: 1px dashed rgba(79, 172, 254, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+        }
+        .agent-group-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #4facfe;
+            margin-bottom: 12px;
+        }
+        .agent-flow { font-size: 16px; color: #a8b2d1; margin-top: 12px; text-align: center; }
+        .agent-flow-arrow { color: #4facfe; margin: 0 8px; }
+        .modules-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+        .modules-grid .module { flex: 1; min-width: 280px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">
+            <h1>⚙️ 后端技术架构</h1>
+            <p>工艺文件辅助编辑系统</p>
+        </div>
+        <div class="layers">
+            <!-- 应用层 -->
+            <div class="layer app-layer">
+                <div class="layer-label">📱 应用层</div>
+                <div class="layer-content">
+                    <div class="module">
+                        <div class="module-header"><span class="module-icon">🎨</span><span class="module-name">Web 前端</span></div>
+                        <div class="module-desc">React SPA，素材管理、文档编辑、AI助手交互界面</div>
+                        <div class="module-tech">
+                            <span class="tech-tag">React 18</span>
+                            <span class="tech-tag">TypeScript</span>
+                            <span class="tech-tag">Ant Design 5</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="arrow">↓</div>
+            <!-- 网关层 -->
+            <div class="layer gateway-layer">
+                <div class="layer-label">🚪 网关层</div>
+                <div class="layer-content modules-grid">
+                    <div class="module">
+                        <div class="module-header"><span class="module-icon">💬</span><span class="module-name">Agent Controller</span></div>
+                        <div class="module-desc">AI对话入口，<span class="highlight">模式自动检测</span></div>
+                    </div>
+                    <div class="module">
+                        <div class="module-header"><span class="module-icon">📁</span><span class="module-name">Document</span></div>
+                        <div class="module-desc">文档管理、素材上传</div>
+                    </div>
+                    <div class="module">
+                        <div class="module-header"><span class="module-icon">🔍</span><span class="module-name">Search</span></div>
+                        <div class="module-desc">全文、语义检索</div>
+                    </div>
+                </div>
+            </div>
+            <div class="arrow">↓</div>
+            <!-- Agent 层 -->
+            <div class="layer agent-layer">
+                <div class="layer-label">🤖 Agent 层</div>
+                <div class="layer-content">
+                    <div class="agent-group">
+                        <div class="agent-group-title">🎯 主控 ProcessOrchestrator</div>
+                        <div class="module-desc">意图识别 → 信息评估 → Agent调度 → 结果整合 (迭代max=3)</div>
+                    </div>
+                    <div class="agent-group">
+                        <div class="agent-group-title">✨ 功能 Agent 流水线</div>
+                        <div class="modules-grid">
+                            <div class="module">
+                                <div class="module-header"><span class="module-icon">✍️</span><span class="module-name">Writing</span></div>
+                                <div class="module-desc">内容生成</div>
+                            </div>
+                            <div class="module">
+                                <div class="module-header"><span class="module-icon">📝</span><span class="module-name">Proofread</span></div>
+                                <div class="module-desc">文本校对</div>
+                            </div>
+                            <div class="module">
+                                <div class="module-header"><span class="module-icon">✅</span><span class="module-name">Review</span></div>
+                                <div class="module-desc">质量审核</div>
+                            </div>
+                        </div>
+                        <div class="agent-flow">Writing <span class="agent-flow-arrow">→</span> Proofread <span class="agent-flow-arrow">→</span> Review</div>
+                    </div>
+                </div>
+            </div>
+            <div class="arrow">↓</div>
+            <!-- 底层 -->
+            <div class="layer base-layer">
+                <div class="layer-label">🔧 底层服务</div>
+                <div class="layer-content modules-grid">
+                    <div class="module">
+                        <div class="module-header"><span class="module-icon">👁️</span><span class="module-name">VLService</span></div>
+                        <div class="module-desc">PDF OCR、表格提取</div>
+                        <div class="module-tech"><span class="tech-tag">MinerU VLM</span></div>
+                    </div>
+                    <div class="module">
+                        <div class="module-header"><span class="module-icon">📚</span><span class="module-name">Context</span></div>
+                        <div class="module-desc">4层渐进式披露</div>
+                    </div>
+                    <div class="module">
+                        <div class="module-header"><span class="module-icon">🧠</span><span class="module-name">DeepSeek</span></div>
+                        <div class="module-desc">LLM推理</div>
+                    </div>
+                    <div class="module">
+                        <div class="module-header"><span class="module-icon">💾</span><span class="module-name">Data</span></div>
+                        <div class="module-desc">SQLite + 文件</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

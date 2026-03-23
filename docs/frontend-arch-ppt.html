@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>前端架构 - PPT版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            color: white;
+            padding: 25px 50px;
+        }
+        .container { display: flex; gap: 30px; height: 100%; }
+        .left-panel { flex: 0 0 550px; display: flex; flex-direction: column; }
+        .right-panel { flex: 1; display: flex; flex-direction: column; }
+        .title {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .title h1 {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .title p { font-size: 13px; color: #8892b0; margin-top: 5px; }
+        .interface-preview {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            flex: 1;
+        }
+        .interface-title {
+            font-size: 14px;
+            color: #64ffda;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .interface-layout {
+            display: grid;
+            grid-template-columns: 120px 1fr 150px;
+            grid-template-rows: 50px 1fr;
+            gap: 8px;
+            height: calc(100% - 40px);
+        }
+        .interface-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #a8b2d1;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .interface-box .icon { font-size: 22px; }
+        .interface-header { grid-column: 1 / -1; background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%); }
+        .interface-sidebar { background: rgba(100, 255, 218, 0.05); }
+        .interface-editor { background: rgba(255, 255, 255, 0.08); }
+        .interface-assistant { background: rgba(79, 172, 254, 0.1); }
+        .modules-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 15px;
+            flex: 1;
+        }
+        .module {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 18px;
+            backdrop-filter: blur(10px);
+            border-left: 3px solid #667eea;
+            display: flex;
+            flex-direction: column;
+        }
+        .module-header { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; }
+        .module-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .module-name { font-size: 15px; font-weight: 600; }
+        .module-desc {
+            font-size: 11px;
+            color: #a8b2d1;
+            line-height: 1.6;
+            margin-bottom: auto;
+        }
+        .module-tech { font-size: 10px; color: #64ffda; line-height: 1.6; margin-top: 10px; }
+        .tech-tag {
+            display: inline-block;
+            background: rgba(100, 255, 218, 0.1);
+            color: #64ffda;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 9px;
+            margin: 2px 3px 2px 0;
+        }
+        .highlight { color: #64ffda; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <div class="title">
+                <h1>🎨 前端架构</h1>
+                <p>工艺文件辅助编辑系统 | Frontend Architecture</p>
+            </div>
+            <div class="interface-preview">
+                <div class="interface-title">📱 界面布局</div>
+                <div class="interface-layout">
+                    <div class="interface-box interface-header">
+                        <span class="icon">🎯</span>
+                        <span>顶部导航栏</span>
+                    </div>
+                    <div class="interface-box interface-sidebar">
+                        <span class="icon">📚</span>
+                        <span>素材库</span>
+                    </div>
+                    <div class="interface-box interface-editor">
+                        <span class="icon">✍️</span>
+                        <span>文档编辑器</span>
+                    </div>
+                    <div class="interface-box interface-assistant">
+                        <span class="icon">🤖</span>
+                        <span>AI 助手</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="modules-section">
+                <div class="module">
+                    <div class="module-header">
+                        <div class="module-icon">📄</div>
+                        <div class="module-name">PDF 文档解析</div>
+                    </div>
+                    <div class="module-desc">上传PDF后自动调用<span class="highlight">MinerU VLM</span>进行OCR，实时显示进度，提取文字表格</div>
+                    <div class="module-tech">
+                        <span class="tech-tag">MinerU VLM</span>
+                        <span class="tech-tag">5-10s/页</span>
+                        <span class="tech-tag">实时进度</span>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="module-header">
+                        <div class="module-icon">📚</div>
+                        <div class="module-name">素材库管理</div>
+                    </div>
+                    <div class="module-desc">文档素材分类、搜索、<span class="highlight">快速引用</span>到编辑器，点击预览PDF</div>
+                    <div class="module-tech">
+                        <span class="tech-tag">MaterialLibrary</span>
+                        <span class="tech-tag">Zustand</span>
+                        <span class="tech-tag">SQLite</span>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="module-header">
+                        <div class="module-icon">✍️</div>
+                        <div class="module-name">富文本编辑器</div>
+                    </div>
+                    <div class="module-desc">Markdown、素材插入、版本管理、撤销重做、导出Word/Excel/PDF</div>
+                    <div class="module-tech">
+                        <span class="tech-tag">Slate.js</span>
+                        <span class="tech-tag">Ant Design</span>
+                        <span class="tech-tag">编辑历史</span>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="module-header">
+                        <div class="module-icon">🤖</div>
+                        <div class="module-name">AI 助手面板</div>
+                    </div>
+                    <div class="module-desc"><span class="highlight">问答模式</span>+<span class="highlight">写作模式</span>双模式，流式响应，Agent协作可视化</div>
+                    <div class="module-tech">
+                        <span class="tech-tag">SSE流式</span>
+                        <span class="tech-tag">模式检测</span>
+                        <span class="tech-tag">多会话</span>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="module-header">
+                        <div class="module-icon">🔍</div>
+                        <div class="module-name">智能检索</div>
+                    </div>
+                    <div class="module-desc">全文+语义+关联检索，快速定位素材，支持中文分词</div>
+                    <div class="module-tech">
+                        <span class="tech-tag">4层披露</span>
+                        <span class="tech-tag">jieba</span>
+                        <span class="tech-tag">200-400ms</span>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="module-header">
+                        <div class="module-icon">📊</div>
+                        <div class="module-name">状态管理</div>
+                    </div>
+                    <div class="module-desc">Zustand管理全局状态，项目数据、会话历史、编辑记录持久化</div>
+                    <div class="module-tech">
+                        <span class="tech-tag">Zustand</span>
+                        <span class="tech-tag">LocalStorage</span>
+                        <span class="tech-tag">状态隔离</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

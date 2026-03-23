@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工艺文件辅助编辑系统 - 前端架构</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            padding: 60px 40px;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .title {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .title h1 {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 15px;
+        }
+        
+        .title p {
+            font-size: 20px;
+            color: #8892b0;
+        }
+        
+        .interface-preview {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 40px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .interface-title {
+            font-size: 18px;
+            color: #64ffda;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .interface-layout {
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            grid-template-rows: 60px 1fr;
+            gap: 10px;
+            height: 500px;
+        }
+        
+        .interface-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #a8b2d1;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .interface-box .icon {
+            font-size: 32px;
+        }
+        
+        .interface-header {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+        }
+        
+        .interface-sidebar {
+            background: rgba(100, 255, 218, 0.05);
+        }
+        
+        .interface-editor {
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .interface-assistant {
+            background: rgba(79, 172, 254, 0.1);
+        }
+        
+        .modules-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        
+        .module {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            border-left: 3px solid #667eea;
+        }
+        
+        .module:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(100, 255, 218, 0.3);
+            transform: translateY(-5px);
+        }
+        
+        .module-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .module-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-right: 15px;
+        }
+        
+        .module-name {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .module-desc {
+            font-size: 15px;
+            color: #a8b2d1;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .module-tech {
+            font-size: 13px;
+            color: #64ffda;
+            line-height: 1.8;
+        }
+        
+        .tech-tag {
+            display: inline-block;
+            background: rgba(100, 255, 218, 0.1);
+            color: #64ffda;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin: 3px 5px 3px 0;
+        }
+        
+        .highlight {
+            color: #64ffda;
+            font-weight: 600;
+        }
+        
+        .section-label {
+            position: absolute;
+            font-size: 11px;
+            color: #64ffda;
+            font-weight: 600;
+            padding: 4px 8px;
+            background: rgba(100, 255, 218, 0.1);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">
+            <h1>🎨 前端架构 - 功能模块</h1>
+            <p>工艺文件辅助编辑系统 | Frontend Architecture</p>
+        </div>
+        
+        <!-- 界面布局预览 -->
+        <div class="interface-preview">
+            <div class="interface-title">📱 界面布局</div>
+            <div class="interface-layout">
+                <div class="interface-box interface-header">
+                    <span class="icon">🎯</span>
+                    <span>顶部导航栏 - 项目管理、工具操作、设置</span>
+                </div>
+                <div class="interface-box interface-sidebar">
+                    <span class="icon">📚</span>
+                    <span>素材库</span>
+                    <span style="font-size:11px;color:#64ffda;">文档列表</span>
+                </div>
+                <div class="interface-box interface-editor">
+                    <span class="icon">✍️</span>
+                    <span>文档编辑器</span>
+                    <span style="font-size:11px;color:#64ffda;">富文本编辑 + 预览</span>
+                </div>
+                <div class="interface-box interface-assistant">
+                    <span class="icon">🤖</span>
+                    <span>AI 助手面板</span>
+                    <span style="font-size:11px;color:#64ffda;">对话 + Agent协作</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 功能模块 -->
+        <div class="modules-section">
+            <!-- 模块 1 -->
+            <div class="module">
+                <div class="module-header">
+                    <div class="module-icon">📄</div>
+                    <div class="module-name">PDF 文档解析</div>
+                </div>
+                <div class="module-desc">
+                    上传 PDF 后自动调用后端 <span class="highlight">MinerU VLM</span> 进行 OCR 识别，实时显示解析进度，提取文字、表格、图表，生成 Markdown 格式
+                </div>
+                <div class="module-tech">
+                    <span class="tech-tag">MinerU VLM</span>
+                    <span class="tech-tag">pypdfium2</span>
+                    <span class="tech-tag">5-10s/页</span>
+                    <span class="tech-tag">实时进度显示</span>
+                </div>
+            </div>
+            
+            <!-- 模块 2 -->
+            <div class="module">
+                <div class="module-header">
+                    <div class="module-icon">📚</div>
+                    <div class="module-name">素材库管理</div>
+                </div>
+                <div class="module-desc">
+                    左侧栏展示所有上传的文档和素材，支持分类、搜索、<span class="highlight">快速引用</span>到编辑器，点击预览 PDF 内容
+                </div>
+                <div class="module-tech">
+                    <span class="tech-tag">MaterialLibrary</span>
+                    <span class="tech-tag">Zustand 状态管理</span>
+                    <span class="tech-tag">SQLite 持久化</span>
+                    <span class="tech-tag">实时搜索</span>
+                </div>
+            </div>
+            
+            <!-- 模块 3 -->
+            <div class="module">
+                <div class="module-header">
+                    <div class="module-icon">✍️</div>
+                    <div class="module-name">富文本编辑器</div>
+                </div>
+                <div class="module-desc">
+                    中央区域为富文本编辑器，支持 Markdown、素材插入、版本管理、<span class="highlight">撤销/重做</span>、导出（Word/Excel/PDF）
+                </div>
+                <div class="module-tech">
+                    <span class="tech-tag">Slate.js</span>
+                    <span class="tech-tag">Ant Design</span>
+                    <span class="tech-tag">编辑历史</span>
+                    <span class="tech-tag">素材引用</span>
+                </div>
+            </div>
+            
+            <!-- 模块 4 -->
+            <div class="module">
+                <div class="module-header">
+                    <div class="module-icon">🤖</div>
+                    <div class="module-name">AI 助手面板</div>
+                </div>
+                <div class="module-desc">
+                    右侧栏为 AI 助手，双模式：<span class="highlight">问答模式</span>（回答问题，不触发预览）+ <span class="highlight">写作模式</span>（生成内容，实时预览），流式响应、Agent 协作可视化、多会话管理
+                </div>
+                <div class="module-tech">
+                    <span class="tech-tag">SSE 流式响应</span>
+                    <span class="tech-tag">模式自动检测</span>
+                    <span class="tech-tag">Agent 协作视图</span>
+                    <span class="tech-tag">会话管理</span>
+                </div>
+            </div>
+            
+            <!-- 模块 5 -->
+            <div class="module">
+                <div class="module-header">
+                    <div class="module-icon">🔍</div>
+                    <div class="module-name">智能检索</div>
+                </div>
+                <div class="module-desc">
+                    全文检索 + 语义检索 + 关联检索，快速定位素材内容，支持中文分词
+                </div>
+                <div class="module-tech">
+                    <span class="tech-tag">4层渐进式披露</span>
+                    <span class="tech-tag">jieba 分词</span>
+                    <span class="tech-tag">200-400ms 延迟</span>
+                    <span class="tech-tag">上下文匹配</span>
+                </div>
+            </div>
+            
+            <!-- 模块 6 -->
+            <div class="module">
+                <div class="module-header">
+                    <div class="module-icon">📊</div>
+                    <div class="module-name">状态管理</div>
+                </div>
+                <div class="module-desc">
+                    使用 Zustand 管理全局状态，包括项目数据、会话历史、编辑记录，支持持久化存储
+                </div>
+                <div class="module-tech">
+                    <span class="tech-tag">Zustand</span>
+                    <span class="tech-tag">LocalStorage 持久化</span>
+                    <span class="tech-tag">多项目状态隔离</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
