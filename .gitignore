@@ -86,10 +86,12 @@ test_screenshot.png
 
 # Data (large files - DO NOT COMMIT)
 data/exports_vlm_full/
+data/exports_html/
 data/process_docs/
 data/test_direct.csv
 backend/data/process_docs/*.pdf
 backend/data/extracted/
+backend/data/pdf_queue_state.json
 
 # Claude Code
 .claude/settings.local.json
