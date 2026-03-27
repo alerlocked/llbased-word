@@ -1478,10 +1478,172 @@ async def search_uploaded_images(
             "count": len(results),
             "images": results
         }
-        
+
     except Exception as e:
         logger.error(f"❌ 图片搜索失败: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"搜索失败: {str(e)}"
+        )
+
+
+# ==================== 素材索引 API ====================
+
+from app.services.material_index import material_index_service, MaterialManifest
+from fastapi import Form
+
+
+# Pydantic models for API
+class GenerateIndexRequest(BaseModel):
+    """生成索引请求"""
+    folder_path: str = Field(..., description="素材文件夹路径")
+    project_id: Optional[int] = Field(None, description="项目ID")
+    save_to_db: bool = Field(False, description="是否保存索引到数据库")
+    auto_save: bool = Field(True, description="是否自动保存 manifest.json 文件")
+
+
+class IndexResponse(BaseModel):
+    """索引生成响应"""
+    manifest: MaterialManifest
+    manifest_path: Optional[str] = None
+    file_count: int
+    directory_count: int
+    total_size: int
+    generated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+# API endpoints
+@router.post("/projects/{project_id}/materials/generate-index", response_model=IndexResponse)
+async def generate_material_index(
+    project_id: int,
+    request: GenerateIndexRequest = Depends(),
+    db: Session = Depends(get_db)
+):
+    """
+    生成素材库索引文件
+
+    扫描指定文件夹，生成包含文件列表、目录结构、文件哈希等信息的索引清单
+    """
+    log_workflow("生成素材索引", "开始", {
+        "project_id": project_id,
+        "folder_path": request.folder_path
+    })
+
+    try:
+        # 验证项目是否存在
+        project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
+
+        # 验证文件夹路径
+        folder_path = Path(request.folder_path)
+        if not folder_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"文件夹不存在: {request.folder_path}"
+            )
+
+        if not folder_path.is_dir():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"路径不是文件夹: {request.folder_path}"
+            )
+
+        # 生成索引
+        manifest, saved_path = await material_index_service.generate_and_save_manifest(
+            folder_path=str(folder_path),
+            project_id=project_id,
+            output_path=str(folder_path / "manifest.json") if request.auto_save else None
+        )
+
+        # 保存索引到数据库（如果需要）
+        if request.save_to_db:
+            existing = db.query(Material).filter(
+                Material.name == "manifest.json",
+                Material.id.in_(project.material_ids or [])
+            ).first()
+
+            if existing:
+                existing.content = json.dumps(manifest.model_dump(), ensure_ascii=False)
+                existing.updated_at = datetime.utcnow()
+            else:
+                new_material = Material(
+                    name="manifest.json",
+                    material_type="index",
+                    content=json.dumps(manifest.model_dump(), ensure_ascii=False)
+                )
+                db.add(new_material)
+                db.commit()
+                db.refresh(new_material)
+                project.material_ids = (project.material_ids or []) + [new_material.id]
+                db.commit()
+
+        logger.info(f"✅ 素材索引生成完成: {len(manifest.files)} 个文件")
+
+        return {
+            "manifest": manifest,
+            "manifest_path": saved_path if request.auto_save else None,
+            "file_count": len(manifest.files),
+            "directory_count": len(manifest.directories),
+            "total_size": manifest.total_size,
+            "generated_at": datetime.now().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 生成素材索引失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"生成索引失败: {str(e)}"
+        )
+
+
+@router.post("/projects/{project_id}/materials/upload-folder", response_model=IndexResponse)
+async def upload_folder_and_generate_index(
+    project_id: int,
+    folder_path: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """上传文件夹并自动生成索引"""
+    return await generate_material_index(
+        project_id,
+        GenerateIndexRequest(
+            folder_path=folder_path,
+            project_id=project_id,
+            save_to_db=True,
+            auto_save=True
+        ),
+        db
+    )
+
+
+@router.get("/projects/{project_id}/materials/index", response_model=MaterialManifest)
+async def get_material_index(
+    project_id: int,
+    db: Session = Depends(get_db)
+):
+    """获取项目的素材索引"""
+    try:
+        project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
+
+        manifest_material = db.query(Material).filter(
+            Material.name == "manifest.json",
+            Material.id.in_(project.material_ids or [])
+        ).first()
+
+        if not manifest_material:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="索引文件不存在，请先生成索引"
+            )
+
+        manifest_data = json.loads(manifest_material.content)
+        return MaterialManifest(**manifest_data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 获取素材索引失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取索引失败: {str(e)}"
         )

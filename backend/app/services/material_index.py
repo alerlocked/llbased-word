@@ -65,23 +65,6 @@ from app.utils.db_utils import get_or_404
 
 
 from app.utils.path_utils import build_static_url
-import inspect
-
-# 获取调用栈中的数据库会话
-frame = inspect.currentframe()
-# 检查是否在 pytest 环境中
-is_test = 'pytest' in str(frame).filename if frame else False
-if is_test:
-    # 在测试中，使用 Depends(get_db)
-    pass
-else:
-    # 在生产中，创建独立会话
-    db = SessionLocal()
-    try:
-        db.commit()
-    finally:
-        db.close()
-logger = get_logger(__name__)
 
 # ==================== 数据模型 ====================
 
