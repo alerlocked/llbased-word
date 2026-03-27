@@ -14,6 +14,10 @@ interface FileItem {
   file: File
   selected: boolean
   id: string
+  /** 相对路径（保留文件夹结构） */
+  relativePath: string
+  /** 目录深度 */
+  depth: number
 }
 
 interface FolderUploaderProps {
@@ -51,15 +55,21 @@ const FolderUploader: React.FC<FolderUploaderProps> = ({ onFilesSelected, accept
     const files = event.target.files
     if (!files || files.length === 0) return
 
-    // 过滤支持的文件
+    // 过滤支持的文件，保留相对路径
     const validFiles: FileItem[] = []
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
+      // 获取 webkitRelativePath（保留文件夹层级）
+      const relativePath = (file as any).webkitRelativePath || file.name
+      const depth = relativePath.split('/').length - 1
+
       if (isValidFile(file.name)) {
         validFiles.push({
           file,
           selected: true,
-          id: `${file.name}-${file.size}-${file.lastModified}`
+          id: relativePath,  // 使用相对路径作为唯一ID
+          relativePath,
+          depth
         })
       }
     }
@@ -192,10 +202,12 @@ const FolderUploader: React.FC<FolderUploaderProps> = ({ onFilesSelected, accept
                 />
                 <div style={{ flex: 1, marginLeft: 12 }}>
                   <div style={{ color: colors.textPrimary, fontWeight: 500 }}>
-                    {item.file.name}
+                    {/* 显示完整相对路径 */}
+                    {item.relativePath}
                   </div>
                   <div style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                    {formatFileSize(item.file.size)}
+                    {/* 显示文件大小和目录深度 */}
+                    {formatFileSize(item.file.size)} {item.depth > 0 ? `· ${item.depth} 级目录` : ''}
                   </div>
                 </div>
               </div>

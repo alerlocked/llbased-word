@@ -3,14 +3,14 @@
  * 显示当前项目的文档素材
  */
 import { useState, useEffect } from 'react'
-import { List, Button, Input, Empty, Spin, Tag } from 'antd'
+import { List, Button, Input, Empty, Spin, Tag, Checkbox } from 'antd'
 import { FileTextOutlined, PlusOutlined } from '@ant-design/icons'
 import AddMaterialDialog from '../common/AddMaterialDialog'
 
 const { Search } = Input
 
 interface Material {
-  id: string
+  id: string | number
   type: 'document' | 'search'
   title: string
   content: string
@@ -21,13 +21,24 @@ interface Material {
 interface MaterialsPanelProps {
   projectId: number | null
   onInsert: (content: string) => void
+  /** 素材选中状态变化回调 */
+  onMaterialsSelect?: (materials: { id: string | number; name: string; content: string; type: string }[]) => void
+  /** 当前选中的素材 ID 列表 */
+  selectedMaterialIds?: (string | number)[]
 }
 
-const MaterialsPanel: React.FC<MaterialsPanelProps> = ({ projectId, onInsert }) => {
+const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
+  projectId,
+  onInsert,
+  onMaterialsSelect,
+  selectedMaterialIds = []
+}) => {
   const [materials, setMaterials] = useState<Material[]>([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [addDialogVisible, setAddDialogVisible] = useState(false)
+  // 内部管理选中状态
+  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string | number>>(new Set())
 
   // 获取项目素材
   const fetchMaterials = async () => {
@@ -61,6 +72,34 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({ projectId, onInsert }) 
     fetchMaterials()
   }, [projectId])
 
+  // 当选中状态变化时，通知父组件
+  useEffect(() => {
+    if (onMaterialsSelect) {
+      const selectedMaterials = materials
+        .filter(m => internalSelectedIds.has(m.id))
+        .map(m => ({
+          id: m.id,
+          name: m.title,
+          content: m.content,
+          type: m.type
+        }))
+      onMaterialsSelect(selectedMaterials)
+    }
+  }, [internalSelectedIds, materials, onMaterialsSelect])
+
+  // 切换素材选中状态
+  const handleToggleSelect = (materialId: string | number) => {
+    setInternalSelectedIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(materialId)) {
+        newSet.delete(materialId)
+      } else {
+        newSet.add(materialId)
+      }
+      return newSet
+    })
+  }
+
   // 筛选素材
   const filteredMaterials = materials.filter(m =>
     m.title.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -83,51 +122,66 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({ projectId, onInsert }) 
     <List
       size="small"
       dataSource={materials}
-      renderItem={(item) => (
-        <List.Item
-          style={{
-            padding: '8px 12px',
-            cursor: 'pointer',
-            transition: 'background 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#f5f5f5'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
-          }}
-        >
-          <div style={{ width: '100%' }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 4
-            }}>
-              <span style={{ fontWeight: 500, fontSize: 13, display: 'flex', alignItems: 'center' }}>
-                <FileTextOutlined style={{ marginRight: 8, color: '#1890ff' }} />
-                {item.title}
-                {getTypeTag(item.docType)}
-              </span>
-              <Button
-                type="text"
-                size="small"
-                icon={<PlusOutlined />}
-                onClick={() => onInsert(item.content)}
-              />
+      renderItem={(item) => {
+        const isSelected = internalSelectedIds.has(item.id)
+        return (
+          <List.Item
+            style={{
+              padding: '8px 12px',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+              background: isSelected ? '#e6f7ff' : 'transparent',
+              borderLeft: isSelected ? '3px solid #1890ff' : '3px solid transparent'
+            }}
+            onClick={() => handleToggleSelect(item.id)}
+            onMouseEnter={(e) => {
+              if (!isSelected) e.currentTarget.style.background = '#f5f5f5'
+            }}
+            onMouseLeave={(e) => {
+              if (!isSelected) e.currentTarget.style.background = 'transparent'
+            }}
+          >
+            <div style={{ width: '100%' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 4
+              }}>
+                <span style={{ fontWeight: 500, fontSize: 13, display: 'flex', alignItems: 'center' }}>
+                  <Checkbox
+                    checked={isSelected}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ marginRight: 8 }}
+                  />
+                  <FileTextOutlined style={{ marginRight: 8, color: isSelected ? '#1890ff' : '#666' }} />
+                  <span style={{ color: isSelected ? '#1890ff' : 'inherit' }}>{item.title}</span>
+                  {getTypeTag(item.docType)}
+                </span>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onInsert(item.content)
+                  }}
+                />
+              </div>
+              <div style={{
+                fontSize: 12,
+                color: '#666',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                marginLeft: 24
+              }}>
+                {item.preview}
+              </div>
             </div>
-            <div style={{
-              fontSize: 12,
-              color: '#666',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {item.preview}
-            </div>
-          </div>
-        </List.Item>
-      )}
+          </List.Item>
+        )
+      }}
     />
   )
 

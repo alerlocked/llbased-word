@@ -25,15 +25,23 @@ interface AIChatPanelProps {
   onPreviewContent?: (newContent: string) => void
   /** 关闭面板回调 */
   onClose?: () => void
+  /** 选中的素材列表 - 用于注入AI上下文 */
+  selectedMaterials?: Array<{
+    id: string | number
+    name: string
+    content: string
+    type: string
+  }>
 }
 
-const AIChatPanel: React.FC<AIChatPanelProps> = ({ 
-  projectId, 
+const AIChatPanel: React.FC<AIChatPanelProps> = ({
+  projectId,
   selectedText,
   onInsertToEditor,
   onDirectInsert,
   onPreviewContent,
-  onClose
+  onClose,
+  selectedMaterials = []
 }) => {
   const { 
     getProjectState, 
@@ -516,9 +524,14 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_input: userInput,
-          user_id: 1, 
+          user_id: 1,
           project_id: projectId,
-          session_id: sessionId  // 传递保存的 session_id，保持会话上下文
+          session_id: sessionId,  // 传递保存的 session_id，保持会话上下文
+          reference_materials: selectedMaterials.length > 0 ? selectedMaterials.map(m => ({
+            name: m.name,
+            content: m.content,
+            type: m.type
+          })) : undefined  // 注入选中的素材
         }),
         signal: controller.signal  // 支持取消请求
       })
@@ -548,7 +561,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
               if (data.type === 'mode') {
                 // 接收模式消息
                 currentModeRef.current = data.mode
-                logger.info(`[AI助手] 模式: ${data.mode}`)
+                console.info(`[AI助手] 模式: ${data.mode}`)
               } else if (data.type === 'improvement_solutions') {
                 // 收到改进方案，显示方案选择界面
                 const solutions = Array.isArray(data.solutions) ? data.solutions : []
@@ -951,7 +964,11 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                               if (dataStr === '[DONE]') break
                               
                               const continueData = JSON.parse(dataStr)
-                              if (continueData.type === 'progress') {
+                              if (continueData.type === 'mode') {
+                                // 接收模式消息
+                                currentModeRef.current = continueData.mode
+                                console.info(`[AI助手-继续] 模式: ${continueData.mode}`)
+                              } else if (continueData.type === 'progress') {
                                 if (continueData.node === 'planner') {
                                   continueSteps[0].status = 'process'
                                   continueSteps[0].description = continueData.message
@@ -985,7 +1002,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                         }
                         
                         setLoading(false)
-                        if (continueContent && onPreviewContent) {
+                        // 只有写作模式才触发预览，问答模式直接显示结果
+                        if (continueContent && onPreviewContent && currentModeRef.current === 'write') {
                           onPreviewContent(continueContent)
                           message.success('生成完成，请在编辑器中预览并确认')
                         }

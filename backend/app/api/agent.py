@@ -136,6 +136,7 @@ class GenerateStreamRequest(BaseModel):
     user_input: Optional[str] = Field(None, description="用户输入（兼容旧版）")
     user_id: Optional[int] = Field(None, description="用户ID")
     project_id: Optional[int] = Field(None, description="项目ID")
+    reference_materials: Optional[List[dict]] = Field(None, description="用户选中的参考素材")
 
 
 class SelectSolutionRequest(BaseModel):
@@ -654,8 +655,9 @@ async def generate_stream(request: GenerateStreamRequest):
     session_id = request.session_id
     project_id = request.project_id
     user_id = request.user_id or 1
+    reference_materials = request.reference_materials or []
 
-    logger.info(f"[AI助手] 收到请求: prompt={user_input[:50]}..., session={session_id}, project={project_id}")
+    logger.info(f"[AI助手] 收到请求: prompt={user_input[:50]}..., session={session_id}, project={project_id}, materials={len(reference_materials)}")
 
     async def generate():
         try:
@@ -719,18 +721,37 @@ async def generate_stream(request: GenerateStreamRequest):
                 doc_context = ""
 
             # 构建完整提示词
+            # 构建用户选中的素材上下文
+            user_materials_context = ""
+            if reference_materials:
+                user_materials_context = "\n\n## 用户选中的参考素材\n\n" + "\n\n".join([
+                    f"### 【{m.get('name', '未命名素材')}】\n{m.get('content', '')}"
+                    for m in reference_materials
+                ])
+                logger.info(f"[AI助手] 注入用户选中素材: {len(reference_materials)} 个")
+
             if doc_context:
                 full_prompt = f"""{system_prompt}
 
 ## 参考文档
 
 {doc_context}
+{user_materials_context}
 
 ## 用户问题
 
 {user_input}
 
-请基于参考文档回答用户问题。如果参考文档中没有相关信息，请如实告知。"""
+请基于参考文档和用户选中的素材回答用户问题。如果参考文档中没有相关信息，请如实告知。"""
+            elif user_materials_context:
+                full_prompt = f"""{system_prompt}
+{user_materials_context}
+
+## 用户问题
+
+{user_input}
+
+请基于用户选中的素材回答问题。如果素材中没有相关信息，请如实告知。"""
             else:
                 full_prompt = f"""{system_prompt}
 

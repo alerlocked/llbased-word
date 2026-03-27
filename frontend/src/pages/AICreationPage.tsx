@@ -18,6 +18,14 @@ interface Project {
   name: string
 }
 
+/** 选中的素材 */
+export interface SelectedMaterial {
+  id: string | number
+  name: string
+  content: string
+  type: string
+}
+
 const AICreationPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
@@ -27,6 +35,7 @@ const AICreationPage: React.FC = () => {
   const editorContent = projectState?.editorContent || ''
   
   const [selectedText, setSelectedText] = useState('')
+  const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([])
   const [proposedContent, setProposedContent] = useState<string | null>(null)
   const [createModalVisible, setCreateModalVisible] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
@@ -272,8 +281,8 @@ const AICreationPage: React.FC = () => {
         {/* 三栏布局 */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* 左侧：素材库面板 */}
-          <div style={{ 
-            width: 280, 
+          <div style={{
+            width: 280,
             borderRight: '1px solid #f0f0f0',
             overflow: 'auto',
             background: '#fafafa'
@@ -281,6 +290,8 @@ const AICreationPage: React.FC = () => {
             <MaterialsPanel
               projectId={currentProjectId}
               onInsert={handleInsertMaterial}
+              onMaterialsSelect={setSelectedMaterials}
+              selectedMaterialIds={selectedMaterials.map(m => m.id)}
             />
           </div>
 
@@ -335,6 +346,7 @@ const AICreationPage: React.FC = () => {
               <AIChatPanel
                 projectId={currentProjectId}
                 selectedText={selectedText}
+                selectedMaterials={selectedMaterials}
                 onInsertToEditor={handleInsertMaterial}
                 onDirectInsert={handleDirectInsert}
               />

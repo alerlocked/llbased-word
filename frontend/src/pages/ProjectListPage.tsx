@@ -134,7 +134,7 @@ const ProjectListPage: React.FC = () => {
         minHeight: 'calc(100vh - 200px)',
         padding: '40px'
       }}>
-        <RocketOutlined style={{ fontSize: 80, color: colors.primary, marginBottom: 24 }} />
+        <RocketOutlined style={{ fontSize: 80, color: colors.accentPrimary, marginBottom: 24 }} />
         
         <h2 style={{ 
           fontSize: 24, 
@@ -258,7 +258,7 @@ const ProjectListPage: React.FC = () => {
         ]}
       >
         <Card.Meta
-          avatar={<FileTextOutlined style={{ fontSize: 32, color: colors.primary }} />}
+          avatar={<FileTextOutlined style={{ fontSize: 32, color: colors.accentPrimary }} />}
           title={
             <div style={{ 
               fontSize: 18, 

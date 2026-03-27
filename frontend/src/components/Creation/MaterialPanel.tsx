@@ -373,7 +373,7 @@ const MaterialPanel: React.FC<MaterialPanelProps> = ({
               borderRadius: 4,
               color: colors.textSecondary
             }}>
-              找到 <strong style={{ color: colors.primary }}>{countMatches()}</strong> 处匹配
+              找到 <strong style={{ color: colors.accentPrimary }}>{countMatches()}</strong> 处匹配
             </div>
           )}
         </Space>
