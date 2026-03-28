@@ -175,13 +175,11 @@ class DocumentProcessor:
                 # page_figures: 提取到的图表元数据列表
                 page_content, page_figures = await vl_service.ocr_page_to_markdown(image_path)
                 
-                # 保存页信息到数据库
+                # 保存页信息到数据库（只存储元数据，内容在文件系统）
                 page_record = MaterialPage(
                     material_id=material_id,
                     page_number=page_num,
-                    image_path=str(image_path.relative_to(settings.DATA_DIR)),
-                    text_content=page_content,
-                    figures=page_figures  # 存储该页提取的图表元数据
+                    image_path=str(image_path.relative_to(settings.DATA_DIR))
                 )
                 db.add(page_record)
                 
