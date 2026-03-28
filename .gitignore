@@ -95,3 +95,14 @@ backend/data/pdf_queue_state.json
 
 # Claude Code
 .claude/settings.local.json
+
+# Temporary test files
+tests/web_test*.py
+TEST_RESULTS.md
+
+# Reports (local only)
+reports/
+
+# PRPs (任务计划，归档用)
+PRPs/*.md
+!PRPs/README.md

@@ -6,7 +6,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from io import BytesIO
 import fitz  # PyMuPDF
 from PIL import Image
@@ -20,6 +20,8 @@ from app.models.database import Material, Figure, MaterialPage
 from app.services.vl_service import vl_service
 from app.utils.logger import logger
 from app.utils.markdown_utils import convert_vl_output_to_content_list
+from app.services.pdf_queue_manager import PDFTask
+from datetime import datetime
 
 # Windows COM 初始化支持
 if platform.system() == "Windows":
@@ -51,7 +53,7 @@ class DocumentProcessor:
         self.figures_dir = settings.FIGURES_DIR
         self.figures_dir.mkdir(parents=True, exist_ok=True)
         # 创建页面图片存储目录
-        self.pages_dir = settings.DATA_DIR / "pages"
+        self.pages_dir = settings.PAGES_DIR
         self.pages_dir.mkdir(parents=True, exist_ok=True)
     
     def _convert_docx_to_pdf_with_com(self, input_path: str, output_path: str):
@@ -242,8 +244,8 @@ class DocumentProcessor:
                     if not material:
                         raise ValueError(f"Material {material_id} not found")
                     
-                    # 准备文档输出目录
-                    doc_output_dir = settings.DATA_DIR / "documents" / str(material_id)
+                    # 准备文档输出目录 - 使用统一配置
+                    doc_output_dir = settings.DOCUMENTS_DIR / str(material_id)
                     doc_output_dir.mkdir(parents=True, exist_ok=True)
                     
                     # 创建 vlm 子目录并复制图片
@@ -307,6 +309,90 @@ class DocumentProcessor:
         except Exception as e:
             logger.error(f"❌ 文档处理失败: {str(e)}")
             raise
+
+    async def process_document_from_task(
+        self,
+        task: PDFTask,
+        db: Session
+    ) -> Dict[str, Any]:
+        """
+        从队列任务处理文档
+
+        Args:
+            task: PDF 队列任务
+            db: 数据库会话
+
+        Returns:
+            处理结果
+        """
+        # 1. 获取源文件路径
+        source_path = Path(task.source_path)
+
+        # 2. 从 task_id 提取 material_id
+        material_id = self._extract_material_id(task.task_id)
+
+        logger.info(f"开始处理队列任务: {task.task_id}, material_id={material_id}")
+
+        # 3. 调用现有的 process_document
+        result = await self.process_document(
+            file_path=source_path,
+            material_id=material_id,
+            db=db
+        )
+
+        # 4. 更新素材内容
+        material = db.query(Material).filter(Material.id == material_id).first()
+        if material:
+            material.updated_at = datetime.utcnow()
+            db.commit()
+
+        # 5. 生成 HTML 和 JSON
+        output_path = Path(task.output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        html_path = output_path.with_suffix(".html")
+        self._save_html(result, html_path)
+
+        json_path = output_path.with_suffix(".json")
+        self._save_json(result, json_path)
+
+        logger.info(f"队列任务完成: {task.task_id}")
+
+        return {
+            "page_count": result.get("page_count", 0),
+            "content_length": len(result.get("content", "")),
+            "output_path": str(output_path)
+        }
+
+    def _extract_material_id(self, task_id: str) -> int:
+        """从 task_id 提取 material_id"""
+        parts = task_id.split("_")
+        if len(parts) >= 2:
+            try:
+                return int(parts[1])
+            except ValueError:
+                logger.warning(f"无法提取 material_id: {task_id}")
+        return 0
+
+    def _save_html(self, result: Dict, html_path: Path):
+        """保存 HTML 文件"""
+        html_content = result.get("html", "")
+        if not html_content:
+            html_content = f"<html><body><pre>{result.get('content', '')}</pre></body></html>"
+
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+        logger.info(f"HTML 已保存: {html_path}")
+
+    def _save_json(self, result: Dict, json_path: Path):
+        """保存 JSON 文件"""
+        import json
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+
+        logger.info(f"JSON 已保存: {json_path}")
+
 
 # 创建全局实例
 document_processor = DocumentProcessor()

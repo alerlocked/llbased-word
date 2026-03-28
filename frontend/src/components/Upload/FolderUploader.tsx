@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { Button, Card, Checkbox, Space, message, Typography } from 'antd'
-import { FolderOpenOutlined, CheckSquareOutlined, BorderOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, CheckSquareOutlined, BorderOutlined, UploadOutlined } from '@ant-design/icons'
 import { useTheme } from '../../contexts/ThemeContext'
 
 const { Text } = Typography
@@ -20,8 +20,16 @@ interface FileItem {
   depth: number
 }
 
+/** 带相对路径信息的文件对象 */
+export interface FileWithRelativePath {
+  file: File
+  relativePath: string
+  depth: number
+}
+
 interface FolderUploaderProps {
-  onFilesSelected: (files: File[]) => void
+  /** 文件选中回调，传递带相对路径的文件信息 */
+  onFilesSelected: (files: FileWithRelativePath[]) => void
   accept?: string
 }
 
@@ -112,10 +120,27 @@ const FolderUploader: React.FC<FolderUploaderProps> = ({ onFilesSelected, accept
   }
 
   /**
-   * 获取已选中的文件
+   * 获取已选中的文件（带相对路径信息）
    */
-  const getSelectedFiles = (): File[] => {
-    return fileList.filter(item => item.selected).map(item => item.file)
+  const getSelectedFiles = (): FileWithRelativePath[] => {
+    return fileList.filter(item => item.selected).map(item => ({
+      file: item.file,
+      relativePath: item.relativePath,
+      depth: item.depth
+    }))
+  }
+
+  /**
+   * 确认上传选中的文件
+   */
+  const handleConfirmUpload = () => {
+    const selectedFiles = getSelectedFiles()
+    if (selectedFiles.length > 0) {
+      onFilesSelected(selectedFiles)
+      message.success(`开始上传 ${selectedFiles.length} 个文件`)
+    } else {
+      message.warning('请先选择要上传的文件')
+    }
   }
 
   /**
@@ -161,6 +186,14 @@ const FolderUploader: React.FC<FolderUploaderProps> = ({ onFilesSelected, accept
               {allSelected ? '取消全选' : '全选'}
             </Button>
             <Button onClick={handleClear}>清空</Button>
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              onClick={handleConfirmUpload}
+              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+            >
+              上传选中文件
+            </Button>
             <Text type="secondary">
               已选择 {fileList.filter(f => f.selected).length} / {fileList.length} 个文件
             </Text>

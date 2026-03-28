@@ -9,6 +9,7 @@ from pathlib import Path
 from difflib import SequenceMatcher
 
 from app.shared.logging import get_logger
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -29,7 +30,8 @@ class TerminologyMapper:
             config: 配置参数
         """
         self.config = config or {}
-        self.terminology_dir = self.config.get("terminology_dir", "backend/data/terminology")
+        # 使用统一的配置路径
+        self.terminology_dir = self.config.get("terminology_dir", str(settings.DATA_DIR / "terminology"))
         self.cache_enabled = self.config.get("cache_enabled", True)
         self.similarity_threshold = self.config.get("similarity_threshold", 0.8)
 

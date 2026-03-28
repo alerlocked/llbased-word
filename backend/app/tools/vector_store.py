@@ -9,6 +9,7 @@ from pathlib import Path
 import json
 
 from app.shared.logging import get_logger
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -32,7 +33,8 @@ class VectorStore:
         self.collection_name = self.config.get("collection_name", "process_knowledge")
         self.embedding_model = self.config.get("embedding_model", "BAAI/bge-large-zh-v1.5")
         self.distance_metric = self.config.get("distance_metric", "cosine")
-        self.persist_directory = self.config.get("persist_directory", "./data/vector_store")
+        # 使用统一的配置路径
+        self.persist_directory = self.config.get("persist_directory", str(settings.DATA_DIR / "vector_store"))
 
         # 初始化ChromaDB客户端
         self.client = self._init_chromadb_client()

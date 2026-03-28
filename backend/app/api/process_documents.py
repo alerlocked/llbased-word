@@ -13,15 +13,15 @@ from app.tools.process_document_extractor import extract_process_document
 from app.services.csv_export_service import CSVExportService
 from app.models.table_models import ExtractedTable
 from app.shared.logging import get_logger
+from app.config import settings
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/process-documents", tags=["process-documents"])
 
-# 数据路径配置 - 使用项目根目录的绝对路径
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent  # backend/app/api -> 项目根
-PROCESS_DOCS_PATH = PROJECT_ROOT / "data" / "process_docs"
-EXTRACTED_PATH = PROJECT_ROOT / "data" / "extracted"
+# 数据路径配置 - 使用统一的配置
+PROCESS_DOCS_PATH = settings.DATA_DIR / "process_docs"
+EXTRACTED_PATH = settings.DATA_DIR / "extracted"
 
 
 @router.get("/")
@@ -350,7 +350,7 @@ async def export_to_csv(
 
         # 生成导出ID
         export_id = f"csv_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{doc_id}"
-        export_dir = Path("data/csv_exports") / export_id
+        export_dir = settings.CSV_EXPORTS_DIR / export_id
         export_dir.mkdir(parents=True, exist_ok=True)
 
         # 执行导出
@@ -400,7 +400,7 @@ async def download_csv_export(
         filename: 具体文件名（可选，默认下载所有文件的ZIP包）
     """
     try:
-        export_dir = Path("data/csv_exports") / export_id
+        export_dir = settings.CSV_EXPORTS_DIR / export_id
 
         if not export_dir.exists():
             raise HTTPException(status_code=404, detail="导出文件不存在")

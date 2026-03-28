@@ -428,11 +428,11 @@ def generate_document_html(
                 
                 # 添加图片
                 if img_path:
-                    full_img_path = f"{images_base_path}/{img_path}"
+                    # img_path 已经包含 images/ 前缀，直接使用
                     html_parts.extend([
                         '<div class="image-container">',
                         '<h4>📋 表格原图</h4>',
-                        f'<img src="{full_img_path}" alt="第 {page_num} 页表格截图">',
+                        f'<img src="{img_path}" alt="第 {page_num} 页表格截图">',
                         '</div>',
                         '',
                     ])

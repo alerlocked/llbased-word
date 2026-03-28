@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 from app.shared.logging import get_logger
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -28,7 +29,8 @@ class ComplianceChecker:
             config: 配置参数
         """
         self.config = config or {}
-        self.compliance_rules_dir = self.config.get("compliance_rules_dir", "backend/data/compliance")
+        # 使用统一的配置路径
+        self.compliance_rules_dir = self.config.get("compliance_rules_dir", str(settings.DATA_DIR / "compliance"))
         self.cache_enabled = self.config.get("cache_enabled", True)
 
         # 加载合规规则

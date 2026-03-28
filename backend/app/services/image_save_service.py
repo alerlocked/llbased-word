@@ -34,7 +34,7 @@ class ImageSaveService:
     
     def __init__(self):
         """初始化服务"""
-        self.project_images_dir = settings.DATA_DIR / "project_images"
+        self.project_images_dir = settings.PROJECT_IMAGES_DIR
         self.project_images_dir.mkdir(parents=True, exist_ok=True)
     
     def extract_image_urls(self, markdown: str) -> List[ImageInfo]:

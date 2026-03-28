@@ -1,13 +1,14 @@
 """
 SQLiteRepository - 基于SQLite的任务记忆存储实现
-用于部署环境，支持并发访问
+用于部署环境,支持并发访问
 
-注意：此文件为骨架实现，具体功能在部署时填充
+注意:此文件为骨架实现,具体功能在部署时填充
 """
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from app.shared.logging import get_logger
+from app.config import settings
 from app.models.task_memory import (
     TaskMeta,
     TaskState,
@@ -26,12 +27,12 @@ class SQLiteRepository:
     """
     基于SQLite的任务记忆存储
 
-    特点：
-    - 支持并发访问（SQLite内置锁机制）
-    - 事务支持（ACID保证）
-    - 单文件存储，便于备份
+    特点:
+    - 支持并发访问(SQLite内置锁机制)
+    - 事务支持(ACID保证)
+    - 单文件存储,便于备份
 
-    使用方式：
+    使用方式:
     - 配置 REPOSITORY_TYPE: "sqlite" 切换到此实现
     - 配置 SQLITE_DB_PATH 指定数据库文件路径
     """
@@ -54,7 +55,7 @@ class SQLiteRepository:
     def _init_tables(self):
         """初始化数据库表结构"""
         # TODO: 部署时实现
-        # 表结构设计：
+        # 表结构设计:
         # - tasks: 任务元数据
         # - states: 任务状态
         # - messages: 对话消息
@@ -155,7 +156,7 @@ class SQLiteRepository:
     def get_artifacts_dir(self, task_id: str) -> Optional[str]:
         """获取任务的artifacts目录路径"""
         # 即使使用SQLite，artifacts仍然可以存储在文件系统
-        artifacts_dir = Path("data/tasks") / task_id / "artifacts"
+        artifacts_dir = settings.TASK_DATA_DIR / task_id / "artifacts"
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         return str(artifacts_dir)
 
@@ -174,7 +175,7 @@ class SQLiteRepository:
         raise NotImplementedError("SQLiteRepository.execute_transaction() 部署时实现")
 
     def vacuum(self):
-        """清理数据库，释放空间"""
+        """清理数据库,释放空间"""
         raise NotImplementedError("SQLiteRepository.vacuum() 部署时实现")
 
     def backup(self, backup_path: str) -> bool:

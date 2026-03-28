@@ -17,12 +17,20 @@ class Settings(BaseSettings):
     HOST: str = "127.0.0.1"
     PORT: int = 8000
 
-    # 数据存储路径配置
-    BASE_DIR: Path = Path(__file__).parent.parent
-    DATA_DIR: Path = Path.home() / "CraftDocApp" / "data"
+    # 数据存储路径配置 - 统一存储在项目目录下
+    BASE_DIR: Path = Path(__file__).parent.parent  # backend/ 目录
+    DATA_DIR: Path = BASE_DIR / "data"  # backend/data/ 目录
     DB_DIR: Path = DATA_DIR / "database"
     FIGURES_DIR: Path = DATA_DIR / "figures"  # 提取的图片存储目录
+    PAGES_DIR: Path = DATA_DIR / "pages"  # PDF/文档页面图片存储目录
+    UPLOADED_IMAGES_DIR: Path = DATA_DIR / "uploads" / "images"  # 用户上传图片目录
+    PROJECT_IMAGES_DIR: Path = DATA_DIR / "project_images"  # 项目关联图片目录
+    DOCUMENTS_DIR: Path = DATA_DIR / "documents"  # 生成的文档目录
     STATIC_DIR: Path = BASE_DIR / "static"  # 静态文件目录
+    UPLOAD_DIR: Path = DATA_DIR / "uploads"  # 上传文件目录
+    EXPORTS_DIR: Path = DATA_DIR / "exports"  # 导出文件目录
+    CSV_EXPORTS_DIR: Path = DATA_DIR / "csv_exports"  # CSV表格导出目录
+    LOGS_DIR: Path = DATA_DIR / "logs"  # 日志目录
 
     # 数据库配置
     DATABASE_URL: str = f"sqlite:///{DB_DIR}/craftdoc.db"
@@ -81,8 +89,8 @@ class Settings(BaseSettings):
 
     # 任务记忆Repository配置
     REPOSITORY_TYPE: str = "json"  # json | sqlite
-    TASK_DATA_DIR: Path = Path("data/tasks")  # JSON文件存储目录
-    SQLITE_DB_PATH: Path = Path("data/tasks.db")  # SQLite数据库文件路径
+    TASK_DATA_DIR: Path = DATA_DIR / "tasks"  # JSON文件存储目录
+    SQLITE_DB_PATH: Path = DATA_DIR / "tasks.db"  # SQLite数据库文件路径
 
     # 上下文工程配置
     CONTEXT_COMPRESSION_THRESHOLD: float = 0.85  # 压缩触发阈值（窗口85%）
@@ -178,5 +186,13 @@ settings = Settings()
 settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
 settings.DB_DIR.mkdir(parents=True, exist_ok=True)
 settings.FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+settings.PAGES_DIR.mkdir(parents=True, exist_ok=True)
+settings.UPLOADED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+settings.PROJECT_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+settings.DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
+settings.CSV_EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 settings.STATIC_DIR.mkdir(parents=True, exist_ok=True)
 settings.TASK_DATA_DIR.mkdir(parents=True, exist_ok=True)
+settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+settings.EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)

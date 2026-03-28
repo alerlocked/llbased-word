@@ -9,6 +9,7 @@ import uuid
 
 from app.shared.logging import get_logger
 from app.agents.tools.pdf_table_extractor import extract_mechanical_process_pdf
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -54,8 +55,12 @@ class ProcessDocumentService:
     5. 工艺参数管理
     """
 
-    def __init__(self, data_path: str = "./data/process_docs"):
-        self.data_path = Path(data_path)
+    def __init__(self, data_path: Optional[str] = None):
+        # 使用统一的配置路径
+        if data_path is None:
+            self.data_path = settings.DATA_DIR / "process_docs"
+        else:
+            self.data_path = Path(data_path)
         self.templates_path = self.data_path / "templates"
         self.documents_path = self.data_path / "documents"
         self.parameters_path = self.data_path / "parameters"

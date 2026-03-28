@@ -14,11 +14,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from app.api import process, creation, rag, web_image, export, annotation, node_documents
+from app.api import process, creation, rag, web_image, export, annotation, node_documents, materials
 from app.api import task_router, document_router
 from app.api import pdf_status, agent, assistant, process_documents, deepseek
 from app.config import settings
 from app.utils.logger import logger
+from app.services.pdf_queue_manager import get_pdf_queue_manager, PDFTask
+from app.services.document_processor import DocumentProcessor
+from app.database import SessionLocal
 
 # 创建FastAPI应用实例
 app = FastAPI(
@@ -130,6 +133,9 @@ app.include_router(pdf_status.router)
 # DeepSeek API
 app.include_router(deepseek.router, prefix="/api/deepseek", tags=["DeepSeek LLM"])
 
+# 素材库 API（从文件系统读取）
+app.include_router(materials.router, prefix="/api", tags=["素材库"])
+
 @app.on_event("startup")
 async def startup_event():
     """应用启动时的初始化操作"""
@@ -146,30 +152,28 @@ async def startup_event():
 
     # 初始化PDF解析队列管理器
     try:
-        from app.services.pdf_queue_manager import get_pdf_queue_manager
-        from app.tools.pdf_parser import PDFParser
-
         queue_manager = get_pdf_queue_manager()
+        processor = DocumentProcessor()
 
-        # 设置PDF解析器
-        parser = PDFParser({
-            "extract_tables": True,
-            "extract_text": True,
-            "preferred_parser": "auto"
-        })
+        def parse_wrapper(task: PDFTask):
+            """包装异步调用为同步"""
+            db = SessionLocal()
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(
+                    processor.process_document_from_task(task, db)
+                )
+            except Exception as e:
+                logger.error(f"队列任务执行失败: {str(e)}")
+                return {"error": str(e)}
+            finally:
+                db.close()
 
-        async def parse_pdf_func(task):
-            """PDF解析函数"""
-            result = await parser.parse(
-                task.source_path,
-                extract_tables=True,
-                extract_text=True
-            )
-            return result
+        queue_manager.set_parser(parse_wrapper)
+        logger.info("✅ PDF 队列解析函数已设置")
 
-        queue_manager.set_parser(parse_pdf_func)
         await queue_manager.start()
-
         logger.info("✅ PDF解析队列管理器已初始化")
 
     except Exception as e:

@@ -17,6 +17,7 @@ from typing import Dict, Any, Optional, List, Callable, Awaitable
 from dataclasses import dataclass, field, asdict
 
 from app.shared.logging import get_logger
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -100,20 +101,21 @@ class PDFQueueManager:
     def __init__(
         self,
         max_concurrent: int = 2,
-        output_base_path: str = "./data/parsed_pdfs",
-        state_file: str = "./data/pdf_queue_state.json"
+        output_base_path: Optional[str] = None,
+        state_file: Optional[str] = None
     ):
         """
         初始化队列管理器
 
         Args:
             max_concurrent: 最大并发数（默认2）
-            output_base_path: 输出基础路径
-            state_file: 状态持久化文件路径
+            output_base_path: 输出基础路径（默认使用 settings.DATA_DIR）
+            state_file: 状态持久化文件路径（默认使用 settings.DATA_DIR）
         """
         self.max_concurrent = max_concurrent
-        self.output_base_path = Path(output_base_path)
-        self.state_file = Path(state_file)
+        # 使用统一的配置路径
+        self.output_base_path = Path(output_base_path) if output_base_path else settings.DATA_DIR / "parsed_pdfs"
+        self.state_file = Path(state_file) if state_file else settings.DATA_DIR / "pdf_queue_state.json"
 
         # 并发控制信号量
         self._semaphore = asyncio.Semaphore(max_concurrent)
@@ -194,6 +196,7 @@ class PDFQueueManager:
     async def add_task(
         self,
         source_path: str,
+        output_path: Optional[str] = None,
         priority: PDFTaskPriority = PDFTaskPriority.NORMAL,
         force_reparse: bool = False
     ) -> Optional[str]:
@@ -202,6 +205,7 @@ class PDFQueueManager:
 
         Args:
             source_path: PDF源文件路径
+            output_path: 输出路径（可选，默认自动生成）
             priority: 任务优先级
             force_reparse: 是否强制重新解析（忽略哈希检查）
 
@@ -218,6 +222,12 @@ class PDFQueueManager:
         # 计算文件哈希
         file_hash = await self._calculate_file_hash(source_path_obj)
         file_size = source_path_obj.stat().st_size
+
+        # 生成或使用提供的输出路径
+        if output_path:
+            final_output_path = Path(output_path)
+        else:
+            final_output_path = self._get_output_path(source_path_obj)
 
         # 检查是否已存在相同文件（增量解析）
         if not force_reparse:
@@ -251,13 +261,12 @@ class PDFQueueManager:
 
         # 生成任务ID和输出路径
         task_id = self._generate_task_id(source_path_obj)
-        output_path = self._get_output_path(source_path_obj)
 
         # 创建任务
         task = PDFTask(
             task_id=task_id,
             source_path=str(source_path_obj),
-            output_path=str(output_path),
+            output_path=str(final_output_path),
             file_hash=file_hash,
             file_size=file_size,
             status=PDFTaskStatus.PENDING,

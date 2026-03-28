@@ -2,9 +2,9 @@
 创作相关API路由
 处理素材管理、AI辅助写作、版本管理等操作
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +24,10 @@ from app.agents.tools.image_search import get_image_search_tool
 from app.utils.path_utils import build_static_url
 from app.utils.db_utils import get_or_404
 from app.utils.file_utils import calculate_file_hash
+from app.services.pdf_queue_manager import (
+    get_pdf_queue_manager,
+    PDFTaskPriority
+)
 
 router = APIRouter()
 
@@ -341,13 +345,12 @@ async def get_project_materials(
                     "id": material.id,
                     "name": material.name,
                     "type": material.material_type,
-                    "content": material.content or "",
+                    # content 已删除，内容保存在文件系统
                     "pages": [
                         {
                             "page_number": p.page_number,
-                            "image_path": p.image_path,
-                            "content": p.text_content,
-                            "figures": p.figures or []
+                            "image_path": p.image_path
+                            # text_content 和 figures 已删除，内容在文件系统
                         } for p in pages
                     ],
                     "createdAt": material.created_at.isoformat()
@@ -815,49 +818,69 @@ async def update_project_content(
 async def upload_document(
     project_id: int,
     file: UploadFile = File(...),
+    relative_path: str = Form(default=""),
     db: Session = Depends(get_db)
 ):
     """
     上传并处理文档（PDF/Word）
     使用Qwen-VL进行OCR识别，提取文字和图片
-    
+
     Args:
         project_id: 项目ID
         file: 上传的文件
+        relative_path: 相对路径（用于保持文件夹层级结构，如 "工艺文档/装配/工序1.pdf"）
         db: 数据库会话
-    
+
     Returns:
         处理结果
     """
-    log_workflow("上传文档", "开始", {"project_id": project_id, "filename": file.filename})
-    
+    log_workflow("上传文档", "开始", {"project_id": project_id, "filename": file.filename, "relative_path": relative_path})
+
     try:
         # 检查项目是否存在
         project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
-        
+
         # 检查文件格式
         file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in ['.pdf', '.docx', '.doc']:
+        if file_ext not in ['.pdf', '.docx', '.doc', '.txt']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="不支持的文件格式，仅支持PDF和Word文档"
+                detail="不支持的文件格式，仅支持PDF、Word和TXT文档"
             )
-        
-        # 保存上传的文件
-        upload_dir = Path(settings.DATA_DIR) / "uploads"
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        
-        file_path = upload_dir / f"material_{project_id}_{file.filename}"
+
+        # 保存上传的文件，保持目录结构
+        upload_base_dir = Path(settings.DATA_DIR) / "uploads" / str(project_id)
+        upload_base_dir.mkdir(parents=True, exist_ok=True)
+
+        # 如果有相对路径，创建子目录
+        if relative_path:
+            # 解析相对路径，创建目录结构
+            # 例如：relative_path = "工艺文档/装配/工序1.pdf"
+            parts = relative_path.replace('\\', '/').split('/')
+            if len(parts) > 1:
+                # 创建子目录
+                subdir = upload_base_dir.joinpath(*parts[:-1])
+                subdir.mkdir(parents=True, exist_ok=True)
+                file_path = upload_base_dir / Path(relative_path.replace('\\', '/'))
+            else:
+                file_path = upload_base_dir / file.filename
+
+            # 保存相对路径用于数据库
+            db_relative_path = relative_path.replace('\\', '/')
+        else:
+            file_path = upload_base_dir / f"material_{project_id}_{file.filename}"
+            db_relative_path = file.filename
+
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
+
         logger.info(f"📄 文件已保存: {file_path}")
-        
+
         # 创建素材记录（Material 没有 project_id 字段，通过 CreationProject.material_ids 关联）
         material = Material(
             material_type="document",
-            name=file.filename, # 确保有名称
-            content=""  # 将在处理完成后填充
+            name=file.filename  # 确保有名称
+            # content 已删除，内容保存在文件系统
         )
         db.add(material)
         db.commit()
@@ -870,99 +893,45 @@ async def upload_document(
             project.material_ids = material_ids
             db.commit()
         
-        # 异步处理文档
-        try:
-            result = await document_processor.process_document(
-                file_path,
-                material.id,
-                db
-            )
-            
-            # 更新素材内容
-            material.content = result.get("content", "")
-            db.commit()
-            
-            # 同步到RAG（文档内容和图片描述）
-            rag_service = get_rag_sync_service()
-            
-            # 同步每一页的内容
-            pages = result.get("pages", [])
-            for page in pages:
-                if page.get("content"):
-                    await rag_service.sync_uploaded_document(
-                        doc_id=f"material_{material.id}_page_{page['page_number']}",
-                        filename=f"{file.filename} - 第{page['page_number']}页",
-                        content=page.get("content", ""),
-                        metadata={
-                            "project_id": project_id,
-                            "material_id": material.id,
-                            "page_number": page.get("page_number"),
-                            "created_at": str(material.created_at)
-                        }
-                    )
-            
-            # if result.get("content"):
-            #     await rag_service.sync_uploaded_document(
-            #         doc_id=f"material_{material.id}",
-            #         filename=file.filename,
-            #         content=result.get("content", ""),
-            #         metadata={
-            #             "project_id": project_id,
-            #             "material_id": material.id,
-            #             "created_at": str(material.created_at)
-            #         }
-            #     )
-            
-            if result.get("figures"):
-                figures = result.get("figures", [])
-                
-                # 同步图片描述到 RAG（用于文本检索）
-                await rag_service.sync_figure_captions(
-                    material_id=material.id,
-                    figures=figures,
-                    metadata={
-                        "project_id": project_id,
-                        "material_id": material.id,
-                        "created_at": str(material.created_at)
-                    }
-                )
-                
-                # 同步图片向量到 RAG（用于多模态检索）
-                for idx, fig in enumerate(figures):
-                    fig_path = fig.get("file_path", "")
-                    fig_caption = fig.get("caption", "")
-                    if fig_path:
-                        try:
-                            await rag_service.sync_image_embedding(
-                                image_id=f"material_{material.id}_fig_{idx}",
-                                image_path=str(settings.BASE_DIR / fig_path),
-                                caption=fig_caption,
-                                metadata={
-                                    "project_id": project_id,
-                                    "material_id": material.id,
-                                    "figure_index": idx
-                                }
-                            )
-                        except Exception as img_err:
-                            logger.warning(f"图片向量索引失败: {img_err}")
-            
-            logger.info(f"✅ 文档处理完成: {result.get('page_count')}页")
-            
+        # 添加到 PDF 解析队列（异步处理）
+        manager = get_pdf_queue_manager()
+
+        # 计算输出路径（保持文件夹结构）
+        output_path = Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id)
+        if relative_path:
+            # 保持相对路径结构
+            output_path = output_path / Path(relative_path).with_suffix(".html")
+        else:
+            output_path = output_path / f"{file.filename}.html"
+
+        task_id = await manager.add_task(
+            source_path=str(file_path),
+            output_path=str(output_path),
+            priority=PDFTaskPriority.NORMAL
+        )
+
+        if task_id:
+            logger.info(f"✅ 文件已加入解析队列: task_id={task_id}, file={file.filename}")
+
             return {
-                "message": "文档处理成功",
+                "message": "文档已加入解析队列",
                 "material_id": material.id,
-                "content_length": len(result.get("content", "")),
-                "page_count": result.get("page_count", 0)
+                "task_id": task_id,
+                "filename": file.filename,
+                "size": file_path.stat().st_size,
+                "queue_position": manager.get_stats().pending_tasks
             }
-            
-        except Exception as e:
-            # 如果处理失败，删除素材记录
-            db.delete(material)
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"文档处理失败: {str(e)}"
-            )
+        else:
+            # task_id 为 None 表示文件已存在且已解析
+            logger.info(f"ℹ️ 文件已存在且已解析，跳过: {file.filename}")
+
+            return {
+                "message": "文档已存在，无需重复解析",
+                "material_id": material.id,
+                "task_id": None,
+                "filename": file.filename,
+                "size": file_path.stat().st_size
+            }
         
     except HTTPException:
         raise
@@ -1315,16 +1284,15 @@ async def upload_image(
             logger.warning(f"⚠️ 无法读取图片尺寸: {str(e)}")
             width, height = None, None
         
-        # 保存文件
-        upload_dir = Path(settings.DATA_DIR) / "uploaded_images"
+        # 保存文件 - 使用统一配置的路径
         date_str = datetime.now().strftime("%Y%m%d")
-        date_dir = upload_dir / date_str
+        date_dir = settings.UPLOADED_IMAGES_DIR / date_str
         date_dir.mkdir(parents=True, exist_ok=True)
         
         # 生成唯一文件名
         file_name = f"{file_hash}{file_ext}"
         file_path = date_dir / file_name
-        relative_path = f"uploaded_images/{date_str}/{file_name}"
+        relative_path = f"uploads/images/{date_str}/{file_name}"
         
         # 写入文件
         with open(file_path, "wb") as f:
@@ -1554,27 +1522,78 @@ async def generate_material_index(
             output_path=str(folder_path / "manifest.json") if request.auto_save else None
         )
 
-        # 保存索引到数据库（如果需要）
+        # 保存索引到数据库（如果需要）- 只存元数据，内容在文件系统
         if request.save_to_db:
             existing = db.query(Material).filter(
                 Material.name == "manifest.json",
                 Material.id.in_(project.material_ids or [])
             ).first()
 
-            if existing:
-                existing.content = json.dumps(manifest.model_dump(), ensure_ascii=False)
-                existing.updated_at = datetime.utcnow()
-            else:
+            if not existing:
+                # 创建新的素材记录（只存元数据）
                 new_material = Material(
                     name="manifest.json",
-                    material_type="index",
-                    content=json.dumps(manifest.model_dump(), ensure_ascii=False)
+                    material_type="index"
+                    # content 已删除，manifest 保存在文件系统
                 )
                 db.add(new_material)
                 db.commit()
                 db.refresh(new_material)
                 project.material_ids = (project.material_ids or []) + [new_material.id]
                 db.commit()
+
+        # 扫描文件夹中的所有 PDF，添加到解析队列
+        pdf_files = []
+        folder_path_obj = Path(request.folder_path)
+
+        if folder_path_obj.is_dir():
+            for file_path in folder_path_obj.rglob("*.pdf"):
+                relative_path = file_path.relative_to(folder_path_obj)
+                pdf_files.append({
+                    "absolute_path": str(file_path),
+                    "relative_path": str(relative_path)
+                })
+
+            logger.info(f"📁 找到 {len(pdf_files)} 个 PDF 文件")
+
+            # 复制到上传目录（保持文件夹结构）
+            upload_base_dir = Path(settings.DATA_DIR) / "uploads" / str(project_id)
+            copied_paths = []
+
+            for pdf in pdf_files:
+                target_path = upload_base_dir / pdf["relative_path"]
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # 复制文件
+                shutil.copy2(pdf["absolute_path"], target_path)
+                copied_paths.append(str(target_path))
+
+            logger.info(f"✅ 已复制 {len(copied_paths)} 个文件到上传目录")
+
+            # 批量添加到解析队列
+            task_ids = []
+
+            if copied_paths:
+                manager = get_pdf_queue_manager()
+
+                # 准备输出路径
+                for pdf, source_path in zip(pdf_files, copied_paths):
+                    output_path = str(
+                        Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / Path(pdf["relative_path"]).with_suffix(".html")
+                    )
+
+                    task_id = await manager.add_task(
+                        source_path=source_path,
+                        output_path=output_path,
+                        priority=PDFTaskPriority.NORMAL
+                    )
+
+                    if task_id:
+                        task_ids.append(task_id)
+
+                logger.info(f"✅ {len(task_ids)} 个文件已加入解析队列")
+        else:
+            task_ids = []
 
         logger.info(f"✅ 素材索引生成完成: {len(manifest.files)} 个文件")
 
@@ -1584,7 +1603,9 @@ async def generate_material_index(
             "file_count": len(manifest.files),
             "directory_count": len(manifest.directories),
             "total_size": manifest.total_size,
-            "generated_at": datetime.now().isoformat()
+            "generated_at": datetime.now().isoformat(),
+            "task_ids": task_ids,
+            "queue_message": f"{len(task_ids)} 个 PDF 已加入解析队列"
         }
 
     except HTTPException:
@@ -1646,4 +1667,170 @@ async def get_material_index(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取索引失败: {str(e)}"
+        )
+
+
+# ==================== 批量上传 API ====================
+
+class BatchUploadResponse(BaseModel):
+    """批量上传响应"""
+    status: str
+    uploaded_count: int
+    failed_count: int
+    files: List[dict]
+    manifest_path: Optional[str] = None
+
+
+@router.post("/projects/{project_id}/materials/batch-upload", response_model=BatchUploadResponse)
+async def batch_upload_materials(
+    project_id: int,
+    files: List[UploadFile] = File(...),
+    relative_paths: str = Form(default=""),  # JSON 数组格式的相对路径列表
+    db: Session = Depends(get_db)
+):
+    """
+    批量上传素材文件，保持目录结构
+
+    Args:
+        project_id: 项目ID
+        files: 上传的文件列表
+        relative_paths: JSON 数组格式的相对路径列表（与 files 顺序对应）
+        db: 数据库会话
+
+    Returns:
+        上传结果和索引路径
+    """
+    log_workflow("批量上传素材", "开始", {
+        "project_id": project_id,
+        "file_count": len(files)
+    })
+
+    try:
+        # 验证项目存在
+        project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
+
+        # 解析相对路径
+        paths_list = []
+        if relative_paths:
+            try:
+                paths_list = json.loads(relative_paths)
+            except json.JSONDecodeError:
+                logger.warning(f"无法解析 relative_paths: {relative_paths}")
+
+        # 准备上传目录
+        upload_base_dir = Path(settings.DATA_DIR) / "uploads" / str(project_id)
+        upload_base_dir.mkdir(parents=True, exist_ok=True)
+
+        uploaded_files = []
+        failed_count = 0
+
+        for idx, file in enumerate(files):
+            try:
+                # 获取对应的相对路径
+                relative_path = paths_list[idx] if idx < len(paths_list) else ""
+
+                # 检查文件格式
+                file_ext = Path(file.filename).suffix.lower()
+                if file_ext not in ['.pdf', '.docx', '.doc', '.txt', '.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                    logger.warning(f"跳过不支持的文件格式: {file.filename}")
+                    failed_count += 1
+                    continue
+
+                # 确定保存路径
+                if relative_path:
+                    # 保持目录结构
+                    parts = relative_path.replace('\\', '/').split('/')
+                    if len(parts) > 1:
+                        subdir = upload_base_dir.joinpath(*parts[:-1])
+                        subdir.mkdir(parents=True, exist_ok=True)
+                        file_path = upload_base_dir / Path(relative_path.replace('\\', '/'))
+                    else:
+                        file_path = upload_base_dir / file.filename
+                    db_relative_path = relative_path.replace('\\', '/')
+                else:
+                    file_path = upload_base_dir / file.filename
+                    db_relative_path = file.filename
+
+                # 保存文件
+                with open(file_path, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+
+                # 计算文件哈希
+                file_hash = calculate_file_hash(file_path)
+
+                uploaded_files.append({
+                    "name": file.filename,
+                    "path": db_relative_path,
+                    "size": file_path.stat().st_size,
+                    "hash": file_hash
+                })
+
+                logger.info(f"✅ 文件上传成功: {file_path}")
+
+            except Exception as e:
+                logger.error(f"❌ 文件上传失败 {file.filename}: {str(e)}")
+                failed_count += 1
+
+        # 上传完成后自动生成索引
+        manifest_path = None
+        if uploaded_files:
+            try:
+                manifest, manifest_path = await material_index_service.generate_and_save_manifest(
+                    folder_path=str(upload_base_dir),
+                    project_id=project_id,
+                    output_path=str(upload_base_dir / "manifest.json")
+                )
+                logger.info(f"✅ 索引生成完成: {manifest_path}")
+            except Exception as e:
+                logger.error(f"❌ 索引生成失败: {str(e)}")
+
+        # 批量添加到解析队列
+        pdf_files = [f for f in uploaded_files if Path(f["name"]).suffix.lower() == ".pdf"]
+        task_ids = []
+
+        if pdf_files:
+            manager = get_pdf_queue_manager()
+
+            # 准备输出路径列表
+            source_paths = []
+            output_paths = []
+
+            for pdf in pdf_files:
+                source_path = str(upload_base_dir / pdf["path"])
+                output_path = str(Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / Path(pdf["path"]).with_suffix(".html"))
+
+                source_paths.append(source_path)
+                output_paths.append(output_path)
+
+            # 批量添加任务
+            for source_path, output_path in zip(source_paths, output_paths):
+                task_id = await manager.add_task(
+                    source_path=source_path,
+                    output_path=output_path,
+                    priority=PDFTaskPriority.NORMAL
+                )
+                if task_id:
+                    task_ids.append(task_id)
+
+            logger.info(f"✅ {len(task_ids)} 个文件已加入解析队列")
+
+        logger.info(f"✅ 批量上传完成: {len(uploaded_files)} 个文件成功, {failed_count} 个失败")
+
+        return {
+            "status": "success",
+            "uploaded_count": len(uploaded_files),
+            "failed_count": failed_count,
+            "files": uploaded_files,
+            "manifest_path": manifest_path,
+            "task_ids": task_ids,
+            "queue_message": f"{len(task_ids)} 个 PDF 已加入解析队列"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 批量上传失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"批量上传失败: {str(e)}"
         )

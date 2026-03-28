@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 
 from app.shared.logging import get_logger
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -29,8 +30,9 @@ class DocumentGenerator:
             config: 配置参数
         """
         self.config = config or {}
-        self.templates_dir = self.config.get("templates_dir", "backend/data/templates/process_templates")
-        self.output_dir = self.config.get("output_dir", "data/generated_documents")
+        # 使用统一的配置路径
+        self.templates_dir = self.config.get("templates_dir", str(settings.DATA_DIR / "templates" / "process_templates"))
+        self.output_dir = self.config.get("output_dir", str(settings.DATA_DIR / "generated_documents"))
         self.cache_enabled = self.config.get("cache_enabled", True)
 
         # 加载模板

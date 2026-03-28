@@ -16,6 +16,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileModifiedEvent
 
 from app.shared.logging import get_logger
+from app.config import settings
 from app.services.pdf_queue_manager import (
     get_pdf_queue_manager,
     PDFQueueManager,
@@ -425,7 +426,7 @@ def get_pdf_watcher_service() -> PDFWatcherService:
 async def initialize_pdf_watcher(
     watch_paths: List[str] = None,
     max_concurrent: int = 2,
-    output_base_path: str = "./data/parsed_pdfs"
+    output_base_path: Optional[str] = None
 ) -> PDFWatcherService:
     """
     初始化PDF监听服务
@@ -433,7 +434,7 @@ async def initialize_pdf_watcher(
     Args:
         watch_paths: 监听路径列表
         max_concurrent: 最大并发解析数
-        output_base_path: 输出基础路径
+        output_base_path: 输出基础路径（默认使用 settings.DATA_DIR / parsed_pdfs）
 
     Returns:
         PDFWatcherService实例
@@ -441,6 +442,10 @@ async def initialize_pdf_watcher(
     global _pdf_watcher_service, _pdf_queue_manager
 
     from app.services.pdf_queue_manager import PDFQueueManager
+
+    # 使用统一的配置路径
+    if output_base_path is None:
+        output_base_path = str(settings.DATA_DIR / "parsed_pdfs")
 
     # 创建队列管理器
     queue_manager = PDFQueueManager(

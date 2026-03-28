@@ -45,33 +45,29 @@ class KnowledgeCard(Base):
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
 
 class Material(Base):
-    """素材表"""
+    """素材表 - 只存储元数据，内容存储在文件系统"""
     __tablename__ = "materials"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, comment="素材名称")
     material_type = Column(String(20), nullable=False, comment="素材类型: pdf/docx/txt/search")
-    search_result_id = Column(Integer, ForeignKey("search_results.id"), nullable=True, comment="关联的检索结果ID")
-    content = Column(Text, nullable=True, comment="文档内容（Markdown格式）")
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
-    
+
     # 关系
     figures = relationship("Figure", back_populates="material", cascade="all, delete-orphan")
     pages = relationship("MaterialPage", back_populates="material", cascade="all, delete-orphan")
 
 class MaterialPage(Base):
-    """素材页表（存储每一页的图片和文字）"""
+    """素材页表 - 只存储元数据（页码和图片路径）"""
     __tablename__ = "material_pages"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     material_id = Column(Integer, ForeignKey("materials.id"), nullable=False, comment="关联的素材ID")
     page_number = Column(Integer, nullable=False, comment="页码")
     image_path = Column(String(512), nullable=False, comment="图片文件路径")
-    text_content = Column(Text, nullable=True, comment="OCR识别的文字内容")
-    figures = Column(JSON, default=[], comment="提取的图表/插图元数据")
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
-    
+
     # 关系
     material = relationship("Material", back_populates="pages")
 

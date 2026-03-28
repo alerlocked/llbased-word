@@ -122,7 +122,7 @@ def _classify_table(table: Dict[str, Any], index: int) -> Dict[str, Any]:
     return table_data
 
 
-    def _get_timestamp() -> str:
+def _get_timestamp() -> str:
     """获取当前时间戳"""
     from datetime import datetime
     return datetime.now().isoformat()

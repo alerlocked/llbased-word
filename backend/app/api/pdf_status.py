@@ -373,3 +373,30 @@ async def rescan_files(background_tasks: BackgroundTasks):
     background_tasks.add_task(service.rescan_all)
 
     return {"success": True, "message": "重新扫描已启动"}
+
+
+@router.post("/start")
+async def start_pdf_queue(
+    background_tasks: BackgroundTasks
+):
+    """
+    启动 PDF 解析队列（如果未运行）
+
+    Returns:
+        状态信息
+    """
+    manager = get_pdf_queue_manager()
+
+    if manager._running:
+        return {
+            "status": "already_running",
+            "message": "队列已在运行"
+        }
+
+    # 启动队列处理
+    background_tasks.add_task(manager.start)
+
+    return {
+        "status": "started",
+        "message": "队列已启动"
+    }
