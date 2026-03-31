@@ -1,0 +1,79 @@
+/* AISuggestionBar.module.css - 底部建议栏样式 */
+
+.suggestionBar {
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+  padding: 8px 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.headerIcon {
+  font-size: 14px;
+  color: #1890ff;
+}
+
+.title {
+  font-size: 12px;
+  color: #999;
+  font-weight: 500;
+}
+
+.content {
+  min-height: 32px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #999;
+}
+
+.error {
+  padding: 8px 0;
+  font-size: 13px;
+  color: #ff4d4f;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestionItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #e8e8e8;
+  background: #fff;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestionItem:hover {
+  border-color: #1890ff;
+  background: #e6f7ff;
+}
+
+.suggestionIcon {
+  font-size: 14px;
+  color: #1890ff;
+  display: flex;
+  align-items: center;
+}
+
+.suggestionTitle {
+  font-size: 13px;
+  color: #333;
+}

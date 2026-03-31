@@ -355,3 +355,319 @@ async def generate_content_stream(request: GenerateRequest):
     except Exception as e:
         logger.error(f"❌ 流式生成启动失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"流式生成失败: {str(e)}")
+
+
+# ==================== 上下文问答API ====================
+
+class ContextualAskRequest(BaseModel):
+    """基于上下文的问答请求"""
+    question: str = Field(..., description="用户问题")
+    document_id: Optional[int] = Field(default=None, description="文档 ID")
+    project_id: Optional[int] = Field(default=None, description="项目 ID")
+    max_tokens: int = Field(default=6000, description="上下文 token 预算")
+
+
+class ContextualAskResponse(BaseModel):
+    """基于上下文的问答响应"""
+    answer: str = Field(..., description="AI 回答")
+    context_used: str = Field(default="", description="使用的上下文摘要")
+    tokens_used: int = Field(default=0, description="上下文 token 数")
+
+
+@router.post("/contextual-ask", response_model=ContextualAskResponse)
+async def contextual_ask(request: ContextualAskRequest):
+    """
+    基于分层索引的智能问答
+    
+    自动加载相关上下文并调用 LLM 生成回答
+    """
+    logger.info(f"🎯 上下文问答: {request.question[:50]}...")
+    
+    try:
+        from app.services.hierarchical_context import HierarchicalContext
+        
+        # 1. 构建上下文
+        hc = HierarchicalContext()
+        context = hc.build_context(
+            query=request.question,
+            session_id="api-contextual-ask",
+            max_tokens=request.max_tokens
+        )
+        
+        if not context or "暂无" in context:
+            return ContextualAskResponse(
+                answer="抱歉，系统中暂无相关文档。请先上传 PDF 文件。",
+                context_used="",
+                tokens_used=0
+            )
+        
+        # 2. 构建 prompt
+        prompt = f"""请基于以下上下文回答用户的问题。如果上下文中没有相关信息，请诚实说明。
+
+【上下文】
+{context}
+
+【问题】
+{request.question}
+
+【回答】
+请提供准确、详细的回答，并在适当位置标注信息来源（如"根据第 X 页..."）。"""
+
+        # 3. 调用 LLM
+        response = await llm_service.generate_text(prompt)
+        
+        if response.get("status") == "success":
+            answer = response.get("content", "")
+            tokens_used = len(context) // 4  # 粗略估算
+            
+            logger.info(f"✅ 上下文问答完成，使用了约 {tokens_used} tokens")
+            
+            return ContextualAskResponse(
+                answer=answer,
+                context_used=context[:300] + "..." if len(context) > 300 else context,
+                tokens_used=tokens_used
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=response.get("error", "LLM 调用失败")
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 上下文问答失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"问答失败: {str(e)}"
+        )
+
+
+# ==================== 快捷操作 API ====================
+
+class QuickActionRequest(BaseModel):
+    """快捷操作请求"""
+    action: str = Field(..., description="操作类型: rewrite/expand/polish/translate/summarize/extract")
+    selected_text: str = Field(..., description="选中的文本")
+    context: Optional[str] = Field(default=None, description="上下文")
+    stream: Optional[bool] = Field(default=False, description="是否流式输出")
+
+
+class QuickActionResponse(BaseModel):
+    """快捷操作响应"""
+    content: str = Field(..., description="生成的内容")
+    word_count: int = Field(..., description="字数统计")
+    action: str = Field(..., description="操作类型")
+
+
+# 操作类型对应的提示词模板
+ACTION_PROMPTS = {
+    "rewrite": """请重写以下文本，保持原意但使用不同的表达方式。要求：
+1. 保持原文的核心意思不变
+2. 使用不同的词汇和句式
+3. 保持相同的语气和风格
+4. 确保重写后的文本通顺自然
+
+原文：
+{selected_text}
+
+请直接输出重写后的文本，不要包含任何解释或标记。""",
+
+    "expand": """请扩展以下文本，添加更多细节和说明。要求：
+1. 保持原文的核心意思
+2. 添加相关的细节、例子或说明
+3. 保持相同的语气和风格
+4. 扩展后的内容应该更加丰富完整
+
+原文：
+{selected_text}
+
+{context_section}
+
+请直接输出扩展后的文本，不要包含任何解释或标记。""",
+
+    "polish": """请润色以下文本，优化语言表达。要求：
+1. 修正语法和用词问题
+2. 优化句子结构
+3. 提升文本的可读性
+4. 保持原文的核心意思不变
+
+原文：
+{selected_text}
+
+请直接输出润色后的文本，不要包含任何解释或标记。""",
+
+    "translate": """请将以下中文文本翻译为英文。要求：
+1. 翻译准确，保持原意
+2. 使用自然流畅的英文表达
+3. 保持相同的专业程度和语气
+
+原文：
+{selected_text}
+
+请直接输出翻译后的英文文本，不要包含任何解释或标记。""",
+
+    "summarize": """请总结以下文本，提炼核心要点。要求：
+1. 提取最重要的信息
+2. 保持简洁明了
+3. 使用列表或段落形式
+4. 保持客观中立的语气
+
+原文：
+{selected_text}
+
+请直接输出总结内容，不要包含任何解释或标记。""",
+
+    "extract": """请从以下文本中提取关键信息。要求：
+1. 识别文本中的关键词、数字、日期等重要信息
+2. 使用结构化的方式呈现
+3. 保持信息的准确性
+4. 只提取客观存在的信息
+
+原文：
+{selected_text}
+
+请直接输出提取的关键信息，使用列表形式呈现。""",
+}
+
+
+@router.post("/quick-actions", response_model=QuickActionResponse)
+async def execute_quick_action(request: QuickActionRequest):
+    """
+    执行快捷 AI 操作
+    
+    支持的操作类型:
+    - rewrite: 重写文本
+    - expand: 扩展内容
+    - polish: 润色文本
+    - translate: 翻译为英文
+    - summarize: 总结内容
+    - extract: 提取关键信息
+    """
+    logger.info(f"⚡ 快捷操作: {request.action}, 文本长度={len(request.selected_text)}")
+    
+    try:
+        # 验证操作类型
+        if request.action not in ACTION_PROMPTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的操作类型: {request.action}"
+            )
+        
+        # 构建上下文部分
+        context_section = ""
+        if request.context:
+            context_section = f"\n上下文参考：\n{request.context}\n"
+        
+        # 构建提示词
+        prompt = ACTION_PROMPTS[request.action].format(
+            selected_text=request.selected_text,
+            context_section=context_section
+        )
+        
+        # 调用 LLM
+        result = await llm_service.generate_text(
+            prompt,
+            temperature=0.7,
+            max_tokens=2000
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "LLM 调用失败")
+            )
+        
+        content = result["content"]
+        word_count = len(content)
+        
+        logger.info(f"✅ 快捷操作完成: {request.action}, 生成 {word_count} 字")
+        
+        return QuickActionResponse(
+            content=content,
+            word_count=word_count,
+            action=request.action
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 快捷操作失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"快捷操作失败: {str(e)}"
+        )
+
+
+@router.post("/quick-actions-stream")
+async def execute_quick_action_stream(request: QuickActionRequest):
+    """
+    流式执行快捷 AI 操作 (SSE)
+    
+    实时返回生成的内容
+    """
+    logger.info(f"⚡ 流式快捷操作: {request.action}, 文本长度={len(request.selected_text)}")
+    
+    try:
+        # 验证操作类型
+        if request.action not in ACTION_PROMPTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的操作类型: {request.action}"
+            )
+        
+        # 构建上下文部分
+        context_section = ""
+        if request.context:
+            context_section = f"\n上下文参考：\n{request.context}\n"
+        
+        # 构建提示词
+        prompt = ACTION_PROMPTS[request.action].format(
+            selected_text=request.selected_text,
+            context_section=context_section
+        )
+        
+        async def generate():
+            """SSE 生成器"""
+            try:
+                # 获取 LangChain 兼容的 LLM
+                llm = get_llm()
+                
+                # 使用 LangChain 的流式生成
+                full_content = ""
+                async for chunk in llm.astream(prompt):
+                    content_piece = chunk.content if hasattr(chunk, 'content') else str(chunk)
+                    full_content += content_piece
+                    
+                    # 发送 SSE 事件
+                    yield f"data: {json.dumps({'content': content_piece, 'done': False})}\n\n"
+                    
+                    # 添加小延迟使流式效果更明显
+                    await asyncio.sleep(0.01)
+                
+                # 发送完成事件
+                yield f"data: {json.dumps({'content': '', 'done': True, 'word_count': len(full_content)})}\n\n"
+                
+                logger.info(f"✅ 流式快捷操作完成: {request.action}, 生成 {len(full_content)} 字")
+                
+            except Exception as e:
+                logger.error(f"❌ 流式快捷操作错误: {str(e)}")
+                yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+        
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 流式快捷操作启动失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"流式快捷操作失败: {str(e)}"
+        )

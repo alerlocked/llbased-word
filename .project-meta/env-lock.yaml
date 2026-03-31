@@ -1,0 +1,191 @@
+# 环境快照 - localknowledgebase-word
+# 版本: 1.0
+# 创建时间: 2026-03-30T09:38:00+08:00
+
+snapshot:
+  id: "snap-20260330-001"
+  created_at: "2026-03-30T09:38:00+08:00"
+  trigger: "initial"
+  
+  triggered_by:
+    type: "human"
+    name: "Main Agent"
+    session_id: "fc6a7b06-33c3-4cc8-b192-43601e00508e"
+
+# ============ 项目信息 ============
+project:
+  name: "localknowledgebase-word"
+  path: "D:\\Project Nantianmen\\projects\\localknowledgebase-word"
+  ai_context_id: "ctx-lkb-2026"
+  
+  git:
+    branch: "main"
+    commit: "9d37149"
+    dirty: true
+
+# ============ 依赖锁定 ============
+dependencies:
+  locked:
+    python: "3.13"
+    node: "20.x"
+  
+  resolved:
+    python_packages:
+      # Web框架
+      - name: fastapi
+        version: "0.104.1"
+      - name: uvicorn
+        version: "0.24.0"
+      - name: python-multipart
+        version: "0.0.6"
+      - name: websockets
+        version: "12.0"
+      
+      # 数据库
+      - name: sqlalchemy
+        version: "2.0.23"
+      - name: alembic
+        version: "1.13.0"
+      
+      # 任务队列
+      - name: celery
+        version: "5.3.4"
+      - name: redis
+        version: "5.0.1"
+      
+      # 音频处理
+      - name: pydub
+        version: "0.25.1"
+      
+      # HTTP客户端
+      - name: httpx
+        version: "0.25.2"
+      - name: requests
+        version: "2.31.0"
+      - name: aiohttp
+        version: "3.9.0"
+      
+      # AI SDK
+      - name: openai
+        version: "1.12.0"
+      - name: dashscope
+        version: "1.14.1"
+      
+      # 数据验证
+      - name: pydantic
+        version: "2.5.2"
+      - name: pydantic-settings
+        version: "2.1.0"
+      
+      # 文档解析
+      - name: python-docx
+        version: "1.1.0"
+      - name: PyPDF2
+        version: "3.0.1"
+      - name: pymupdf
+        version: "1.23.8"
+      - name: pdfplumber
+        version: "0.10.0"
+      - name: Pillow
+        version: "10.2.0"
+      - name: magic-pdf
+        version: "0.7.6"
+      
+      # LangChain
+      - name: langchain
+        version: "0.1.0"
+      - name: langchain-openai
+        version: "0.0.5"
+      - name: langchain-community
+        version: "0.0.20"
+      - name: langgraph
+        version: "0.0.10"
+      - name: chromadb
+        version: "0.4.22"
+      
+      # Embedding
+      - name: FlagEmbedding
+        version: "1.2.0"
+      - name: torch
+        version: "2.0.0"
+      - name: transformers
+        version: "4.35.0"
+    
+    node_packages:
+      - name: react
+        version: "18.2.0"
+      - name: antd
+        version: "5.12.0"
+      - name: tiptap
+        version: "2.27.1"
+      - name: zustand
+        version: "4.4.7"
+      - name: axios
+        version: "1.6.2"
+      - name: pdfjs-dist
+        version: "5.5.207"
+
+# ============ 环境状态 ============
+environment:
+  os:
+    type: "Windows_NT"
+    version: "10.0.26200"
+  
+  shell:
+    type: "powershell"
+    version: "5.1"
+  
+  key_env_vars:
+    - "PYTHONPATH"
+    - "OPENAI_API_KEY"
+    - "DASHSCOPE_API_KEY"
+
+# ============ AI 上下文 ============
+ai_context:
+  last_session: "fc6a7b06-33c3-4cc8-b192-43601e00508e"
+  accumulated_tokens: 0
+  
+  key_decisions:
+    - id: "dec-001"
+      summary: "采用分层索引替代 RAG"
+      date: "2026-03-29"
+      adr: ".project-meta/decisions/adr-001-context-injection-simplification.md"
+    
+    - id: "dec-002"
+      summary: "素材库存储重构，删除 Material.content 字段"
+      date: "2026-03-28"
+      prp: "PRPs/material-refactor-20260328.md"
+
+# ============ 验证规则 ============
+validation:
+  on_dependency_change:
+    action: "warn"
+    notify: true
+  
+  drift_detection:
+    enabled: true
+    check_interval: "daily"
+  
+  ai_output:
+    check_scope_boundary: true
+    check_dependency_allowed: true
+
+# ============ 历史记录 ============
+history:
+  changes:
+    - timestamp: "2026-03-31T23:48:00+08:00"
+      type: "feature"
+      summary: "添加 AI 编辑器增强功能 - 选区快捷菜单和底部建议栏"
+      files_added:
+        - "frontend/src/components/editor/AIContextMenu.tsx"
+        - "frontend/src/components/editor/AIContextMenu.module.css"
+        - "frontend/src/components/editor/AISuggestionBar.tsx"
+        - "frontend/src/components/editor/AISuggestionBar.module.css"
+        - "frontend/src/hooks/useAIStream.ts"
+        - "frontend/src/hooks/useSelection.ts"
+        - "frontend/src/hooks/useSuggestions.ts"
+        - "frontend/src/services/aiService.ts"
+      files_modified:
+        - "frontend/src/components/common/MarkdownTiptapEditor.tsx"
+        - "backend/app/api/assistant.py"
+      notes: "实现 PIV piv_feature_ai_editor_ux_20260331"
