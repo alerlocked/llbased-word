@@ -1,0 +1,27 @@
+# welding_mixed_terms.yaml
+content: |
+  # 焊接工艺规程
+  
+  ## 概述
+  本文档描述 XX 部件的焊接流程。
+  
+  ## 准备工作
+  1. 检查焊接材料（装配术语）
+  2. 准备焊接工具
+  
+  ## 操作步骤
+  1. 预热焊件
+  2. 进行焊接
+  
+  ## 安全措施
+  - 佩戴焊接面罩
+  - 确保通风良好
+  
+  ## 质量检查
+  - 检查焊缝质量
+  - 验证焊接强度
+
+expected_issues:
+  - severity: error
+    message: "术语不符合焊接领域"
+expected_score: 70

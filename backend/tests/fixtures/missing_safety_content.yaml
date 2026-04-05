@@ -1,0 +1,15 @@
+# missing_safety_content.yaml
+content: |
+  # 装配作业指导书
+  
+  ## 概述
+  本文档描述 XX 部件的装配流程。
+  
+  ## 操作步骤
+  1. 安装基座
+  2. 连接管路
+
+expected_issues:
+  - severity: error
+    message: "缺少必填字段： 安全措施"
+expected_score: 70

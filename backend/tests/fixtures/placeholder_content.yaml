@@ -1,0 +1,16 @@
+# placeholder_content.yaml
+content: |
+  # 装配作业指导书
+  
+  ## 概述
+  本文档描述 XX 部件的装配流程。
+  
+  TODO: 待补充准备工作
+  
+  ## 操作步骤
+  1. 安装基座
+  2. FIXME: 待补充管路连接
+expected_issues:
+  - severity: warning
+    message: "存在占位符: TODO"
+expected_score: 85

@@ -1,0 +1,162 @@
+# 测试 Fixtures 目录
+# 提供 Review Service 测试用的测试数据
+
+# valid_assembly_content.yaml
+content: |
+  # 装配作业指导书
+  
+  ## 概述
+  本文档描述 XX 部件的装配流程。
+  
+  ## 准备工作
+  1. 检查零部件完整性
+  2. 准备装配工具
+  
+  ## 操作步骤
+  1. 安装基座
+  2. 连接管路
+  
+  ## 安全措施
+  - 佩戴防护手套
+  - 确保设备断电
+  
+  ## 质量检查
+  - 检查连接紧固度
+  - 验证功能正常
+
+expected_issues: []
+expected_score: 95
+
+---
+# missing_safety_content.yaml
+content: |
+  # 装配作业指导书
+  
+  ## 概述
+  本文档描述 XX 部件的装配流程。
+  
+  ## 操作步骤
+  1. 安装基座
+  2. 连接管路
+
+expected_issues:
+  - severity: error
+    message: "缺少必填字段： 安全措施"
+expected_score: 70
+
+---
+# placeholder_content.yaml
+content: |
+  # 装配作业指导书
+  
+  ## 概述
+  本文档描述 XX 部件的装配流程。
+  
+  TODO: 待补充准备工作
+  
+  ## 操作步骤
+  1. 安装基座
+  2. FIXME: 待补充管路连接
+
+expected_issues:
+  - severity: warning
+    message: "存在占位符: TODO"
+expected_score: 85
+
+---
+# oral_style_content.yaml
+content: |
+  # 装配作业指导书
+  
+  ## 概述
+  匳家伙，咱们今天来搞定这个 XX 部件的装配。
+  
+  ## 准备工作
+  1. 准备好咱们要用的工具
+  2. 差不多就行了
+  
+  ## 操作步骤
+  1. 先把这个基座装上去
+  2. 然后把管路连好，  
+  ## 安全措施
+  - 佩戴防护手套
+  - 确保设备断电
+
+  
+  ## 质量检查
+  - 检查连接紧固度
+  - 验证功能正常
+
+expected_issues:
+  - severity: info
+    message: "存在口语化表达"
+expected_score: 85
+
+---
+# high_deviation_content.yaml
+content: |
+  # 装配作业指导书
+  
+  ## 概述
+  本文档描述 XX 部件的装配流程。
+  
+  ## 准备工作
+  1. 检查零部件完整性
+  2. 准备装配工具
+  3. 额外的准备工作步骤 A
+  4. 额外的准备工作步骤 B
+  5. 额外的准备工作步骤 C
+  
+  ## 操作步骤
+  1. 安装基座
+  2. 连接管路
+  3. 额外的操作步骤 A
+  4. 额外的操作步骤 B
+  5. 额外的操作步骤 C
+  6. 额外的操作步骤 D
+  7. 额外的操作步骤 E
+  
+  ## 安全措施
+  - 佩戴防护手套
+  - 确保设备断电
+  
+  ## 质量检查
+  - 检查连接紧固度
+  - 验证功能正常
+  3. 额外的检查步骤 A
+  4. 额外的检查步骤 B
+  5. 额外的检查步骤 C
+
+expected_issues:
+  - severity: warning
+    message: "与模板偏差超过 10%"
+expected_score: 80
+
+---
+# welding_mixed_terms.yaml
+content: |
+  # 焊接工艺规程
+  
+  ## 概述
+  本文档描述 XX 部件的焊接流程。
+  
+  ## 准备工作
+  1. 检查焊接材料（装配术语)
+  2. 准备焊接工具
+  
+  ## 操作步骤
+  1. 预热焊件
+  2. 进行焊接
+  
+  ## 安全措施
+  - 佩戴焊接面罩
+  - 确保通风良好
+  
+  ## 质量检查
+  - 检查焊缝质量
+  - 验证焊接强度
+
+expected_issues:
+  - severity: error
+    message: "术语不符合焊接领域"
+expected_score: 70
