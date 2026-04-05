@@ -91,8 +91,11 @@ def validate_profile_file(yaml_path: Path) -> Dict[str, Any]:
 def main():
     """主函数"""
     # 查找项目根目录
+    # script_dir = backend/scripts
+    # parent = backend
+    # parent.parent = localknowledgebase-word (项目根目录)
     script_dir = Path(__file__).parent
-    project_root = script_dir.parent.parent.parent
+    project_root = script_dir.parent.parent
     profiles_dir = project_root / ".project-meta" / "profiles"
     
     if not profiles_dir.exists():
