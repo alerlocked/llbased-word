@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from app.api import process, creation, rag, web_image, export, annotation, node_documents, materials
 from app.api import task_router, document_router
 from app.api import pdf_status, agent, assistant, process_documents, deepseek
+from app.api import context
 from app.config import settings
 from app.utils.logger import logger
 from app.services.pdf_queue_manager import get_pdf_queue_manager, PDFTask
@@ -135,6 +136,9 @@ app.include_router(deepseek.router, prefix="/api/deepseek", tags=["DeepSeek LLM"
 
 # 素材库 API（从文件系统读取）
 app.include_router(materials.router, prefix="/api", tags=["素材库"])
+
+# Context API
+app.include_router(context.router, prefix="/api/context", tags=["context"])
 
 @app.on_event("startup")
 async def startup_event():

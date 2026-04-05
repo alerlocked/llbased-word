@@ -325,6 +325,7 @@ class ReviewService:
                 issues.append(Issue(
                     severity=Severity.WARNING.value,
                     type="placeholder_found",
+                    field=None,
                     message=f"存在占位符: {placeholder}",
                     hint="请补充完整内容",
                     fix_hint=f"替换或删除占位符 {placeholder}"
@@ -335,6 +336,7 @@ class ReviewService:
             issues.append(Issue(
                 severity=Severity.WARNING.value,
                 type="missing_structure",
+                field=None,
                 message="缺少段落标题结构",
                 hint="建议使用 Markdown 标题（#）组织内容",
                 fix_hint="添加标题结构，如： ## 概述"
@@ -524,6 +526,7 @@ class ReviewService:
                 issues.append(Issue(
                     severity=Severity.WARNING.value,
                     type="absolute_expression",
+                    field=None,
                     message=f"包含绝对化表述: {match}",
                     hint="建议使用更严谨的表述",
                     fix_hint=f"修改 '{match}' 为更严谨的表述"
@@ -542,6 +545,7 @@ class ReviewService:
                 issues.append(Issue(
                     severity=Severity.ERROR.value,
                     type="missing_safety",
+                    field=None,
                     message="高风险作业缺少安全提示",
                     hint="请添加安全注意事项",
                     fix_hint="在文档中添加安全提示部分"
