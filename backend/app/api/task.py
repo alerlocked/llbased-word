@@ -463,8 +463,8 @@ class ConversationStatusResponse(BaseModel):
 
 def get_orchestrator():
     """获取Orchestrator实例"""
-    from app.agents.orchestrator.orchestrator import Orchestrator
-    return Orchestrator()
+    from app.agents.orchestrator.orchestrator import ProcessOrchestrator
+    return ProcessOrchestrator()
 
 
 @router.post("/conversation/continue", response_model=ContinueConversationResponse, summary="继续对话")

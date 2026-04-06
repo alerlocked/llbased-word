@@ -11,7 +11,6 @@ import {
   CloudUploadOutlined, DatabaseOutlined, SettingOutlined, RobotOutlined, DeleteOutlined
 } from '@ant-design/icons'
 import { useCreationStore } from '../stores/creationStore'
-import FloatingToolbar from '../components/workspace/FloatingToolbar'
 import UploadDrawer from '../components/workspace/UploadDrawer'
 import MaterialDrawer from '../components/workspace/MaterialDrawer'
 import SettingsDrawer from '../components/workspace/SettingsDrawer'
@@ -426,8 +425,8 @@ const WorkspacePage: React.FC = () => {
       flexDirection: 'column',
       background: colors.bgPrimary
     }}>
-      {/* 顶部工具栏 - 极简温暖风格 */}
-      <div style={{ 
+      {/* 顶部导航栏 - 极简温暖风格 */}
+      <nav aria-label="主导航" style={{ 
         height: 56,
         padding: '0 24px',
         borderBottom: `1px solid ${colors.borderLight}`,
@@ -542,7 +541,7 @@ const WorkspacePage: React.FC = () => {
             />
           </Tooltip>
         </Space>
-      </div>
+      </nav>
 
       {/* 主内容区 */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -556,15 +555,7 @@ const WorkspacePage: React.FC = () => {
             background: colors.bgPrimary
           }}
         >
-          {/* 悬浮快捷编辑面板 */}
-          <FloatingToolbar
-            containerRef={editorRef}
-            onReplaceSelection={handleReplaceSelection}
-            projectId={currentProjectId}
-            onOpenImageDialog={() => setImageModalVisible(true)}
-          />
-
-          {/* 编辑器 / 空状态 */}
+          {/* 编辑器区域 */}
           <div style={{ flex: 1, padding: '24px 48px', overflow: 'auto' }}>
             <div style={{ 
               maxWidth: 800, 
@@ -632,15 +623,16 @@ const WorkspacePage: React.FC = () => {
               ) : (
                 /* 编辑模式 - 使用 Tiptap 编辑器（支持内联图片） */
                 <MarkdownTiptapEditor
-                  key={currentProjectId || 'no-project'} // 项目切换时重新创建编辑器
+                  key={currentProjectId || 'no-project'}
                   ref={editorRef}
                   value={editorContent}
                   onChange={handleEditorChange}
-                  placeholder="开始写作...\n\n💡 选中文字后会出现悬浮工具栏"
+                  placeholder="开始写作...\n\n💡 选中文字后会出现 AI 工具栏"
                   disabled={!currentProjectId}
                   style={{
                     color: colors.textPrimary
                   }}
+                  onOpenImageDialog={() => setImageModalVisible(true)}
                 />
               )}
             </div>
