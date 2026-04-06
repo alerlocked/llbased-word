@@ -70,6 +70,8 @@ class HierarchicalContext:
         self._meta_cache: Optional[str] = None  # Layer 0 缓存
         self._table_index_cache: Optional[str] = None  # Layer 1 缓存
         self._loaded_sessions: Set[str] = set()  # 已加载 Layer 0/1 的会话
+        self._max_rag_tokens: int = 15000  # RAG 层最大 token 数量
+        self._layer_tokens: Dict[str, int] = {"layer0": 0, "layer1": 0, "layer2": 0, "total": 0}  # 各层 token 使用量
         
     def _get_all_documents(self) -> List[Dict[str, Any]]:
         """获取所有文档的 index.json"""
@@ -404,10 +406,11 @@ class HierarchicalContext:
     def _estimate_tokens(self, text: str) -> int:
         """估算文本的 token 数量
         
-        简单估算：中文按字符数，英文按单词数 * 1.3
+        中文按 1.5 tokens/字符，英文按 0.25 tokens/字符
         """
-        # 简单估算：平均每 4 个字符 = 1 token
-        return len(text) // 4
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
+        other_chars = len(text) - chinese_chars
+        return int(chinese_chars * 1.5 + other_chars * 0.25)
     
     def build_context(
         self, 
@@ -426,22 +429,30 @@ class HierarchicalContext:
         Args:
             query: 用户查询
             session_id: 会话 ID
-            max_tokens: 最大 token 数量
+            max_tokens: 最大 token 数量（优先使用 set_max_tokens 设置的值）
             
         Returns:
             构建的上下文字符串
         """
+        # 使用 set_max_tokens 设置的值，如果未设置则使用参数
+        effective_max_tokens = min(max_tokens, self._max_rag_tokens)
+        
         context_parts = []
         used_tokens = 0
         
-        logger.info(f"[上下文] 开始构建上下文: session={session_id}, query={query[:50]}")
+        # 重置 token 统计
+        self._layer_tokens = {"layer0": 0, "layer1": 0, "layer2": 0, "total": 0}
+        
+        logger.info(f"[上下文] 开始构建上下文: session={session_id}, query={query[:50]}, max_tokens={effective_max_tokens}")
         
         # Layer 0: 元信息索引（会话级加载一次）
         layer0_key = f"{session_id}_layer0"
         if layer0_key not in self._loaded_sessions:
             meta = self.load_meta_index()
+            meta_tokens = self._estimate_tokens(meta)
             context_parts.append(meta)
-            used_tokens += self._estimate_tokens(meta)
+            used_tokens += meta_tokens
+            self._layer_tokens["layer0"] = meta_tokens
             self._loaded_sessions.add(layer0_key)
             logger.info(f"[上下文] Layer 0 已加载: {used_tokens} tokens")
         
@@ -449,13 +460,16 @@ class HierarchicalContext:
         layer1_key = f"{session_id}_layer1"
         if layer1_key not in self._loaded_sessions:
             table_index = self.load_table_index()
+            table_index_tokens = self._estimate_tokens(table_index)
             context_parts.append(table_index)
-            used_tokens += self._estimate_tokens(table_index)
+            used_tokens += table_index_tokens
+            self._layer_tokens["layer1"] = table_index_tokens
             self._loaded_sessions.add(layer1_key)
             logger.info(f"[上下文] Layer 1 已加载: 总计 {used_tokens} tokens")
         
         # Layer 2: 按需加载相关表格
         matched_tables = self.search_tables(query, top_k=3)
+        layer2_tokens = 0
         
         for table in matched_tables:
             # 获取文档目录名
@@ -474,7 +488,7 @@ class HierarchicalContext:
             table_tokens = self._estimate_tokens(table_html)
             
             # 检查是否超过 token 限制
-            if used_tokens + table_tokens > max_tokens:
+            if used_tokens + table_tokens > effective_max_tokens:
                 logger.warning(f"[上下文] 达到 token 限制，跳过表格 {table.table_id}")
                 break
             
@@ -482,7 +496,10 @@ class HierarchicalContext:
             table_context = f"\n## 表格 {table.table_id} (第{table.page}页)\n\n{table_html}\n"
             context_parts.append(table_context)
             used_tokens += table_tokens
+            layer2_tokens += table_tokens
             logger.info(f"[上下文] Layer 2 加载表格 {table.table_id}: {table_tokens} tokens, 总计 {used_tokens} tokens")
+        
+        self._layer_tokens["layer2"] = layer2_tokens
         
         # Layer 3: 精确检索（如果有参数关键词）
         # 这里可以添加更精细的检索逻辑，如：
@@ -493,6 +510,8 @@ class HierarchicalContext:
         
         final_context = "\n\n---\n\n".join(context_parts)
         final_tokens = self._estimate_tokens(final_context)
+        
+        self._layer_tokens["total"] = final_tokens
         
         logger.info(f"[上下文] 上下文构建完成: {final_tokens} tokens, 长度 {len(final_context)}")
         return final_context
@@ -509,6 +528,25 @@ class HierarchicalContext:
         self._loaded_sessions.discard(layer1_key)
         
         logger.info(f"[上下文] 会话缓存已清除: {session_id}")
+    
+    def set_max_tokens(self, max_tokens: int) -> None:
+        """设置 RAG 层最大 token 数量
+        
+        供 ContextService 调用，限制 RAG 层的 token 使用
+        
+        Args:
+            max_tokens: 最大 token 数量
+        """
+        self._max_rag_tokens = max_tokens
+        logger.info(f"[上下文] RAG 层 token 限制设置为: {max_tokens}")
+    
+    def get_layer_tokens(self) -> Dict[str, int]:
+        """获取各层 token 使用情况
+        
+        Returns:
+            {"layer0": 500, "layer1": 2000, "layer2": 3000, "total": 5500}
+        """
+        return self._layer_tokens.copy()
 
 
 # 全局单例
