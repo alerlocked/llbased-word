@@ -431,14 +431,29 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
             padding: 16,
             background: colors.bgSecondary,
             borderRadius: 8,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
             fontSize: 13,
             lineHeight: 1.6
           }}>
-            {previewContent || '无内容'}
+            {previewContent?.startsWith('<') || previewContent?.includes('</') || previewContent?.includes('<table') ? (
+              <>
+                <style>{`
+                  .html-preview table { border-collapse: collapse; width: 100%; margin-bottom: 16px; font-size: 12px; }
+                  .html-preview td, .html-preview th { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
+                  .html-preview h2 { font-size: 16px; margin: 16px 0 8px; color: #333; }
+                  .html-preview p { margin: 8px 0; }
+                `}</style>
+                <div 
+                  className="html-preview"
+                  dangerouslySetInnerHTML={{ __html: previewContent }}
+                />
+              </>
+            ) : (
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {previewContent || '无内容'}
+              </div>
+            )}
           </div>
-        )}
+        )}}
       </Modal>
     </>
   )
