@@ -324,6 +324,9 @@ async def get_project_materials(
             "documents": []
         }
 
+        # 获取 PDF 队列管理器
+        pdf_manager = get_pdf_queue_manager()
+        
         for material in materials:
             if material.material_type == "search" and material.search_result_id:
                 # 获取检索结果
@@ -340,12 +343,53 @@ async def get_project_materials(
             elif material.material_type in ["document", "pdf", "docx", "txt"]:
                 # 获取文档的图片和页面
                 pages = db.query(MaterialPage).filter(MaterialPage.material_id == material.id).order_by(MaterialPage.page_number).all()
+                
+                # 查询 PDF 解析状态
+                parse_status = "unknown"
+                parse_error = None
+                
+                if material.material_type in ["pdf", "document"]:
+                    # 尝试匹配 PDF 队列任务
+                    # 1. 尝试通过源路径匹配（上传时保存的路径）
+                    upload_base_dir = Path(settings.DATA_DIR) / "uploads" / str(project_id)
+                    possible_source_paths = [
+                        str(upload_base_dir / material.name),
+                        str(upload_base_dir / f"material_{project_id}_{material.name}")
+                    ]
+                    
+                    task = None
+                    for source_path in possible_source_paths:
+                        task = pdf_manager.get_task_by_path(source_path)
+                        if task:
+                            break
+                    
+                    if task:
+                        # 找到队列任务
+                        parse_status = task.status.value
+                        if task.error_message:
+                            parse_error = task.error_message
+                    else:
+                        # 没有队列任务，检查输出文件是否存在
+                        # 实际输出路径是 documents/{material_id}/content.html
+                        output_path = Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html"
+                        if output_path.exists():
+                            parse_status = "completed"
+                        else:
+                            # 检查 parsed_pdfs 目录（旧格式兼容）
+                            legacy_output_path = Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / f"{Path(material.name).stem}.html"
+                            if legacy_output_path.exists():
+                                parse_status = "completed"
+                            else:
+                                # 文件可能还未上传或已被删除
+                                parse_status = "pending"
 
                 result["documents"].append({
                     "id": material.id,
                     "name": material.name,
                     "type": material.material_type,
                     # content 已删除，内容保存在文件系统
+                    "parse_status": parse_status,
+                    "parse_error": parse_error,
                     "pages": [
                         {
                             "page_number": p.page_number,
@@ -366,6 +410,96 @@ async def get_project_materials(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取失败: {str(e)}"
         )
+
+
+@router.get("/projects/{project_id}/materials/{material_id}")
+async def get_material_content(
+    project_id: int,
+    material_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取单个素材的内容（用于预览）
+    
+    Args:
+        project_id: 项目ID
+        material_id: 素材ID
+        db: 数据库会话
+
+    Returns:
+        素材内容
+    """
+    try:
+        # 验证项目存在
+        project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
+        
+        # 验证素材属于该项目
+        if material_id not in (project.material_ids or []):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="素材不在该项目中"
+            )
+        
+        # 获取素材
+        material = get_or_404(db, Material, Material.id == material_id, "素材不存在")
+        
+        # 读取内容文件 - 优先 content.json (完整内容)
+        content_json_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.json"
+        content_html_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
+        
+        if content_json_path.exists():
+            import json
+            with open(content_json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            content = data.get("content", "")
+            logger.info(f"✅ 获取素材内容: {material_id} (from JSON, {len(content)} chars)")
+            return {
+                "id": material.id,
+                "name": material.name,
+                "type": material.material_type,
+                "content": content,
+                "content_type": "html"
+            }
+        elif content_html_path.exists():
+            with open(content_html_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            logger.info(f"✅ 获取素材内容: {material_id} (from HTML)")
+            return {
+                "id": material.id,
+                "name": material.name,
+                "type": material.material_type,
+                "content": content,
+                "content_type": "html"
+            }
+        else:
+            # 检查旧格式
+            legacy_path = Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / f"{Path(material.name).stem}.html"
+            if legacy_path.exists():
+                with open(legacy_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                logger.info(f"✅ 获取素材内容(旧格式): {material_id}")
+                return {
+                    "id": material.id,
+                    "name": material.name,
+                    "type": material.material_type,
+                    "content": content,
+                    "content_type": "html"
+                }
+            
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="素材内容文件不存在，可能尚未解析完成"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 获取素材内容失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取失败: {str(e)}"
+        )
+
 
 @router.delete("/projects/{project_id}/materials/{material_id}")
 async def remove_material_from_project(

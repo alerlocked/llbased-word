@@ -7,7 +7,7 @@
  * - 点击"添加引用"按钮 → 添加引用到编辑栏
  */
 import { useState } from 'react'
-import { List, Image, Empty, Spin, Dropdown, Tag, Button, Modal, Space } from 'antd'
+import { List, Image, Empty, Spin, Dropdown, Tag, Button, Modal, Space, Tooltip } from 'antd'
 import {
   FileImageOutlined,
   FileTextOutlined,
@@ -16,7 +16,11 @@ import {
   DeleteOutlined,
   FolderOutlined,
   PlusOutlined,
-  EyeOutlined
+  EyeOutlined,
+  SyncOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons'
 import { colors } from '../../styles/design-tokens'
 
@@ -28,6 +32,8 @@ export interface MaterialFile {
   folderId?: string
   created_at: string
   content?: string  // 文件内容，用于预览
+  parse_status?: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'unknown'
+  parse_error?: string  // 解析失败时的错误信息
 }
 
 interface FileListProps {
@@ -67,6 +73,45 @@ const getFileTypeTag = (type: string) => {
     return <Tag color="blue">Word</Tag>
   }
   return <Tag>文档</Tag>
+}
+
+// 获取解析状态标签
+const getParseStatusTag = (status?: string, error?: string) => {
+  if (!status || status === 'unknown') {
+    return null
+  }
+  
+  switch (status) {
+    case 'pending':
+    case 'queued':
+      return (
+        <Tag color="default" icon={<ClockCircleOutlined />}>
+          等待解析
+        </Tag>
+      )
+    case 'processing':
+      return (
+        <Tag color="processing" icon={<SyncOutlined spin />}>
+          解析中...
+        </Tag>
+      )
+    case 'completed':
+      return (
+        <Tag color="success" icon={<CheckCircleOutlined />}>
+          已解析
+        </Tag>
+      )
+    case 'failed':
+      return (
+        <Tooltip title={error || '解析失败'}>
+          <Tag color="error" icon={<CloseCircleOutlined />}>
+            解析失败
+          </Tag>
+        </Tooltip>
+      )
+    default:
+      return null
+  }
 }
 
 const FileList: React.FC<FileListProps> = ({
@@ -249,6 +294,7 @@ const FileList: React.FC<FileListProps> = ({
               description={
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                   {getFileTypeTag(item.type)}
+                  {getParseStatusTag(item.parse_status, item.parse_error)}
                   <span style={{ fontSize: 12, color: colors.textTertiary }}>
                     {new Date(item.created_at).toLocaleDateString()}
                   </span>

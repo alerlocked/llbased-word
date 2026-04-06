@@ -384,11 +384,10 @@ async def contextual_ask(request: ContextualAskRequest):
     logger.info(f"🎯 上下文问答: {request.question[:50]}...")
     
     try:
-        from app.services.hierarchical_context import HierarchicalContext
+        from app.services.hierarchical_context import hierarchical_context
         
-        # 1. 构建上下文
-        hc = HierarchicalContext()
-        context = hc.build_context(
+        # 使用全局单例（复用 Layer 0/1 缓存）
+        context = hierarchical_context.build_context(
             query=request.question,
             session_id="api-contextual-ask",
             max_tokens=request.max_tokens

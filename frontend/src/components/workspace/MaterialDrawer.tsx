@@ -129,7 +129,9 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
               url: '',
               type: doc.type || 'document',
               created_at: doc.createdAt || new Date().toISOString(),
-              content: doc.content || ''
+              content: doc.content || '',
+              parse_status: doc.parse_status || 'unknown',
+              parse_error: doc.parse_error
             })
           })
         }
