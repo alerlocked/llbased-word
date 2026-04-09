@@ -8,7 +8,8 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.models.database import ConversationSession
 from app.agents.workflows.creation_graph import GraphState
 from app.services.context_engineering import get_ltm

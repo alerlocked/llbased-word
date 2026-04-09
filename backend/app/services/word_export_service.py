@@ -11,7 +11,8 @@ from docx.oxml.ns import qn
 import re
 
 from app.config import settings
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 import urllib.parse
 
 

@@ -179,3 +179,22 @@ def timer(logger: logging.Logger, operation: str, **context) -> Timer:
             pass
     """
     return Timer(logger, operation, **context)
+
+# Compatibility functions (migrated from utils/logger.py)
+def log_workflow(workflow_name: str, step: str, details: dict = None):
+    """Record workflow log."""
+    import logging
+    _logger = logging.getLogger("workflow")
+    message = f"[工作流: {workflow_name}] [步骤: {step}]"
+    if details:
+        message += f" {details}"
+    _logger.info(message)
+
+def log_api_call(service: str, endpoint: str, status: str, duration_ms: float = None):
+    """Record API call log."""
+    import logging
+    _logger = logging.getLogger("api_call")
+    message = f"[API调用] {service} - {endpoint} - {status}"
+    if duration_ms:
+        message += f" - {duration_ms:.2f}ms"
+    _logger.info(message)

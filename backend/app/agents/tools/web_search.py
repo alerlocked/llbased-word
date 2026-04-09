@@ -6,7 +6,8 @@ import json
 import asyncio
 from typing import List, Dict, Optional
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.agents.tools.aliyun_search import AliyunSearchTool
 
 class WebSearchTool:

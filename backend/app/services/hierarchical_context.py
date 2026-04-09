@@ -7,7 +7,8 @@ from typing import List, Dict, Any, Optional, Set
 import json
 import re
 from bs4 import BeautifulSoup
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 # 尝试导入 jieba，失败时使用简单分词
 try:

@@ -9,7 +9,8 @@ from typing import List, Dict, Optional, Literal
 import json
 
 from app.services.deepseek_service import get_deepseek_service
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 router = APIRouter()
 

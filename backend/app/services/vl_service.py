@@ -17,7 +17,9 @@ import os
 import shutil
 
 from app.config import settings
-from app.utils.logger import logger, log_api_call
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
+from app.shared.logging import log_api_call
 
 
 class VLService:

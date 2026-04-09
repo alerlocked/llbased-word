@@ -7,7 +7,8 @@ from pathlib import Path
 import json
 
 from app.services.vl_service import vl_service
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 
 class ImageRelevanceService:

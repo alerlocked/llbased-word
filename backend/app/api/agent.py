@@ -11,7 +11,8 @@ import uuid
 import json
 import asyncio
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 router = APIRouter()
 

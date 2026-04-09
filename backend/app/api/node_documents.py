@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.node_document_writer import NodeDocumentWriter
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/node-documents", tags=["node-documents"])
 

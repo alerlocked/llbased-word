@@ -6,7 +6,9 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
 
-from app.utils.logger import logger, log_workflow
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
+from app.shared.logging import log_workflow
 from app.services.llm_service import llm_service
 
 router = APIRouter()

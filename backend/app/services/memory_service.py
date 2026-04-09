@@ -7,7 +7,8 @@ from typing import Optional, List
 from pathlib import Path
 from datetime import datetime
 import re
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 
 class MemoryService:

@@ -9,7 +9,8 @@ from sqlalchemy import desc
 
 from app.models.database import NodeDocument
 from app.services.context_engineering import get_ltm, LongTermMemory
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.database import SessionLocal
 
 

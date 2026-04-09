@@ -23,7 +23,8 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models.database import NodeDocument
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 
 def _safe_extract_key_data(doc: NodeDocument) -> Dict[str, Any]:

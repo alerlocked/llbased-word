@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 
 from app.config import settings
@@ -58,7 +59,9 @@ import shutil
 
 from app.database import get_db, SessionLocal
 from app.models.database import Material, CreationProject
-from app.utils.logger import logger, log_workflow
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
+from app.shared.logging import log_workflow
 from app.config import settings
 from app.utils.file_utils import calculate_file_hash
 from app.utils.db_utils import get_or_404

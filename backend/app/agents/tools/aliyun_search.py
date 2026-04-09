@@ -1,6 +1,7 @@
 import json
 from typing import List, Dict, Optional
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.shared.config import UNRELIABLE_DOMAINS
 
 # 导入阿里云 V3 SDK (TEA)

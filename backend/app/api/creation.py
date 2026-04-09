@@ -18,7 +18,9 @@ from app.services.llm_service import llm_service
 from app.services.document_processor import document_processor
 from app.services.rag_sync_service import get_rag_sync_service
 from app.services.vl_service import vl_service
-from app.utils.logger import logger, log_workflow
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
+from app.shared.logging import log_workflow
 from app.config import settings
 from app.agents.tools.image_search import get_image_search_tool
 from app.utils.path_utils import build_static_url

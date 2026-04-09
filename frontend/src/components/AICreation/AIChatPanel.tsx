@@ -843,7 +843,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 </span>
                 {msg.role === 'assistant' && !msg.isStreaming && (
                   <Space size={4}>
-                    <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => {
+                    <Button type="text" size="small" icon={<CopyOutlined />} aria-label="复制" title="复制" onClick={() => {
                       navigator.clipboard.writeText(msg.content)
                       message.success('已复制')
                     }} style={{ color: colors.textTertiary }} />
@@ -1128,7 +1128,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   }}
                   onCancel={e => e?.stopPropagation()}
                 >
-                  <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={e => e.stopPropagation()} />
+                  <Button type="text" danger size="small" icon={<DeleteOutlined />} aria-label="删除" title="删除" onClick={e => e.stopPropagation()} />
                 </Popconfirm>
               ]}
             >

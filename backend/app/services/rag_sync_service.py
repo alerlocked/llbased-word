@@ -12,7 +12,8 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 import json
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.config import settings
 
 # 弃用警告

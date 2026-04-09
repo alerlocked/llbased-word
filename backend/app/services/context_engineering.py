@@ -10,7 +10,8 @@ from datetime import datetime
 import json
 import re
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.config import settings
 
 # LangChain兼容性导入（可选，如果未安装LangChain则使用适配器模式）

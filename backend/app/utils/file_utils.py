@@ -6,7 +6,8 @@ import hashlib
 from typing import Union
 from pathlib import Path
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 
 def calculate_file_hash(file_content: bytes) -> str:

@@ -9,7 +9,8 @@ from typing import Optional
 import json
 
 from app.config import settings
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 router = APIRouter()
 

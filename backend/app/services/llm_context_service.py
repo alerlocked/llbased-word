@@ -6,7 +6,8 @@ LLMContextService - LLM 上下文管理服务
 from typing import Dict, Tuple, Optional, List
 from pathlib import Path
 import re
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.services.context_service import ContextService
 from app.services.memory_service import MemoryService
 from app.services.hierarchical_context import HierarchicalContext

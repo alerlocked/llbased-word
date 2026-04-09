@@ -5,7 +5,8 @@
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 
 async def auto_save_to_style_library(

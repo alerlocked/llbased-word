@@ -12,7 +12,8 @@ from io import BytesIO
 from PIL import Image
 
 from app.config import settings
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.utils.file_utils import calculate_file_hash
 from sqlalchemy.orm import Session
 from app.models.database import WebImage

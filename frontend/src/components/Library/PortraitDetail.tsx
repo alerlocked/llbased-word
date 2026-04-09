@@ -131,7 +131,7 @@ export const PortraitDetail: React.FC<PortraitDetailProps> = ({
       >
         <Tabs defaultActiveKey="overview">
           <TabPane tab="风格概述" key="overview">
-            <Descriptions column={2} bordered>
+            <Descriptions column={2} variant="bordered">
               <Descriptions.Item label="概述" span={2}>
                 {portrait.style_overview.summary}
               </Descriptions.Item>
@@ -156,7 +156,7 @@ export const PortraitDetail: React.FC<PortraitDetailProps> = ({
           </TabPane>
 
           <TabPane tab="创作方法论" key="methodology">
-            <Descriptions column={2} bordered>
+            <Descriptions column={2} variant="bordered">
               <Descriptions.Item label="核心方法" span={2}>
                 {portrait.methodology.approach}
               </Descriptions.Item>
@@ -179,7 +179,7 @@ export const PortraitDetail: React.FC<PortraitDetailProps> = ({
           </TabPane>
 
           <TabPane tab="思维内核" key="thinking">
-            <Descriptions column={2} bordered>
+            <Descriptions column={2} variant="bordered">
               <Descriptions.Item label="核心价值观" span={2}>
                 <Space wrap>
                   {portrait.thinking_core.values.map(value => (
@@ -208,7 +208,7 @@ export const PortraitDetail: React.FC<PortraitDetailProps> = ({
           </TabPane>
 
           <TabPane tab="表达特征" key="expression">
-            <Descriptions column={2} bordered>
+            <Descriptions column={2} variant="bordered">
               <Descriptions.Item label="正式程度">
                 {portrait.expression_features.formality_level}
               </Descriptions.Item>
@@ -240,7 +240,7 @@ export const PortraitDetail: React.FC<PortraitDetailProps> = ({
           </TabPane>
 
           <TabPane tab="创作习惯" key="habits">
-            <Descriptions column={2} bordered>
+            <Descriptions column={2} variant="bordered">
               <Descriptions.Item label="开场短语模板" span={2}>
                 <Space wrap>
                   {portrait.writing_habits.opening_phrases.map(phrase => (
@@ -274,7 +274,7 @@ export const PortraitDetail: React.FC<PortraitDetailProps> = ({
           </TabPane>
 
           <TabPane tab="独特标记" key="markers">
-            <Descriptions column={2} bordered>
+            <Descriptions column={2} variant="bordered">
               <Descriptions.Item label="背景信息" span={2}>
                 {portrait.unique_markers.background || '-'}
               </Descriptions.Item>
@@ -301,7 +301,7 @@ export const PortraitDetail: React.FC<PortraitDetailProps> = ({
           </TabPane>
 
           <TabPane tab="元数据" key="metadata">
-            <Descriptions column={2} bordered>
+            <Descriptions column={2} variant="bordered">
               <Descriptions.Item label="版本">{portrait.version}</Descriptions.Item>
               <Descriptions.Item label="置信度">
                 {(portrait.confidence_score * 100).toFixed(1)}%

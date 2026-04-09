@@ -7,7 +7,9 @@ from typing import List, Dict, Optional, Literal
 from openai import OpenAI
 
 from app.config import settings
-from app.utils.logger import logger, log_api_call
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
+from app.shared.logging import log_api_call
 
 class QwenLLMService:
     """通义千问文本生成服务"""

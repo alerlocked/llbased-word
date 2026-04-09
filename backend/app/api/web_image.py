@@ -12,7 +12,8 @@ from app.database import get_db
 from app.models.database import WebImage
 from app.agents.tools.image_search import get_image_search_tool
 from app.services.image_relevance_service import get_image_relevance_service
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.config import settings
 
 router = APIRouter()

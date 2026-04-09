@@ -19,7 +19,8 @@ from app.api import task_router, document_router
 from app.api import pdf_status, agent, assistant, process_documents, deepseek
 from app.api import context
 from app.config import settings
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.services.pdf_queue_manager import get_pdf_queue_manager, PDFTask
 from app.services.document_processor import DocumentProcessor
 from app.database import SessionLocal

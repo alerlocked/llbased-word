@@ -10,7 +10,8 @@ from datetime import datetime
 
 from app.database import get_db
 from app.services.rag_sync_service import get_rag_sync_service
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 # 创建路由
 router = APIRouter()

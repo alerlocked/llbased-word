@@ -6,7 +6,8 @@ from typing import TypeVar, Type, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 # 泛型类型变量
 ModelType = TypeVar('ModelType')

@@ -11,7 +11,8 @@ from typing import List, Optional
 from app.database import get_db
 from app.models.database import CreationProject, Annotation, Citation, ArticleFigure
 from app.services.word_export_service import get_word_export_service
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.utils.path_utils import build_static_url
 
 router = APIRouter()

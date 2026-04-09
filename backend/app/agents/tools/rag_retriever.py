@@ -24,7 +24,8 @@ import warnings
 from typing import List, Dict
 from pathlib import Path
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 # 弃用警告
 warnings.warn(

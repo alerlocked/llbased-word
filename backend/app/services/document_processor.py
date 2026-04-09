@@ -18,7 +18,8 @@ from docx2pdf import convert
 from app.config import settings
 from app.models.database import Material, Figure, MaterialPage
 from app.services.vl_service import vl_service
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.utils.markdown_utils import convert_vl_output_to_content_list
 from app.services.pdf_queue_manager import PDFTask
 from datetime import datetime

@@ -11,7 +11,8 @@ import uuid
 import json
 import asyncio
 
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.services.llm_service import llm_service, get_llm
 
 router = APIRouter()

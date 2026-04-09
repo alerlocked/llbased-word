@@ -9,7 +9,8 @@ from typing import List, Optional
 
 from app.database import get_db
 from app.models.database import Annotation
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 router = APIRouter()
 

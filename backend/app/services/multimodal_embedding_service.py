@@ -7,7 +7,8 @@ import os
 from typing import List, Dict, Optional, Union
 from pathlib import Path
 import hashlib
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 # 延迟导入，避免启动时加载大模型
 _model = None

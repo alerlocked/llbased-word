@@ -8,7 +8,8 @@ from typing import List, Dict
 
 from app.database import SessionLocal
 from app.models.database import Material, CreationProject
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 
 class LocalSearchTool:

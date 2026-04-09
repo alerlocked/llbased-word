@@ -12,7 +12,8 @@ from datetime import datetime
 import json
 
 from app.config import settings
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 from app.shared.config import UNRELIABLE_DOMAINS
 from app.utils.file_utils import calculate_file_hash
 

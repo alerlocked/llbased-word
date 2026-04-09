@@ -8,7 +8,8 @@ from typing import List, Dict, Optional, AsyncGenerator, Literal
 from openai import OpenAI, AsyncOpenAI
 
 from app.config import settings
-from app.utils.logger import logger
+from app.shared.logging import get_logger
+logger = get_logger(__name__)
 
 
 class DeepSeekService:
