@@ -1,13 +1,13 @@
 """
 LLMContextService - LLM 上下文管理服务
 
-统一入口，组合 4 层上下文：System + Profile + Memory + RAG
+统一入口，组合 4 层上下文：System + Profile + Memory + 检索层
 """
 from typing import Dict, Tuple, Optional, List
 from pathlib import Path
 import re
 from app.utils.logger import logger
-from app.services.profile_service import ProfileService
+from app.services.context_service import ContextService
 from app.services.memory_service import MemoryService
 from app.services.hierarchical_context import HierarchicalContext
 
@@ -19,13 +19,13 @@ class LLMContextService:
     - Layer 0: System（系统提示 + 任务说明）
     - Layer 1: Profile（用户画像 - 静态配置）
     - Layer 2: Memory（对话摘要 + 跨会话记忆）
-    - Layer 3: RAG（HierarchicalContext 素材检索）
+    - Layer 3: 检索层（HierarchicalContext 素材检索）
     
     Token 预算分配（8K 窗口）：
     - System: 500
     - Profile: 300
     - Memory: 1000
-    - RAG: 3000
+    - 检索层: 3000
     - 预留（用户输入 + 回复）: 3200
     """
     
@@ -34,19 +34,21 @@ class LLMContextService:
         "system": 500,
         "profile": 300,
         "memory": 1000,
-        "rag": 3000,
+        "retrieval": 3000,
         "reserved": 3200
     }
     
-    def __init__(self, profile_dir: str, memory_dir: str, data_dir: str):
+    def __init__(self, base_path: str, memory_dir: str, data_dir: str):
         """初始化上下文服务
         
         Args:
-            profile_dir: 画像目录 (.project-meta/profiles/)
+            base_path: 项目根目录
             memory_dir: 记忆目录 (.project-meta/memory/)
             data_dir: 数据目录 (data/exports_html/)
         """
-        self.profile_service = ProfileService(profile_dir)
+        from pathlib import Path
+        self.base_path = Path(base_path)
+        self.context_service = ContextService(base_path=self.base_path)
         self.memory_service = MemoryService(memory_dir)
         self.hierarchical_context = HierarchicalContext(data_dir)
         
@@ -55,7 +57,7 @@ class LLMContextService:
             "system": 0,
             "profile": 0,
             "memory": 0,
-            "rag": 0,
+            "retrieval": 0,
             "total": 0
         }
         
@@ -93,7 +95,7 @@ class LLMContextService:
             "system": 0,
             "profile": 0,
             "memory": 0,
-            "rag": 0
+            "retrieval": 0
         }
         
         # Layer 0: System
@@ -108,9 +110,10 @@ class LLMContextService:
         context_parts.append(system_context)
         token_breakdown["system"] = system_tokens
         
-        # Layer 1: Profile
-        profile_context = self.profile_service.load_profile(profile_name)
-        profile_tokens = self.profile_service.estimate_tokens(profile_context)
+        # Layer 1: Profile (通过 ContextService 加载)
+        profile = self.context_service.load_profile(user_id=profile_name, domain="assembly")
+        profile_context = profile.to_prompt_context() if hasattr(profile, 'to_prompt_context') else str(profile)
+        profile_tokens = self._estimate_tokens(profile_context)
         
         if profile_tokens > budget["profile"]:
             profile_context = self._truncate_to_tokens(profile_context, budget["profile"])
@@ -129,7 +132,7 @@ class LLMContextService:
             context_parts.append(f"\n# 历史记忆\n\n{memory_context}")
         token_breakdown["memory"] = memory_tokens
         
-        # Layer 3: RAG
+        # Layer 3: 检索层
         # 计算剩余预算
         used_tokens = sum(token_breakdown.values())
         rag_budget = min(budget["rag"], max_tokens - used_tokens - budget["reserved"])
@@ -149,7 +152,7 @@ class LLMContextService:
             
             if rag_context:
                 context_parts.append(f"\n# 参考资料\n\n{rag_context}")
-            token_breakdown["rag"] = rag_tokens
+            token_breakdown["retrieval"] = rag_tokens
         
         # 合并上下文
         final_context = "\n\n---\n\n".join(context_parts)

@@ -14,6 +14,11 @@ from app.agents.orchestrator.info_requirements import (
     InfoPriority,
     TaskInfoRequirements
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.services.context_service import ContextService
+    from app.agents.search import SearchAgent, SearchMode
 
 logger = get_logger(__name__)
 
@@ -46,15 +51,26 @@ class InfoAssessor:
     评估当前上下文是否有足够的信息来完成任务
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        context_service: Optional["ContextService"] = None,
+        search_agent: Optional["SearchAgent"] = None
+    ):
         """
         初始化评估器
 
         Args:
             config: 配置参数
+            context_service: 上下文服务（获取画像、模板）
+            search_agent: 检索服务（检索素材库）
         """
         self.config = config or {}
         self.strict_mode = self.config.get("strict_mode", False)
+        
+        # 注入依赖（主会话的触手）
+        self._context_service = context_service
+        self._search_agent = search_agent
 
         # 常见的信息提取规则
         self._extraction_rules = {

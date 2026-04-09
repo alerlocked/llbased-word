@@ -14,7 +14,7 @@ from app.models.profile import Profile
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/context", tags=["上下文服务"])
+router = APIRouter(tags=["上下文服务"])
 
 # ContextService 实例（单例）
 _context_service: Optional[ContextService] = None
@@ -84,7 +84,7 @@ class UpdateProfileRequest(BaseModel):
 # API Endpoints
 # ========================================
 
-@router.get("/profile", response_model=ProfileResponse)
+@router.get("/profile")
 async def get_profile(
     user_id: str = Query(..., description="用户ID"),
     domain: str = Query(..., description="领域")
@@ -113,7 +113,7 @@ async def get_profile(
         raise HTTPException(status_code=500, detail=f"加载画像失败: {str(e)}")
 
 
-@router.get("/template", response_model=TemplateResponse)
+@router.get("/template")
 async def get_template(
     domain: str = Query(..., description="领域"),
     doc_type: str = Query(..., description="文档类型")
@@ -142,7 +142,7 @@ async def get_template(
         raise HTTPException(status_code=500, detail=f"加载模板失败: {str(e)}")
 
 
-@router.get("/examples", response_model=ExamplesResponse)
+@router.get("/examples")
 async def get_examples(
     domain: str = Query(..., description="领域"),
     limit: int = Query(3, ge=1, le=10, description="最大数量")
@@ -168,7 +168,7 @@ async def get_examples(
         raise HTTPException(status_code=500, detail=f"加载示例失败: {str(e)}")
 
 
-@router.post("/build", response_model=BuildContextResponse)
+@router.post("/build")
 async def build_context(request: BuildContextRequest):
     """
     构建完整上下文

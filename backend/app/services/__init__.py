@@ -27,7 +27,7 @@ from app.services.pdf_watcher_service import (
 )
 
 from app.services.llm_context_service import LLMContextService
-from app.services.profile_service import ProfileService
+# ProfileService 已删除，功能合并到 ContextService
 from app.services.memory_service import MemoryService
 
 __all__ = [
@@ -45,7 +45,7 @@ __all__ = [
     
     # LLM 上下文管理
     'LLMContextService',
-    'ProfileService',
+    # 'ProfileService' - 已删除
     'MemoryService',
 ]
 

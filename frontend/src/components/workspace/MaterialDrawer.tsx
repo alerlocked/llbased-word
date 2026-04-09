@@ -453,7 +453,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
               </div>
             )}
           </div>
-        )}}
+        )}
       </Modal>
     </>
   )
