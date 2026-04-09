@@ -458,7 +458,7 @@ const WorkspacePage: React.FC = () => {
             value={currentProjectId}
             onChange={setCurrentProjectId}
             options={projects.map(p => ({ label: p.name, value: p.id }))}
-            bordered={false}
+            variant="borderless"
             suffixIcon={null}
           />
           <Tooltip title="新建项目">

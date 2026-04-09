@@ -400,7 +400,7 @@ const CreationPage: React.FC = () => {
             onChange={(e) => setProjectName(e.target.value)}
             placeholder="项目名称"
             style={{ width: 300 }}
-            bordered={false}
+            variant="borderless"
           />
           <Tabs
             activeKey={creationMode}

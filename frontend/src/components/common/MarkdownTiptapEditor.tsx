@@ -1,13 +1,19 @@
 /**
  * MarkdownTiptapEditor - 基于 Tiptap 的 Markdown 编辑器
  * 支持内联图片，类似 Word 的编辑体验
+ * 集成 AI 功能：选区快捷菜单 + 底部建议栏
  */
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
 import { markdownToHtml, htmlToMarkdown } from '../../utils/markdownConverter'
+import AIContextMenu from '../editor/AIContextMenu'
+import AISuggestionBar from '../editor/AISuggestionBar'
+import { useSelection } from '../../hooks/useSelection'
+import { useAIStream } from '../../hooks/useAIStream'
+import { message } from 'antd'
 
 interface MarkdownTiptapEditorProps {
   value: string // Markdown 格式的内容
@@ -18,6 +24,8 @@ interface MarkdownTiptapEditorProps {
   onFocus?: () => void
   onBlur?: () => void
   editorRef?: React.RefObject<any>
+  enableAI?: boolean // 是否启用 AI 功能，默认 true
+  onOpenImageDialog?: () => void // 打开图片对话框的回调
 }
 
 const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
@@ -28,9 +36,15 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
   style,
   onFocus,
   onBlur,
-  editorRef: externalRef
+  editorRef: externalRef,
+  enableAI = true,
+  onOpenImageDialog,
 }, ref) => {
   const internalEditorRef = useRef<any>(null)
+  const editorRefForSelection = useRef<any>(null)
+  
+  // AI 功能状态
+  const [aiSuggestionBarVisible, setAiSuggestionBarVisible] = useState(true)
 
   // 初始化 Tiptap 编辑器
   const editor = useEditor({
@@ -44,7 +58,7 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
         placeholder
       }),
       Image.configure({
-        inline: true, // 内联模式，图片作为行内元素
+        inline: true,
         allowBase64: true,
         HTMLAttributes: {
           class: 'inline-image',
@@ -63,12 +77,9 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
                 
                 if (!src) return null
                 
-                // 如果已经是完整URL（http/https/data），需要检查是否是错误的端口
                 if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
-                  // 如果URL包含 localhost:3000，说明是错误的前端地址，需要替换为后端地址
                   if (src.includes('localhost:3000')) {
                     let correctedSrc = src.replace('localhost:3000', 'localhost:8000')
-                    // 处理URL中的空格，替换为下划线
                     correctedSrc = correctedSrc.replace(/ /g, '_')
                     console.log('[Tiptap Image parseHTML] 修正端口:3000->8000，处理空格:', correctedSrc)
                     return correctedSrc
@@ -77,7 +88,6 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
                   return src
                 }
                 
-                // 相对路径，添加后端地址用于显示
                 let normalizedSrc = src.trim().replace(/^["']|["']$/g, '')
                 if (!normalizedSrc.startsWith('/')) {
                   normalizedSrc = '/' + normalizedSrc
@@ -90,7 +100,6 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
               },
               renderHTML: (attributes: any) => {
                 if (!attributes.src) return {}
-                // 渲染时保持完整URL（包含localhost:8000），这样图片能正确显示
                 return { src: attributes.src }
               }
             }
@@ -101,13 +110,11 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
     content: markdownToHtml(value || ''),
     editable: !disabled,
     onUpdate: ({ editor }) => {
-      // 如果正在从外部更新内容，跳过（避免循环）
       if (isUpdatingRef.current) return
       
       const html = editor.getHTML()
       const markdown = htmlToMarkdown(html)
       
-      // 更新 lastValueRef，避免触发外部更新
       lastValueRef.current = markdown
       
       onChange(markdown)
@@ -130,7 +137,7 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
     }
   })
 
-  // 同步外部 ref
+  // 同步编辑器 ref
   useEffect(() => {
     if (ref) {
       if (typeof ref === 'function') {
@@ -143,17 +150,41 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
       (externalRef as React.MutableRefObject<any>).current = editor
     }
     internalEditorRef.current = editor
+    editorRefForSelection.current = editor
   }, [editor, ref, externalRef])
 
-  // 使用 ref 跟踪上次的 value，避免循环更新
+  // 选区检测 Hook（在 editor 准备好后才使用）
+  const { selection, position, isVisible: isMenuVisible } = useSelection(
+    enableAI && editor ? editor : null
+  )
+  
+  // AI 流式生成 Hook（用于建议栏）
+  const {
+    state: aiState,
+    content: aiContent,
+    startStream: startAIStream,
+    cancelStream: cancelAIStream,
+  } = useAIStream({
+    maxRetries: 3,
+    onComplete: (content) => {
+      // 建议栏点击后的内容插入到光标位置
+      if (editor && content) {
+        editor
+          .chain()
+          .focus()
+          .insertContent(content)
+          .run()
+      }
+    },
+  })
+
   const lastValueRef = useRef<string>(value || '')
   const isUpdatingRef = useRef(false)
 
-  // 当外部 value 变化时更新编辑器内容（避免循环更新）
+  // 当外部 value 变化时更新编辑器内容
   useEffect(() => {
     if (!editor) return
     
-    // 如果正在更新中，跳过（避免循环）
     if (isUpdatingRef.current) {
       console.log('[MarkdownTiptapEditor] 正在更新中，跳过外部value变化')
       return
@@ -162,41 +193,32 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
     const currentValue = value || ''
     const lastValue = lastValueRef.current
     
-    // 如果 value 没有变化，跳过
     if (currentValue === lastValue) {
       console.log('[MarkdownTiptapEditor] value未变化，跳过')
       return
     }
     
-    // 获取当前编辑器的 Markdown 内容
     const currentHtml = editor.getHTML()
     const currentMarkdown = htmlToMarkdown(currentHtml)
     
-    // 标准化比较，避免空白字符差异
     const normalizedCurrent = currentMarkdown.trim()
     const normalizedValue = currentValue.trim()
     
     console.log('[MarkdownTiptapEditor] 外部value变化，当前编辑器内容长度:', normalizedCurrent.length, '新value长度:', normalizedValue.length)
     
-    // 如果内容不同，更新编辑器
     if (normalizedCurrent !== normalizedValue) {
-      console.log('[MarkdownTiptapEditor] ⚠️ 内容不同，将更新编辑器！当前内容前100字符:', normalizedCurrent.substring(0, 100))
-      console.log('[MarkdownTiptapEditor] 新内容前100字符:', normalizedValue.substring(0, 100))
+      console.log('[MarkdownTiptapEditor] 内容不同，将更新编辑器！')
       isUpdatingRef.current = true
       const newHtml = markdownToHtml(currentValue)
       
-      // 使用 setContent 更新内容，false 表示不触发 onUpdate
       editor.commands.setContent(newHtml, false)
       
-      // 更新 ref
       lastValueRef.current = currentValue
       
-      // 重置更新标志（使用 setTimeout 确保在下一个事件循环中重置）
       setTimeout(() => {
         isUpdatingRef.current = false
       }, 0)
     } else {
-      // 内容相同，但 value 变化了（可能是空白字符差异），更新 ref
       console.log('[MarkdownTiptapEditor] 内容相同（仅空白字符差异），只更新ref')
       lastValueRef.current = currentValue
     }
@@ -205,11 +227,9 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
   // 编辑器创建后，初始化 lastValueRef
   useEffect(() => {
     if (editor) {
-      // 编辑器刚创建时，同步初始内容
       const initialMarkdown = value || ''
       lastValueRef.current = initialMarkdown
       
-      // 确保编辑器内容与 value 一致
       const currentHtml = editor.getHTML()
       const currentMarkdown = htmlToMarkdown(currentHtml)
       if (currentMarkdown.trim() !== initialMarkdown.trim()) {
@@ -222,6 +242,38 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
     }
   }, [editor])
 
+  // AI 选区菜单关闭
+  const handleMenuClose = useCallback(() => {
+    // 选区菜单关闭时不需要额外操作
+  }, [])
+
+  // AI 建议栏操作
+  const handleSuggestionAction = useCallback((action: string) => {
+    if (!editor) return
+    
+    // 检查编辑器是否有内容
+    const isEmpty = editor.state.doc.textContent.trim().length === 0
+    if (isEmpty) {
+      message.warning('请先输入内容后再使用 AI 功能')
+      return
+    }
+    
+    // 获取当前光标位置的上下文
+    const { $from } = editor.state.selection
+    const start = Math.max(0, $from.pos - 200)
+    const end = Math.min(editor.state.doc.content.size, $from.pos + 200)
+    
+    let context = ''
+    try {
+      context = editor.state.doc.textBetween(start, end)
+    } catch (e) {
+      // 忽略错误
+    }
+    
+    // 启动 AI 流式生成
+    startAIStream(action, '', context)
+  }, [editor, startAIStream])
+
   if (!editor) {
     return <div>加载编辑器...</div>
   }
@@ -229,6 +281,28 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
   return (
     <div style={{ position: 'relative', width: '100%', ...style }}>
       <EditorContent editor={editor} />
+      
+      {/* AI 选区快捷菜单 */}
+      {enableAI && (
+        <AIContextMenu
+          editor={editor}
+          selection={selection}
+          position={position}
+          visible={isMenuVisible}
+          onClose={handleMenuClose}
+          onOpenImageDialog={onOpenImageDialog}
+        />
+      )}
+      
+      {/* AI 底部建议栏 */}
+      {enableAI && (
+        <AISuggestionBar
+          editor={editor}
+          onAction={handleSuggestionAction}
+          visible={aiSuggestionBarVisible}
+        />
+      )}
+      
       <style>{`
         .markdown-tiptap-editor {
           color: inherit;
@@ -271,4 +345,3 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
 MarkdownTiptapEditor.displayName = 'MarkdownTiptapEditor'
 
 export default MarkdownTiptapEditor
-

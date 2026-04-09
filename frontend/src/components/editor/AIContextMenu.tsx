@@ -2,7 +2,7 @@
  * AIContextMenu - 选区快捷菜单组件
  * 选中文字时显示 AI 操作菜单
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Editor } from '@tiptap/react';
 import { Spin, Button, Tooltip } from 'antd';
 import {
@@ -18,9 +18,10 @@ import {
 } from 'react-icons/ri';
 import { useAIStream } from '../../hooks/useAIStream';
 import type { SelectionInfo, Position } from '../../hooks/useSelection';
+import { replaceWithFormatPreservation } from '../../utils/formatPreservation';
 import styles from './AIContextMenu.module.css';
 
-type AIAction = 'rewrite' | 'expand' | 'polish' | 'translate' | 'summarize' | 'extract';
+type AIAction = 'rewrite' | 'expand' | 'polish' | 'translate' | 'summarize' | 'extract' | 'illustrate';
 
 interface AIContextMenuProps {
   editor: Editor | null;
@@ -28,6 +29,7 @@ interface AIContextMenuProps {
   position: Position | null;
   visible: boolean;
   onClose: () => void;
+  onOpenImageDialog?: () => void;
 }
 
 interface ActionItem {
@@ -37,23 +39,24 @@ interface ActionItem {
   icon: React.ReactNode;
 }
 
-const ACTIONS: ActionItem[] = [
+// 使用 useMemo 优化的 ACTIONS 定义（在组件外定义）
+const getActions = (): ActionItem[] => [
   {
     id: 'rewrite',
     title: '重写',
-    description: '用不同方式表达',
+    description: '用不同方式表达相同内容',
     icon: <RiEdit2Line />,
   },
   {
     id: 'expand',
     title: '扩展',
-    description: '添加更多细节',
+    description: '添加更多细节和内容',
     icon: <RiFileAddLine />,
   },
   {
     id: 'polish',
     title: '润色',
-    description: '优化语言表达',
+    description: '优化语言表达和文风',
     icon: <RiSparklingLine />,
   },
   {
@@ -74,6 +77,12 @@ const ACTIONS: ActionItem[] = [
     description: '提取关键信息',
     icon: <RiFilterLine />,
   },
+  {
+    id: 'illustrate',
+    title: '插图',
+    description: '在光标位置插入图片',
+    icon: <span style={{ fontSize: 16 }}>🖼️</span>,
+  },
 ];
 
 const AIContextMenu: React.FC<AIContextMenuProps> = ({
@@ -82,20 +91,27 @@ const AIContextMenu: React.FC<AIContextMenuProps> = ({
   position,
   visible,
   onClose,
+  onOpenImageDialog,
 }) => {
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const [previewContent, setPreviewContent] = useState<string>('');
   
   const menuRef = useRef<HTMLDivElement>(null);
+  
+  // useMemo 优化 ACTIONS
+  const actions = useMemo(() => getActions(), []);
 
   const {
     state: streamState,
     content: streamContent,
     error: streamError,
+    retryCount,
     startStream,
     cancelStream,
     retry,
   } = useAIStream({
+    maxRetries: 3,
+    retryDelay: 1000,
     onComplete: (content) => {
       setPreviewContent(content);
     },
@@ -152,27 +168,32 @@ const AIContextMenu: React.FC<AIContextMenuProps> = ({
   // 处理 AI 操作
   const handleAction = useCallback(
     (action: AIAction) => {
+      if (action === 'illustrate') {
+        // 插图操作：调用外部图片对话框
+        onOpenImageDialog?.();
+        onClose();
+        return;
+      }
+
       if (!selection?.text) return;
 
       setPreviewContent('');
       startStream(action, selection.text);
     },
-    [selection, startStream]
+    [selection, startStream, onOpenImageDialog, onClose]
   );
 
-  // 接受生成的内容
+  // 接受生成的内容（带格式保留）
   const handleAccept = useCallback(() => {
     if (!editor || !selection || !previewContent) return;
 
-    // 替换选中内容
-    editor
-      .chain()
-      .focus()
-      .insertContentAt(
-        { from: selection.from, to: selection.to },
-        previewContent
-      )
-      .run();
+    // 使用格式保留替换
+    replaceWithFormatPreservation(
+      editor,
+      selection.from,
+      selection.to,
+      previewContent
+    );
 
     onClose();
   }, [editor, selection, previewContent, onClose]);
@@ -203,19 +224,24 @@ const AIContextMenu: React.FC<AIContextMenuProps> = ({
       {/* 操作按钮列表 */}
       {!isStreaming && !hasContent && (
         <>
-          {ACTIONS.map((action) => (
-            <button
+          {actions.map((action) => (
+            <Tooltip
               key={action.id}
-              className={styles.menuItem}
-              onClick={() => handleAction(action.id)}
               title={action.description}
+              placement="top"
             >
-              <span className={styles.menuItemIcon}>{action.icon}</span>
-              <div className={styles.menuItemContent}>
-                <div className={styles.menuItemTitle}>{action.title}</div>
-                <div className={styles.menuItemDesc}>{action.description}</div>
-              </div>
-            </button>
+              <button
+                className={styles.menuItem}
+                onClick={() => handleAction(action.id)}
+                aria-label={action.title}
+                title={action.description}
+              >
+                <span className={styles.menuItemIcon}>{action.icon}</span>
+                <div className={styles.menuItemContent}>
+                  <div className={styles.menuItemTitle}>{action.title}</div>
+                </div>
+              </button>
+            </Tooltip>
           ))}
         </>
       )}
@@ -228,7 +254,10 @@ const AIContextMenu: React.FC<AIContextMenuProps> = ({
             <span className={styles.streamingDot} />
             <span className={styles.streamingDot} />
           </div>
-          <span className={styles.streamingText}>AI 正在生成...</span>
+          <span className={styles.streamingText}>
+            AI 正在生成...
+            {retryCount > 0 && <span> (重试 {retryCount}/3)</span>}
+          </span>
         </div>
       )}
 
@@ -263,10 +292,15 @@ const AIContextMenu: React.FC<AIContextMenuProps> = ({
       {/* 错误状态 */}
       {hasError && (
         <div className={styles.errorContent}>
-          <div className={styles.errorMessage}>{streamError}</div>
-          <button className={styles.retryButton} onClick={retry}>
-            <RiRefreshLine /> 重试
-          </button>
+          <div className={styles.errorMessage}>
+            {streamError}
+            {retryCount >= 3 && ' (已达最大重试次数)'}
+          </div>
+          {retryCount < 3 && (
+            <button className={styles.retryButton} onClick={retry} aria-label="重试" title="重试">
+              <RiRefreshLine /> 重试
+            </button>
+          )}
         </div>
       )}
     </div>

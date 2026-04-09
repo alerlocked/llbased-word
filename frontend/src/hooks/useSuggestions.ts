@@ -102,16 +102,15 @@ export function useSuggestions(
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/suggestions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            context,
-            selected_text: selectedText,
-            cursor_position: context.length,
-          }),
+        const params = new URLSearchParams({
+          context,
+          cursor_position: String(context.length),
+        });
+        if (selectedText) {
+          params.set('selected_text', selectedText);
+        }
+        const response = await fetch(`${API_BASE_URL}/suggestions?${params}`, {
+          method: 'GET',
           signal: abortController.signal,
         });
 
