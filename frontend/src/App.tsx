@@ -9,8 +9,8 @@ import WorkspacePage from './pages/WorkspacePage'
 function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
-        <Routes>
+      <BrowserRouter future={{ v7_startTransition: true }}>
+        <Routes future={{ v7_relativeSplatPath: true }}>
           {/* 主工作台 - 工艺文件辅助编辑 */}
           <Route path="/" element={<WorkspacePage />} />
         </Routes>

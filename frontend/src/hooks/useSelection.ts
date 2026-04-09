@@ -33,7 +33,7 @@ export function useSelection(
   editor: Editor | null,
   options: UseSelectionOptions = {}
 ): UseSelectionReturn {
-  const { debounceMs = 500, minLength = 1 } = options;
+  const { debounceMs = 150, minLength = 1 } = options;
 
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
   const [position, setPosition] = useState<Position | null>(null);
