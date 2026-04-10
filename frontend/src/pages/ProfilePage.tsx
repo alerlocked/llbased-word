@@ -298,7 +298,7 @@ const ProfilePage: React.FC = () => {
                       ? `2px solid ${colors.primary}`
                       : `1px solid ${colors.borderLight}`,
                   }}
-                  bodyStyle={{ padding: 16, textAlign: 'center' }}
+                  styles={{ body: { padding: 16, textAlign: 'center' } }}
                 >
                   <div style={{ fontSize: 32, marginBottom: 8 }}>{template.icon}</div>
                   <div style={{ fontWeight: typography.fontWeight.semibold, fontSize: typography.fontSize.base, color: colors.textPrimary, marginBottom: 4 }}>
