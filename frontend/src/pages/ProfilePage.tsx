@@ -131,7 +131,7 @@ const ProfilePage: React.FC = () => {
   const fetchProfile = useCallback(async (domain: string = 'assembly') => {
     setLoading(true)
     try {
-      const response = await apiClient.get('/context/profile', {
+      const response = await apiClient.get('/api/context/profile', {
         params: { user_id: 'default', domain }
       })
       const data = response.data
@@ -212,7 +212,7 @@ const ProfilePage: React.FC = () => {
         allowed_deviation: values.allowed_deviation / 100
       }
 
-      await apiClient.put('/context/profile', { writing, review }, {
+      await apiClient.put('/api/context/profile', { writing, review }, {
         params: { user_id: 'default', domain }
       })
 
