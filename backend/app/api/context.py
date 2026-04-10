@@ -3,7 +3,7 @@ Context API - 上下文服务 API 端点
 
 提供 ContextService 的 HTTP 接口
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -78,6 +78,12 @@ class ExamplesResponse(BaseModel):
 class UpdateProfileRequest(BaseModel):
     """更新画像请求"""
     feedback: Dict[str, Any]
+
+
+class SaveProfileRequest(BaseModel):
+    """直接保存画像请求"""
+    writing: Dict[str, Any]
+    review: Dict[str, Any]
 
 
 # ========================================
@@ -206,6 +212,47 @@ async def build_context(request: BuildContextRequest):
             domain=request.domain
         )
         raise HTTPException(status_code=500, detail=f"构建上下文失败: {str(e)}")
+
+
+@router.put("/profile")
+async def save_profile(
+    user_id: str = Query("default", description="用户ID"),
+    domain: str = Query("assembly", description="领域"),
+    request: SaveProfileRequest = ...
+):
+    """
+    直接保存用户画像（手动编辑）
+    
+    接收用户编辑的写作配置和审查配置，保存到 YAML 文件
+    """
+    try:
+        service = get_context_service()
+        
+        # 构造 Profile 对象
+        from app.models.profile import WritingConfig, ReviewConfig
+        profile = Profile(
+            id=f"{user_id}_{domain}",
+            user_id=user_id,
+            domain=domain,
+            writing=WritingConfig.from_dict(request.writing),
+            review=ReviewConfig.from_dict(request.review)
+        )
+        
+        # 保存到 YAML
+        profile_path = service.profiles_dir / f"{user_id}_{domain}.yaml"
+        profile.to_yaml(profile_path)
+        
+        # 清除缓存
+        cache_key = f"{user_id}_{domain}"
+        if cache_key in service._profile_cache:
+            del service._profile_cache[cache_key]
+        
+        logger.info("save_profile_success", user_id=user_id, domain=domain, path=str(profile_path))
+        
+        return {"status": "ok", "message": "画像已保存"}
+    except Exception as e:
+        logger.error("save_profile_failed", error=str(e), user_id=user_id, domain=domain)
+        raise HTTPException(status_code=500, detail=f"保存画像失败: {str(e)}")
 
 
 @router.post("/profile/update")
