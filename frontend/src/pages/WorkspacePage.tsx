@@ -4,11 +4,12 @@
  * 视觉风格：白色系简洁风格
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { Select, Button, Space, message, Modal, Input, Tooltip, Popconfirm } from 'antd'
 import {
   PlusOutlined, SaveOutlined, UndoOutlined,
-  CloudUploadOutlined, DatabaseOutlined, SettingOutlined, RobotOutlined, DeleteOutlined
+  CloudUploadOutlined, DatabaseOutlined, SettingOutlined, RobotOutlined, DeleteOutlined, UserOutlined
 } from '@ant-design/icons'
 import { useCreationStore } from '../stores/creationStore'
 import UploadDrawer from '../components/workspace/UploadDrawer'
@@ -29,6 +30,7 @@ interface Project {
 }
 
 const WorkspacePage: React.FC = () => {
+  const navigate = useNavigate()
   // URL 参数处理
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -530,6 +532,14 @@ const WorkspacePage: React.FC = () => {
               icon={<RobotOutlined />}
               onClick={() => setAiPanelVisible(!aiPanelVisible)}
               style={aiPanelVisible ? {} : { color: colors.textSecondary }}
+            />
+          </Tooltip>
+          <Tooltip title="用户画像">
+            <Button
+              type="text"
+              icon={<UserOutlined />}
+              onClick={() => navigate('/profile')}
+              style={{ color: colors.textSecondary }}
             />
           </Tooltip>
           <Tooltip title="设置">
