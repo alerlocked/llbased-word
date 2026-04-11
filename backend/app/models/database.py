@@ -345,3 +345,30 @@ class NodeDocument(Base):
         Index('idx_session_type', 'session_id', 'node_type'),
         Index('idx_node_state', 'session_id', 'state'),  # PR1新增索引：支持快速查询状态
     )
+
+
+class DraftDocument(Base):
+    """工艺文件初稿表"""
+    __tablename__ = "draft_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), comment="文件标题")
+    file_path = Column(String(512), comment="原始文件路径")
+    file_type = Column(String(20), comment="文件类型: pdf/docx")
+    parsed_content = Column(JSON, comment="解析后的结构化内容")
+    content = Column(Text, default="", comment="当前最新内容（富文本HTML）")
+    status = Column(String(20), default="draft", comment="状态: draft/completing/completed/archived")
+    project_id = Column(Integer, ForeignKey("creation_projects.id"), nullable=True, comment="关联创作项目")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DraftVersion(Base):
+    """版本快照表"""
+    __tablename__ = "draft_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    draft_id = Column(Integer, ForeignKey("draft_documents.id"), nullable=False, index=True, comment="关联初稿ID")
+    snapshot_content = Column(Text, comment="该快照的完整内容")
+    snapshot_source = Column(String(20), comment="来源: ai_complete/user_edit/rollback")
+    created_at = Column(DateTime, default=datetime.utcnow)
