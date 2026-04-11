@@ -59,6 +59,8 @@ def get_context_manager():
     from app.config import settings
     # 使用项目根目录的绝对路径
     project_data_dir = settings.BASE_DIR.parent / "data" / "exports_vlm_full"
+    # 确保目录存在，避免 500 错误
+    project_data_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"DEBUG: Creating ContextManager with data_dir={project_data_dir}")
     return ContextManager(data_dir=str(project_data_dir))
 

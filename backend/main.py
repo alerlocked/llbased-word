@@ -9,6 +9,7 @@ from pathlib import Path
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -26,11 +27,86 @@ from app.services.pdf_queue_manager import get_pdf_queue_manager, PDFTask
 from app.services.document_processor import DocumentProcessor
 from app.database import SessionLocal
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理（startup + shutdown）"""
+    # === Startup ===
+    logger.info("🚀 应用启动中...")
+    logger.info(f"📁 数据目录: {settings.DATA_DIR}")
+
+    # 确保必要的目录存在
+    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    settings.DB_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 初始化数据库（创建新表）
+    from app.database import init_db
+    init_db()
+
+    # 初始化PDF解析队列管理器
+    try:
+        queue_manager = get_pdf_queue_manager()
+        processor = DocumentProcessor()
+
+        def parse_wrapper(task: PDFTask):
+            """包装异步调用为同步"""
+            db = SessionLocal()
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(
+                    processor.process_document_from_task(task, db)
+                )
+            except Exception as e:
+                logger.error(f"队列任务执行失败: {str(e)}")
+                return {"error": str(e)}
+            finally:
+                db.close()
+
+        queue_manager.set_parser(parse_wrapper)
+        logger.info("✅ PDF 队列解析函数已设置")
+
+        await queue_manager.start()
+        logger.info("✅ PDF解析队列管理器已初始化")
+
+    except Exception as e:
+        logger.warning(f"⚠️ PDF解析队列初始化失败: {e}")
+
+    logger.info("✅ 应用启动完成")
+    logger.info("📝 请求日志中间件已启用，所有HTTP请求将被记录")
+
+    yield  # 应用运行中
+
+    # === Shutdown ===
+    logger.info("👋 应用关闭中...")
+
+    # 停止PDF解析队列管理器
+    try:
+        from app.services.pdf_queue_manager import get_pdf_queue_manager
+        from app.services.pdf_watcher_service import get_pdf_watcher_service
+
+        # 停止监听服务
+        watcher = get_pdf_watcher_service()
+        if watcher._is_running:
+            await watcher.stop()
+            logger.info("✅ PDF监听服务已停止")
+
+        # 停止队列管理器
+        queue_manager = get_pdf_queue_manager()
+        await queue_manager.stop()
+        logger.info("✅ PDF队列管理器已停止")
+
+    except Exception as e:
+        logger.warning(f"⚠️ 关闭PDF服务时出错: {e}")
+
+    logger.info("👋 应用关闭完成")
+
+
 # 创建FastAPI应用实例
 app = FastAPI(
     title="智能工艺文件辅助编辑系统",
     description="面向工艺师的专业AI辅助编辑工具",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # 全局异常处理器 - 捕获请求验证错误
@@ -145,77 +221,7 @@ app.include_router(context.router, prefix="/api/context", tags=["context"])
 # Draft API
 app.include_router(draft.router, prefix="/api/drafts", tags=["初稿管理"])
 
-@app.on_event("startup")
-async def startup_event():
-    """应用启动时的初始化操作"""
-    logger.info("🚀 应用启动中...")
-    logger.info(f"📁 数据目录: {settings.DATA_DIR}")
 
-    # 确保必要的目录存在
-    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    settings.DB_DIR.mkdir(parents=True, exist_ok=True)
-
-    # 初始化数据库（创建新表）
-    from app.database import init_db
-    init_db()
-
-    # 初始化PDF解析队列管理器
-    try:
-        queue_manager = get_pdf_queue_manager()
-        processor = DocumentProcessor()
-
-        def parse_wrapper(task: PDFTask):
-            """包装异步调用为同步"""
-            db = SessionLocal()
-            try:
-                import asyncio
-                loop = asyncio.get_event_loop()
-                return loop.run_until_complete(
-                    processor.process_document_from_task(task, db)
-                )
-            except Exception as e:
-                logger.error(f"队列任务执行失败: {str(e)}")
-                return {"error": str(e)}
-            finally:
-                db.close()
-
-        queue_manager.set_parser(parse_wrapper)
-        logger.info("✅ PDF 队列解析函数已设置")
-
-        await queue_manager.start()
-        logger.info("✅ PDF解析队列管理器已初始化")
-
-    except Exception as e:
-        logger.warning(f"⚠️ PDF解析队列初始化失败: {e}")
-
-    logger.info("✅ 应用启动完成")
-    logger.info("📝 请求日志中间件已启用，所有HTTP请求将被记录")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭时的清理操作"""
-    logger.info("👋 应用关闭中...")
-
-    # 停止PDF解析队列管理器
-    try:
-        from app.services.pdf_queue_manager import get_pdf_queue_manager
-        from app.services.pdf_watcher_service import get_pdf_watcher_service
-
-        # 停止监听服务
-        watcher = get_pdf_watcher_service()
-        if watcher._is_running:
-            await watcher.stop()
-            logger.info("✅ PDF监听服务已停止")
-
-        # 停止队列管理器
-        queue_manager = get_pdf_queue_manager()
-        await queue_manager.stop()
-        logger.info("✅ PDF队列管理器已停止")
-
-    except Exception as e:
-        logger.warning(f"⚠️ 关闭PDF服务时出错: {e}")
-
-    logger.info("👋 应用关闭完成")
 
 @app.get("/")
 async def root():
