@@ -26,6 +26,7 @@ class ProcessState(Enum):
     USER_CONFIRMATION = "user_confirmation"  # 用户确认
     TASK_DECOMPOSITION = "task_decomposition"  # 任务分解
     TASK_EXECUTION = "task_execution"  # 任务执行
+    DRAFT_ANALYSIS = "draft_analysis"  # 分析初稿，生成修改方案
     RESULT_AGGREGATION = "result_aggregation"  # 结果聚合
     USER_REVIEW = "user_review"  # 用户审核
     COMPLETION = "completion"  # 完成
@@ -64,6 +65,12 @@ class ProcessStateMachine:
         # 基础流程
         StateTransition(ProcessState.IDLE, ProcessState.INTENT_RECOGNITION),
 
+        # draft_complete 专用流程
+        StateTransition(ProcessState.IDLE, ProcessState.DRAFT_ANALYSIS),
+        StateTransition(ProcessState.DRAFT_ANALYSIS, ProcessState.USER_CONFIRMATION),
+        StateTransition(ProcessState.DRAFT_ANALYSIS, ProcessState.ERROR),
+        StateTransition(ProcessState.DRAFT_ANALYSIS, ProcessState.IDLE),  # 取消时回到空闲
+
         # 新的交互流程
         StateTransition(ProcessState.INTENT_RECOGNITION, ProcessState.INFO_ASSESSMENT),  # 意图识别后评估信息
         StateTransition(ProcessState.INFO_ASSESSMENT, ProcessState.INFO_COLLECTION),  # 需要收集信息
@@ -74,7 +81,8 @@ class ProcessStateMachine:
         StateTransition(ProcessState.PREVIEW_GENERATION, ProcessState.USER_CONFIRMATION),  # 预览完成，等待确认
         StateTransition(ProcessState.USER_CONFIRMATION, ProcessState.PAUSED),  # 等待用户确认
         StateTransition(ProcessState.PAUSED, ProcessState.USER_CONFIRMATION),  # 继续确认
-        StateTransition(ProcessState.USER_CONFIRMATION, ProcessState.TASK_DECOMPOSITION),  # 确认后开始任务分解
+        StateTransition(ProcessState.USER_CONFIRMATION, ProcessState.TASK_DECOMPOSITION),
+        StateTransition(ProcessState.USER_CONFIRMATION, ProcessState.DRAFT_ANALYSIS),  # draft_complete 确认后回到分析  # 确认后开始任务分解
         StateTransition(ProcessState.USER_CONFIRMATION, ProcessState.INFO_COLLECTION),  # 用户要求修改
 
         # 兼容旧流程（信息完整时可直接跳过交互环节）
@@ -316,6 +324,9 @@ class ProcessStateMachine:
         elif new_state == ProcessState.COMPLETION:
             logger.info("entering_completion")
             # 清理临时资源等
+
+        elif new_state == ProcessState.DRAFT_ANALYSIS:
+            logger.info("entering_draft_analysis", draft_id=self.context.get("draft_id"))
 
         elif new_state == ProcessState.ERROR:
             logger.error("entering_error_state", old_state=old_state.value)

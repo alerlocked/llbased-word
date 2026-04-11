@@ -22,6 +22,7 @@ class IntentType(Enum):
     ALIGN_TERMINOLOGY = "align_terminology"  # 对齐工艺术语
     CHECK_COMPLIANCE = "check_compliance"  # 检查合规性
     EXPORT_TO_PDM = "export_to_pdm"      # 导出到PDM系统
+    DRAFT_COMPLETE = "draft_complete"    # 工艺文件补全（基于初稿生成修改方案）
     UNKNOWN = "unknown"                  # 未知意图
 
 
@@ -70,8 +71,23 @@ class IntentRecognizer:
         IntentType.EXPORT_TO_PDM: [
             "导出", "上传", "同步", "PDM", "系统", "保存",
             "export", "upload", "sync", "pdm", "system", "save"
+        ],
+        IntentType.DRAFT_COMPLETE: [
+            "补全", "补", "完善", "补充",
+            "帮我改", "改一下", "帮我完善",
+            "draft", "complete", "fill"
         ]
     }
+
+    # draft_complete 复合触发模式（关键词 + 文档上下文）
+    _DRAFT_COMPLETE_COMPOUND_PATTERNS = [
+        # "补全/完善/补充" + "工艺文件/文件/文档" 组合
+        re.compile(r"补全|完善|补充", re.IGNORECASE),
+    ]
+    _DRAFT_DOCUMENT_HINTS = re.compile(
+        r"工艺文件|文件|文档|初稿|草稿|draft",
+        re.IGNORECASE,
+    )
 
     # 工艺实体关键词
     PROCESS_ENTITIES = {
@@ -112,8 +128,18 @@ class IntentRecognizer:
             # 1. 预处理输入
             processed_input = self._preprocess_input(user_input)
 
+            # 1.5 draft_complete 复合检测（优先级高于普通关键词）
+            draft_complete_boost = self._detect_draft_complete(processed_input, context)
+
             # 2. 识别意图类型
             intent_results = self._match_intent_types(processed_input)
+
+            # 如果检测到 draft_complete 复合模式，提升其分数
+            if draft_complete_boost > 0:
+                intent_results[IntentType.DRAFT_COMPLETE] = max(
+                    intent_results.get(IntentType.DRAFT_COMPLETE, 0.0),
+                    draft_complete_boost,
+                )
 
             # 3. 提取工艺实体
             extracted_entities = self._extract_entities(processed_input)
@@ -177,6 +203,37 @@ class IntentRecognizer:
         processed = re.sub(r'[^\w\u4e00-\u9fff\s]', ' ', processed)
 
         return processed
+
+    def _detect_draft_complete(
+        self, processed_input: str, context: Optional[Dict[str, Any]] = None
+    ) -> float:
+        """检测 draft_complete 复合意图
+
+        触发条件：
+        - 输入包含补全/完善/补充 等词
+        - 且上下文中有初稿信息，或者输入同时提到文档/文件
+
+        Returns:
+            0.0 表示未检测到，>0.0 表示检测到的置信度
+        """
+        has_action = any(p.search(processed_input) for p in self._DRAFT_COMPLETE_COMPOUND_PATTERNS)
+        if not has_action:
+            return 0.0
+
+        # 检查是否提到了文档
+        has_doc_hint = bool(self._DRAFT_DOCUMENT_HINTS.search(processed_input))
+
+        # 检查上下文中是否有初稿
+        has_draft_context = False
+        if context:
+            has_draft_context = bool(context.get("draft_id") or context.get("has_draft"))
+
+        if has_doc_hint or has_draft_context:
+            return 0.85  # 高置信度
+        elif has_action:
+            return 0.4  # 有动作词但没有文档上下文，给中等分
+
+        return 0.0
 
     def _match_intent_types(self, processed_input: str) -> Dict[IntentType, float]:
         """
@@ -407,7 +464,8 @@ class IntentRecognizer:
             IntentType.SEARCH_KNOWLEDGE: "搜索工艺知识",
             IntentType.ALIGN_TERMINOLOGY: "对齐工艺术语",
             IntentType.CHECK_COMPLIANCE: "检查合规性",
-            IntentType.EXPORT_TO_PDM: "导出到PDM系统"
+            IntentType.EXPORT_TO_PDM: "导出到PDM系统",
+            IntentType.DRAFT_COMPLETE: "基于初稿补全工艺文件"
         }
         return descriptions.get(intent_type, "未知意图")
 
@@ -428,6 +486,11 @@ class IntentRecognizer:
                 "从PDF工艺文件中提取表格数据",
                 "识别工艺参数和工具信息",
                 "解析工艺流程图"
+            ],
+            IntentType.DRAFT_COMPLETE: [
+                "补全已有的工艺文件初稿",
+                "基于标准完善初稿内容",
+                "根据参考资料修改工艺文件"
             ]
         }
         return use_cases.get(intent_type, [])
