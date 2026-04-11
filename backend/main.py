@@ -18,6 +18,7 @@ from app.api import process, creation, rag, web_image, export, annotation, node_
 from app.api import task_router, document_router
 from app.api import pdf_status, agent, assistant, process_documents, deepseek
 from app.api import context
+from app.api import draft
 from app.config import settings
 from app.shared.logging import get_logger
 logger = get_logger(__name__)
@@ -140,6 +141,9 @@ app.include_router(materials.router, prefix="/api", tags=["素材库"])
 
 # Context API
 app.include_router(context.router, prefix="/api/context", tags=["context"])
+
+# Draft API
+app.include_router(draft.router, prefix="/api/drafts", tags=["初稿管理"])
 
 @app.on_event("startup")
 async def startup_event():
