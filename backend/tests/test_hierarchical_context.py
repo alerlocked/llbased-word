@@ -269,6 +269,193 @@ class TestTableMatch:
         assert match.tokens == 0  # 默认值
 
 
+class TestGlobalKeywordSearch:
+    """Layer 3 全局关键词搜索测试"""
+
+    @pytest.fixture
+    def ctx(self):
+        """创建 HierarchicalContext 实例"""
+        from app.services.hierarchical_context import HierarchicalContext
+        data_dir = project_root.parent / "data" / "exports_html"
+        return HierarchicalContext(data_dir=str(data_dir))
+
+    def test_global_keyword_search_basic(self, ctx):
+        """测试基本的关键词搜索"""
+        results = ctx.global_keyword_search("工艺文件")
+
+        # 应该在多个文档中找到匹配
+        assert isinstance(results, list)
+        assert len(results) > 0
+
+        # 验证结果结构
+        for r in results:
+            assert "doc_name" in r
+            assert "snippet" in r
+            assert "score" in r
+            assert "page" in r
+            assert isinstance(r["score"], float)
+            assert r["score"] > 0
+
+    def test_global_keyword_search_multiple_docs(self, ctx):
+        """测试跨文档搜索 - 应返回来自不同文档的结果"""
+        results = ctx.global_keyword_search("工艺")
+
+        # 应该找到多个文档的结果
+        doc_names = {r["doc_name"] for r in results}
+        assert len(doc_names) >= 1  # 至少来自一个文档
+
+    def test_global_keyword_search_snippet_content(self, ctx):
+        """测试片段内容包含关键词"""
+        results = ctx.global_keyword_search("工艺文件")
+
+        # 至少有一个片段应该包含关键词
+        assert len(results) > 0
+        has_keyword = any("工艺" in r["snippet"] or "文件" in r["snippet"] for r in results)
+        assert has_keyword, f"No snippet contains keyword. Snippets: {[r['snippet'] for r in results]}"
+
+    def test_global_keyword_search_scoring(self, ctx):
+        """测试评分机制 - 多关键词命中应该有更高分数"""
+        results = ctx.global_keyword_search("航天产品工艺文件")
+
+        if len(results) >= 2:
+            # 结果应该按分数降序排列
+            for i in range(len(results) - 1):
+                assert results[i]["score"] >= results[i + 1]["score"]
+
+    def test_global_keyword_search_top_k(self, ctx):
+        """测试 top_k 限制"""
+        results = ctx.global_keyword_search("工艺", top_k=3)
+        assert len(results) <= 3
+
+    def test_global_keyword_search_empty_query(self, ctx):
+        """测试空查询"""
+        results = ctx.global_keyword_search("")
+        assert results == []
+
+    def test_global_keyword_search_no_match(self, ctx):
+        """测试不匹配的查询"""
+        results = ctx.global_keyword_search("不存在的关键词XYZ123")
+        assert isinstance(results, list)
+        # 不匹配应该返回空列表
+        assert len(results) == 0
+
+    def test_global_keyword_search_specific_term(self, ctx):
+        """测试搜索特定术语 - '航天'"""
+        results = ctx.global_keyword_search("航天")
+        assert len(results) > 0
+        # 所有结果应该包含“航天”
+        for r in results:
+            assert "航天" in r["snippet"] or "航天" in r["doc_name"]
+
+    def test_extract_snippet_short_paragraph(self, ctx):
+        """测试短段落直接返回"""
+        snippet = ctx._extract_snippet("短文本", {"短文本"})
+        assert snippet == "短文本"
+
+    def test_extract_snippet_long_paragraph(self, ctx):
+        """测试长段落提取片段"""
+        long_text = "A" * 100 + "关键词" + "B" * 100 + "C" * 200
+        snippet = ctx._extract_snippet(long_text, {"关键词"})
+        assert len(snippet) <= 303  # 300 + "..." possible
+        assert "关键词" in snippet
+
+    def test_estimate_page(self, ctx):
+        """测试页码估算"""
+        paragraphs = [f"段落{i}" for i in range(100)]
+        page = ctx._estimate_page("段落50", paragraphs, 10)
+        assert 1 <= page <= 10
+
+    def test_estimate_page_single_page(self, ctx):
+        """测试单页文档"""
+        page = ctx._estimate_page("任意段落", ["任意段落"], 1)
+        assert page == 1
+
+
+class TestBuildContextWithL3:
+    """测试 build_context 集成 L3"""
+
+    @pytest.fixture
+    def ctx(self):
+        """创建 HierarchicalContext 实例"""
+        from app.services.hierarchical_context import HierarchicalContext
+        data_dir = project_root.parent / "data" / "exports_html"
+        return HierarchicalContext(data_dir=str(data_dir))
+
+    def test_build_context_contains_l3(self, ctx):
+        """测试 build_context 包含 L3 全局搜索结果"""
+        context = ctx.build_context(
+            query="工艺文件",
+            session_id="test-l3-session-001",
+            max_tokens=15000
+        )
+
+        # 应该包含全局搜索结果
+        assert "全局关键词搜索结果" in context
+        assert len(context) > 0
+
+    def test_build_context_l3_token_budget(self, ctx):
+        """测试 L3 的 token 预算控制"""
+        context = ctx.build_context(
+            query="工艺",
+            session_id="test-l3-budget-001",
+            max_tokens=15000
+        )
+
+        layer_tokens = ctx.get_layer_tokens()
+        total = layer_tokens["total"]
+
+        # 总 token 不应超过限制
+        assert total <= 16000  # 允许一点估算误差
+
+        # L3 应该有值（有搜索结果时）
+        assert "layer3" in layer_tokens
+
+    def test_build_context_l0_l1_l2_unchanged(self, ctx):
+        """测试 L0/L1/L2 不受 L3 影响"""
+        session_id = "test-l3-unchanged-001"
+
+        context = ctx.build_context(
+            query="工艺文件",
+            session_id=session_id,
+            max_tokens=15000
+        )
+
+        # L0/L1/L2 核心内容应该存在
+        assert "参考文档索引" in context or "参考文档" in context
+
+        # layer token 统计应该包含所有层
+        tokens = ctx.get_layer_tokens()
+        assert "layer0" in tokens
+        assert "layer1" in tokens
+        assert "layer2" in tokens
+        assert "layer3" in tokens
+        assert "total" in tokens
+
+    def test_build_context_low_budget_skips_l3(self, ctx):
+        """测试低 token 预算时跳过 L3"""
+        context = ctx.build_context(
+            query="工艺文件",
+            session_id="test-l3-lowbudget-001",
+            max_tokens=500  # 很低的预算
+        )
+
+        # 可能不包含 L3 结果（预算不足）
+        # 但不应该崩溃
+        assert isinstance(context, str)
+
+    def test_build_context_layer_tokens_tracking(self, ctx):
+        """测试各层 token 追踪包含 layer3"""
+        ctx.build_context(
+            query="航天产品工艺文件",
+            session_id="test-l3-tokens-001",
+            max_tokens=15000
+        )
+
+        tokens = ctx.get_layer_tokens()
+        assert "layer3" in tokens
+        assert isinstance(tokens["layer3"], int)
+
+
 # 运行测试的入口
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

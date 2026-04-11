@@ -72,7 +72,7 @@ class HierarchicalContext:
         self._table_index_cache: Optional[str] = None  # Layer 1 缓存
         self._loaded_sessions: Set[str] = set()  # 已加载 Layer 0/1 的会话
         self._max_rag_tokens: int = 15000  # RAG 层最大 token 数量
-        self._layer_tokens: Dict[str, int] = {"layer0": 0, "layer1": 0, "layer2": 0, "total": 0}  # 各层 token 使用量
+        self._layer_tokens: Dict[str, int] = {"layer0": 0, "layer1": 0, "layer2": 0, "layer3": 0, "total": 0}  # 各层 token 使用量
         
     def _get_all_documents(self) -> List[Dict[str, Any]]:
         """获取所有文档的 index.json"""
@@ -442,7 +442,7 @@ class HierarchicalContext:
         used_tokens = 0
         
         # 重置 token 统计
-        self._layer_tokens = {"layer0": 0, "layer1": 0, "layer2": 0, "total": 0}
+        self._layer_tokens = {"layer0": 0, "layer1": 0, "layer2": 0, "layer3": 0, "total": 0}
         
         logger.info(f"[上下文] 开始构建上下文: session={session_id}, query={query[:50]}, max_tokens={effective_max_tokens}")
         
@@ -501,14 +501,41 @@ class HierarchicalContext:
             logger.info(f"[上下文] Layer 2 加载表格 {table.table_id}: {table_tokens} tokens, 总计 {used_tokens} tokens")
         
         self._layer_tokens["layer2"] = layer2_tokens
-        
-        # Layer 3: 精确检索（如果有参数关键词）
-        # 这里可以添加更精细的检索逻辑，如：
-        # - 参数搜索（如 "温度", "压力"）
-        # - 关键词高亮
-        # - 全文搜索
-        # 目前先省略，后续优化
-        
+
+        # Layer 3: 全局关键词搜索
+        layer3_tokens = 0
+        remaining_tokens = effective_max_tokens - used_tokens
+        l3_budget = int(remaining_tokens * 0.5)  # L3 使用剩余 token 的 50%
+
+        if l3_budget > 200:  # 至少要有 200 token 的预算
+            search_results = self.global_keyword_search(query, top_k=10)
+
+            if search_results:
+                l3_lines = ["\n## 全局关键词搜索结果\n"]
+                l3_current_tokens = self._estimate_tokens(l3_lines[0])
+
+                for result in search_results:
+                    entry = (
+                        f"- **{result['doc_name']}** (第{result['page']}页, "
+                        f"相关度:{result['score']:.0f}): {result['snippet']}"
+                    )
+                    entry_tokens = self._estimate_tokens(entry)
+
+                    if l3_current_tokens + entry_tokens > l3_budget:
+                        break
+
+                    l3_lines.append(entry)
+                    l3_current_tokens += entry_tokens
+
+                if len(l3_lines) > 1:  # 有实际内容（不只是标题）
+                    l3_context = "\n".join(l3_lines)
+                    context_parts.append(l3_context)
+                    used_tokens += l3_current_tokens
+                    layer3_tokens = l3_current_tokens
+                    logger.info(f"[上下文] Layer 3 加载完成: {layer3_tokens} tokens, 总计 {used_tokens} tokens")
+
+        self._layer_tokens["layer3"] = layer3_tokens
+
         final_context = "\n\n---\n\n".join(context_parts)
         final_tokens = self._estimate_tokens(final_context)
         
@@ -517,6 +544,160 @@ class HierarchicalContext:
         logger.info(f"[上下文] 上下文构建完成: {final_tokens} tokens, 长度 {len(final_context)}")
         return final_context
     
+    def global_keyword_search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        """全局关键词搜索 (Layer 3)
+
+        遍历所有文档的 document.html，在纯文本中搜索关键词，
+        返回包含关键词的段落/片段。
+
+        Args:
+            query: 用户查询文本
+            top_k: 返回最多 top_k 个结果
+
+        Returns:
+            匹配片段列表，格式：
+            [{"doc_name": ..., "snippet": ..., "score": ..., "page": ...}, ...]
+        """
+        keywords = extract_keywords(query)
+        if not keywords:
+            logger.info("[上下文] L3 搜索: 无有效关键词，跳过")
+            return []
+
+        logger.info(f"[上下文] L3 搜索: query={query[:50]}, keywords={keywords}")
+
+        documents = self._get_all_documents()
+        results: List[Dict[str, Any]] = []
+
+        for doc in documents:
+            doc_dir_name = doc.get("_doc_dir")
+            if not doc_dir_name:
+                continue
+
+            doc_name = doc.get("name", "未命名文档")
+            html_path = self.data_dir / doc_dir_name / "document.html"
+
+            if not html_path.exists():
+                continue
+
+            try:
+                with open(html_path, "r", encoding="utf-8") as f:
+                    html_content = f.read()
+
+                # 提取纯文本
+                soup = BeautifulSoup(html_content, "html.parser")
+                plain_text = soup.get_text(separator="\n")
+
+                # 按段落分割（非空行）
+                paragraphs = [p.strip() for p in plain_text.split("\n") if p.strip()]
+
+                for para in paragraphs:
+                    para_lower = para.lower()
+                    # 计算命中关键词数
+                    hit_keywords = {kw for kw in keywords if kw.lower() in para_lower}
+                    if not hit_keywords:
+                        continue
+
+                    score = len(hit_keywords)
+
+                    # 估算页码：简单按段落位置估算
+                    page = self._estimate_page(para, paragraphs, doc.get("pages", 1))
+
+                    # 提取片段：以第一个命中关键词为中心，前后各 100 字
+                    snippet = self._extract_snippet(para, hit_keywords)
+
+                    results.append({
+                        "doc_name": doc_name,
+                        "snippet": snippet,
+                        "score": float(score),
+                        "page": page,
+                    })
+
+            except Exception as e:
+                logger.error(f"[上下文] L3 搜索文档失败: {doc_dir_name}, {e}")
+
+        # 按分数降序排序，取 top_k
+        results.sort(key=lambda x: x["score"], reverse=True)
+        results = results[:top_k]
+
+        logger.info(f"[上下文] L3 搜索完成: 找到 {len(results)} 个匹配片段")
+        return results
+
+    def _extract_snippet(self, paragraph: str, hit_keywords: Set[str]) -> str:
+        """从段落中提取包含关键词的片段
+
+        以第一个命中关键词为中心，前后各 100 字符。
+        如果段落长度 <= 300 字符，直接返回整个段落。
+        多个命中关键词距离近的合并为一个大片段。
+        """
+        MAX_SNIPPET = 300
+        HALF_CONTEXT = 100
+
+        if len(paragraph) <= MAX_SNIPPET:
+            return paragraph
+
+        # 找到所有命中关键词的位置
+        positions = []
+        para_lower = paragraph.lower()
+        for kw in hit_keywords:
+            start = 0
+            while True:
+                idx = para_lower.find(kw.lower(), start)
+                if idx == -1:
+                    break
+                positions.append(idx)
+                start = idx + 1
+
+        if not positions:
+            return paragraph[:MAX_SNIPPET]
+
+        positions.sort()
+
+        # 合并距离近的命中位置（距离 < 200 的合并为一个区间）
+        MERGE_THRESHOLD = 200
+        ranges = []
+        cur_start = max(0, positions[0] - HALF_CONTEXT)
+        cur_end = min(len(paragraph), positions[0] + HALF_CONTEXT)
+
+        for pos in positions[1:]:
+            new_start = max(0, pos - HALF_CONTEXT)
+            new_end = min(len(paragraph), pos + HALF_CONTEXT)
+            if new_start <= cur_end + MERGE_THRESHOLD:
+                # 合并
+                cur_end = max(cur_end, new_end)
+            else:
+                ranges.append((cur_start, cur_end))
+                cur_start = new_start
+                cur_end = new_end
+        ranges.append((cur_start, cur_end))
+
+        # 拼接片段，用 "..." 连接
+        snippets = []
+        total_len = 0
+        for start, end in ranges:
+            snippet_part = paragraph[start:end]
+            snippets.append(snippet_part)
+            total_len += len(snippet_part) + 3  # +3 for "..."
+            if total_len >= MAX_SNIPPET:
+                break
+
+        result = "...".join(snippets)
+        if len(result) > MAX_SNIPPET:
+            result = result[:MAX_SNIPPET] + "..."
+
+        return result
+
+    def _estimate_page(self, paragraph: str, all_paragraphs: List[str], total_pages: int) -> int:
+        """根据段落位置估算页码"""
+        if total_pages <= 1:
+            return 1
+        try:
+            idx = all_paragraphs.index(paragraph)
+            # 按比例估算
+            ratio = idx / len(all_paragraphs)
+            return max(1, min(total_pages, int(ratio * total_pages) + 1))
+        except ValueError:
+            return 1
+
     def clear_session(self, session_id: str):
         """清除会话的缓存
         
@@ -545,7 +726,7 @@ class HierarchicalContext:
         """获取各层 token 使用情况
         
         Returns:
-            {"layer0": 500, "layer1": 2000, "layer2": 3000, "total": 5500}
+            {"layer0": 500, "layer1": 2000, "layer2": 3000, "layer3": 500, "total": 6000}
         """
         return self._layer_tokens.copy()
 
