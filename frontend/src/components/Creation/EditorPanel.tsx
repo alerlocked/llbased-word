@@ -1,9 +1,12 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import { Statistic, Space } from 'antd'
+import { Statistic, Space, Upload, Button, message } from 'antd'
+import { UploadOutlined } from '@ant-design/icons'
 import { useTheme } from '../../contexts/ThemeContext'
+import { draftApi } from '../../services/draftApi'
+import ExportButton from './ExportButton'
 
 /**
  * 编辑器面板组件
@@ -28,6 +31,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   const { colors } = useTheme()
   const editorRef = useRef<HTMLDivElement>(null)
   const autoSaveTimerRef = useRef<NodeJS.Timeout>()
+  const [currentDraftId, setCurrentDraftId] = useState<number | undefined>(undefined)
+  const [uploading, setUploading] = useState(false)
 
   /**
    * 初始化编辑器
@@ -112,6 +117,28 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   }
 
   /**
+   * 上传初稿文件
+   */
+  const handleUploadDraft = async (file: File) => {
+    setUploading(true)
+    try {
+      const result = await draftApi.uploadDraft(file, projectId)
+      setCurrentDraftId(result.id)
+      // 将解析内容加载到编辑器
+      if (editor && result.content) {
+        editor.commands.setContent(result.content)
+      }
+      message.success(`初稿「${result.title}」上传成功`)
+    } catch (error) {
+      console.error('上传初稿失败:', error)
+    } finally {
+      setUploading(false)
+    }
+    // 阻止 antd Upload 默认上传行为
+    return false
+  }
+
+  /**
    * 处理右键菜单
    */
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -156,11 +183,14 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         overflow: 'hidden'
       }}
     >
-      {/* 工具栏 - 字数统计 */}
+      {/* 工具栏 - 字数统计 + 上传 + 导出 */}
       <div style={{
         padding: '12px 24px',
         borderBottom: `1px solid ${colors.borderColor}`,
-        backgroundColor: colors.bgSecondary
+        backgroundColor: colors.bgSecondary,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
         <Space>
           <Statistic 
@@ -168,6 +198,22 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             value={getWordCount()} 
             valueStyle={{ fontSize: 16, color: colors.textPrimary }}
           />
+          <Upload
+            accept=".pdf"
+            showUploadList={false}
+            beforeUpload={(file) => { handleUploadDraft(file); return false }}
+          >
+            <Button
+              icon={<UploadOutlined />}
+              loading={uploading}
+              size="small"
+            >
+              上传初稿
+            </Button>
+          </Upload>
+        </Space>
+        <Space>
+          <ExportButton draftId={currentDraftId} projectId={projectId} />
         </Space>
       </div>
 
