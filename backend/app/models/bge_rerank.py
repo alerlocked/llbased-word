@@ -1,11 +1,8 @@
 """
 工艺文件辅助编辑系统 - BGE-Rerank模型集成
-提供BGE-Rerank模型的本地重排序接口
+Identity reranker: preserves original order with normalized scores
 """
 from typing import Dict, Any, Optional, List
-import asyncio
-import json
-from pathlib import Path
 
 from app.shared.logging import get_logger
 
@@ -47,44 +44,18 @@ class BGERerankModel:
 
     async def load_model(self) -> bool:
         """
-        加载模型
+        Initialize identity reranker (no external model needed).
 
         Returns:
-            是否成功加载
+            Always True
         """
-        try:
-            if self.model_loaded:
-                logger.info("bge_rerank_model_already_loaded")
-                return True
-
-            # 检查模型路径
-            model_path = Path(self.model_path)
-            if not model_path.exists():
-                logger.error("bge_rerank_model_path_not_found", path=self.model_path)
-                return False
-
-            # 这里应该加载实际的BGE-Rerank模型
-            # 由于我们不实际部署模型，这里模拟加载过程
-            logger.info("loading_bge_rerank_model", path=self.model_path)
-
-            # 模拟加载时间
-            await asyncio.sleep(1)
-
-            # 设置模型实例（模拟）
-            self.model_instance = {
-                "model_type": "bge-rerank",
-                "model_path": self.model_path,
-                "loaded_at": "timestamp_placeholder"
-            }
-
-            self.model_loaded = True
-            logger.info("bge_rerank_model_loaded_successfully")
-
+        if self.model_loaded:
+            logger.info("bge_rerank_model_already_loaded")
             return True
 
-        except Exception as e:
-            logger.error("bge_rerank_model_loading_failed", error=str(e))
-            return False
+        self.model_loaded = True
+        logger.info("bge_rerank_identity_reranker_initialized")
+        return True
 
     async def rerank_results(self, query: str, documents: List[str]) -> Dict[str, Any]:
         """
@@ -131,41 +102,25 @@ class BGERerankModel:
                 if len(doc) > self.max_sequence_length:
                     logger.warning("document_too_long", index=i, length=len(doc), max_length=self.max_sequence_length)
 
-            # 这里应该调用实际的模型进行重排序
-            # 目前返回模拟的重排序结果
-            scores = []
-            for i, doc in enumerate(documents):
-                # 生成随机分数（模拟）
-                score = 1.0 - (i * 0.1)  # 第一个文档分数最高
-                scores.append(max(0.0, score))
-
-            # 创建重排序结果
-            reranked_results = []
-            for i, (doc, score) in enumerate(zip(documents, scores)):
-                reranked_results.append({
+            # Identity reranker: preserve original order with normalized scores
+            n = len(documents)
+            reranked_results = [
+                {
                     "document": doc,
                     "original_index": i,
-                    "rerank_score": score,
-                    "rank": i + 1
-                })
-
-            # 按分数排序
-            reranked_results.sort(key=lambda x: x["rerank_score"], reverse=True)
-
-            # 更新排名
-            for i, result in enumerate(reranked_results):
-                result["rank"] = i + 1
+                    "rerank_score": 1.0 - (i / max(n, 1)),
+                    "rank": i + 1,
+                }
+                for i, doc in enumerate(documents)
+            ]
 
             result = {
                 "success": True,
                 "reranked_results": reranked_results,
                 "metadata": {
-                    "model": "bge-reranker-large",
+                    "model": "identity-reranker",
                     "query_length": len(query),
-                    "document_count": len(documents),
-                    "max_sequence_length": self.max_sequence_length,
-                    "batch_size": min(self.batch_size, len(documents)),
-                    "processing_time": "timestamp_placeholder"
+                    "document_count": n,
                 }
             }
 
@@ -226,10 +181,9 @@ class BGERerankModel:
 
     async def validate_model_availability(self) -> bool:
         """
-        验证模型可用性
+        Identity reranker is always available.
 
         Returns:
-            模型是否可用
+            Always True
         """
-        model_path = Path(self.model_path)
-        return model_path.exists() and model_path.is_dir()
+        return True

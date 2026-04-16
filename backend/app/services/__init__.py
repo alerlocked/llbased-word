@@ -8,7 +8,6 @@
 - context_builder: 上下文构建
 - file_system_service: 文件系统服务
 - llm_context_service: LLM 上下文管理服务（4 层上下文）
-- profile_service: 用户画像管理服务
 - memory_service: 记忆管理服务
 """
 
@@ -27,7 +26,6 @@ from app.services.pdf_watcher_service import (
 )
 
 from app.services.llm_context_service import LLMContextService
-# ProfileService 已删除，功能合并到 ContextService
 from app.services.memory_service import MemoryService
 
 __all__ = [
@@ -42,33 +40,8 @@ __all__ = [
     'PDFWatcherService',
     'get_pdf_watcher_service',
     'initialize_pdf_watcher',
-    
+
     # LLM 上下文管理
     'LLMContextService',
-    # 'ProfileService' - 已删除
     'MemoryService',
 ]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,14 +1,13 @@
 """
 工艺文件辅助编辑系统 - BGE-Embedding模型集成
-提供BGE-Embedding模型的本地向量化接口
+通过SiliconFlow API提供BGE-Embedding向量化接口
 """
 from typing import Dict, Any, Optional, List
-import asyncio
-import json
-from pathlib import Path
 import numpy as np
 
 from app.shared.logging import get_logger
+from app.services.context_engineering import calculate_embedding
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -51,39 +50,22 @@ class BGEEmbeddingModel:
 
     async def load_model(self) -> bool:
         """
-        加载模型
+        Verify SiliconFlow API is configured for embedding generation.
 
         Returns:
-            是否成功加载
+            Whether the API key is configured
         """
         try:
             if self.model_loaded:
                 logger.info("bge_embedding_model_already_loaded")
                 return True
 
-            # 检查模型路径
-            model_path = Path(self.model_path)
-            if not model_path.exists():
-                logger.error("bge_embedding_model_path_not_found", path=self.model_path)
+            if not settings.SILICONFLOW_API_KEY:
+                logger.error("bge_embedding_api_key_not_configured")
                 return False
 
-            # 这里应该加载实际的BGE-Embedding模型
-            # 由于我们不实际部署模型，这里模拟加载过程
-            logger.info("loading_bge_embedding_model", path=self.model_path)
-
-            # 模拟加载时间
-            await asyncio.sleep(1)
-
-            # 设置模型实例（模拟）
-            self.model_instance = {
-                "model_type": "bge-embedding",
-                "model_path": self.model_path,
-                "loaded_at": "timestamp_placeholder"
-            }
-
             self.model_loaded = True
-            logger.info("bge_embedding_model_loaded_successfully")
-
+            logger.info("bge_embedding_api_verified", model=settings.SILICONFLOW_EMBEDDING_MODEL)
             return True
 
         except Exception as e:
@@ -124,12 +106,16 @@ class BGEEmbeddingModel:
                 if len(text) > self.max_sequence_length:
                     logger.warning("text_too_long", index=i, length=len(text), max_length=self.max_sequence_length)
 
-            # 这里应该调用实际的模型进行向量化
-            # 目前返回模拟的向量结果
+            # Generate embeddings via SiliconFlow API
             embeddings = []
             for text in texts:
-                # 生成随机向量（模拟）
-                embedding = np.random.rand(self.embedding_dimension).tolist()
+                embedding = calculate_embedding(text)
+                if embedding is None:
+                    return {
+                        "success": False,
+                        "error": "Embedding calculation failed",
+                        "error_code": "EMBEDDING_FAILED"
+                    }
                 embeddings.append(embedding)
 
             result = {
@@ -138,11 +124,7 @@ class BGEEmbeddingModel:
                 "metadata": {
                     "model": "bge-large-zh-v1.5",
                     "text_count": len(texts),
-                    "embedding_dimension": self.embedding_dimension,
-                    "max_sequence_length": self.max_sequence_length,
-                    "batch_size": min(self.batch_size, len(texts)),
-                    "normalize_embeddings": self.normalize_embeddings,
-                    "processing_time": "timestamp_placeholder"
+                    "embedding_dimension": len(embeddings[0]) if embeddings else 0,
                 }
             }
 
@@ -217,13 +199,12 @@ class BGEEmbeddingModel:
 
     async def validate_model_availability(self) -> bool:
         """
-        验证模型可用性
+        Verify SiliconFlow API is available.
 
         Returns:
-            模型是否可用
+            Whether the API is configured
         """
-        model_path = Path(self.model_path)
-        return model_path.exists() and model_path.is_dir()
+        return bool(settings.SILICONFLOW_API_KEY)
 
     async def calculate_similarity(self, embedding1: List[float], embedding2: List[float]) -> float:
         """

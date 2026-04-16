@@ -10,6 +10,7 @@ import json
 
 from app.shared.logging import get_logger
 from app.config import settings
+from app.services.context_engineering import calculate_embedding
 
 logger = get_logger(__name__)
 
@@ -267,27 +268,23 @@ class VectorStore:
 
     async def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        生成文本嵌入向量
+        Generate text embeddings via SiliconFlow API.
 
         Args:
-            texts: 文本列表
+            texts: Text list
 
         Returns:
-            嵌入向量列表
+            Embedding vector list
         """
         try:
-            # 这里应该集成BGE-Embedding模型
-            # 目前返回模拟的嵌入向量
-            import numpy as np
-
-            embeddings = []
+            embeddings: List[List[float]] = []
             for text in texts:
-                # 生成随机嵌入向量（模拟）
-                # BGE-large-zh-v1.5 的维度是 1024
-                embedding = np.random.rand(1024).tolist()
+                embedding = calculate_embedding(text)
+                if embedding is None:
+                    raise RuntimeError(f"Embedding calculation failed: {text[:50]}")
                 embeddings.append(embedding)
 
-            logger.debug("embeddings_generated", count=len(embeddings), dimension=1024)
+            logger.debug("embeddings_generated", count=len(embeddings), dimension=len(embeddings[0]) if embeddings else 0)
             return embeddings
 
         except Exception as e:
