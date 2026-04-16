@@ -147,6 +147,79 @@ class ContextBuilder:
             max_history_turns=20,
         )
 
+    async def build_context_with_retrieval(
+        self,
+        task_id: str,
+        query: str,
+        max_tokens: int = 4000,
+    ) -> str:
+        """
+        Build task context augmented with semantic retrieval results.
+
+        Combines the standard task context with relevant information
+        from memory and knowledge base via UnifiedRetrievalService.
+
+        Args:
+            task_id: Task ID
+            query: Query for semantic retrieval
+            max_tokens: Token budget for retrieval results
+
+        Returns:
+            Augmented context string
+        """
+        # Base context from task memory
+        base_context = self.build_context(
+            task_id,
+            include_documents=False,
+            include_history=True,
+            include_decisions=True,
+        )
+
+        # Semantic retrieval
+        retrieval_context = ""
+        try:
+            from app.services.unified_retrieval import UnifiedRetrievalService
+
+            retrieval = UnifiedRetrievalService()
+            result = await retrieval.retrieve(query=query, max_tokens=max_tokens)
+
+            if result["results"]:
+                parts = ["# 语义检索结果"]
+                for r in result["results"]:
+                    source_label = r.get("source", "unknown")
+                    parts.append(f"\n## 来源: {source_label}")
+                    parts.append(r.get("content", "")[:2000])
+                retrieval_context = "\n".join(parts)
+        except Exception as e:
+            logger.warning("semantic_retrieval_failed", error=str(e))
+
+        # Combine: base + documents + retrieval
+        parts = [base_context]
+
+        # Add source documents
+        meta = self.repository.get_meta(task_id)
+        if meta and meta.source_documents:
+            doc_context = self._build_document_context(meta.source_documents)
+            if doc_context:
+                parts.append(doc_context)
+
+        if retrieval_context:
+            parts.append(retrieval_context)
+
+        context = "\n\n---\n\n".join(parts)
+
+        # Truncate if needed
+        if len(context) > self.max_context_length:
+            context = self._truncate_context(context, self.max_context_length)
+
+        logger.info(
+            "context_built_with_retrieval",
+            task_id=task_id,
+            context_length=len(context),
+            has_retrieval=bool(retrieval_context),
+        )
+        return context
+
     def get_document_summary(self, doc_name: str) -> str:
         """
         获取单个文档的摘要

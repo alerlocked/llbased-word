@@ -407,6 +407,8 @@ class LongTermMemory(BaseMemory if LANGCHAIN_AVAILABLE else object):
         # 检查去重（使用语义相似度）
         if not self._is_duplicate(memory):
             self.memories.append(memory)
+            # Persist to ChromaDB for cross-session durability
+            self._persist_to_chroma(memory)
             logger.info(f"💾 [LTM] 写入长期记忆: topic={topic}, id={memory['id']}, embedding={'已计算' if embedding else '未计算'}")
             return memory["id"]
         else:
@@ -428,6 +430,36 @@ class LongTermMemory(BaseMemory if LANGCHAIN_AVAILABLE else object):
             return content
         return content[:30] + "..."
     
+    def _persist_to_chroma(self, memory: Dict[str, Any]) -> None:
+        """
+        Persist a memory entry to ChromaDB for cross-session durability.
+
+        Best-effort: failures are logged but do not block the write.
+        """
+        try:
+            import asyncio
+            from app.tools.vector_store import VectorStore
+
+            vs = VectorStore({"collection_name": "long_term_memory"})
+            documents = [{
+                "id": memory["id"],
+                "text": f"{memory['topic']}\n{memory['content']}",
+            }]
+            metadatas = [{
+                "source": "ltm",
+                "session_id": self.session_id,
+                "topic": memory["topic"],
+                "timestamp": memory["timestamp"],
+            }]
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If called from async context, schedule as task
+                asyncio.ensure_future(vs.add_documents(documents, metadatas))
+            else:
+                loop.run_until_complete(vs.add_documents(documents, metadatas))
+        except Exception as e:
+            logger.debug(f"[LTM] ChromaDB persist skipped: {e}")
+
     def _is_duplicate(self, memory: Dict[str, Any]) -> bool:
         """
         检查是否重复（改进版：使用Embedding语义相似度）

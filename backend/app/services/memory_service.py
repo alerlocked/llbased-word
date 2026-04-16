@@ -1,13 +1,16 @@
 """
 MemoryService - 记忆管理服务
 
-管理会话记忆（跨会话持久化），用于 LLM 上下文注入
+管理会话记忆（跨会话持久化），用于 LLM 上下文注入。
+支持按时间加载（load_recent_memory）和按语义检索（load_relevant_memory）。
 """
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pathlib import Path
 from datetime import datetime
 import re
+
 from app.shared.logging import get_logger
+
 logger = get_logger(__name__)
 
 
@@ -196,6 +199,131 @@ class MemoryService:
         
         logger.info(f"[记忆服务] 清理完成: 删除 {deleted_count} 个记忆, 保留 {len(memory_files) - deleted_count} 个")
         return deleted_count
+
+    def load_relevant_memory(
+        self, query: str, max_tokens: int = 1000, top_k: int = 5
+    ) -> str:
+        """
+        Load memory relevant to a query using semantic search.
+
+        Falls back to load_recent_memory if embedding is unavailable.
+
+        Args:
+            query: Query text to find relevant memories
+            max_tokens: Maximum tokens to return
+            top_k: Number of candidate memories to consider
+
+        Returns:
+            Relevant memory context string
+        """
+        if not self.memory_dir.exists():
+            return ""
+
+        memory_files = sorted(
+            self.memory_dir.glob("*.md"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if not memory_files:
+            return ""
+
+        # Load candidate files
+        candidates: List[Dict[str, Any]] = []
+        for mf in memory_files[:top_k * 3]:
+            try:
+                content = mf.read_text(encoding="utf-8")
+                candidates.append({"path": mf, "content": content})
+            except Exception:
+                continue
+
+        if not candidates:
+            return ""
+
+        # Try semantic ranking
+        try:
+            from app.services.context_engineering import (
+                calculate_embedding,
+                calculate_similarity,
+            )
+
+            query_embedding = calculate_embedding(query)
+            if query_embedding:
+                scored: List[Dict[str, Any]] = []
+                for cand in candidates:
+                    emb = calculate_embedding(cand["content"][:500])
+                    if emb:
+                        sim = calculate_similarity(query_embedding, emb)
+                        scored.append({**cand, "score": sim})
+                    else:
+                        scored.append({**cand, "score": 0.0})
+
+                scored.sort(key=lambda x: x["score"], reverse=True)
+                candidates = scored[:top_k]
+        except Exception as e:
+            logger.warning("semantic_memory_fallback", error=str(e))
+            candidates = candidates[:top_k]
+
+        # Build result within token budget
+        memory_parts: List[str] = []
+        used_tokens = 0
+        for cand in candidates:
+            tokens = self._estimate_tokens(cand["content"])
+            if used_tokens + tokens > max_tokens:
+                remaining = max_tokens - used_tokens
+                if remaining > 100:
+                    memory_parts.append(
+                        self._truncate_to_tokens(cand["content"], remaining)
+                    )
+                break
+            memory_parts.append(cand["content"])
+            used_tokens += tokens
+
+        if not memory_parts:
+            return ""
+
+        result = "\n\n---\n\n".join(memory_parts)
+        logger.info("relevant_memory_loaded", parts=len(memory_parts), tokens=used_tokens)
+        return result
+
+    def index_memories_to_chroma(self) -> Dict[str, int]:
+        """
+        Index all memory files into ChromaDB for persistent semantic search.
+
+        Returns:
+            Summary with indexed count
+        """
+        if not self.memory_dir.exists():
+            return {"indexed": 0}
+
+        try:
+            from app.tools.vector_store import VectorStore
+
+            vs = VectorStore({"collection_name": "session_memory"})
+            memory_files = list(self.memory_dir.glob("*.md"))
+
+            documents = []
+            metadatas = []
+            for mf in memory_files:
+                content = mf.read_text(encoding="utf-8")
+                documents.append({"id": mf.stem, "text": content})
+                metadatas.append({
+                    "source": "memory",
+                    "session_id": mf.stem,
+                    "mtime": datetime.fromtimestamp(mf.stat().st_mtime).isoformat(),
+                })
+
+            if documents:
+                import asyncio
+                asyncio.get_event_loop().run_until_complete(
+                    vs.add_documents(documents, metadatas)
+                )
+
+            logger.info("memories_indexed", count=len(documents))
+            return {"indexed": len(documents)}
+
+        except Exception as e:
+            logger.error("memory_indexing_failed", error=str(e))
+            return {"indexed": 0, "error": str(e)}
     
     def _estimate_tokens(self, text: str) -> int:
         """估算文本的 token 数量
