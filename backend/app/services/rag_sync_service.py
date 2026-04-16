@@ -366,38 +366,11 @@ class RAGSyncService:
 
     async def sync_all_articles(self, db: Session):
         """
-        同步所有文章
-
-        Args:
-            db: 数据库会话
+        Deprecated: Article table removed in Phase 5 cleanup.
+        This method is now a no-op.
         """
-        logger.info("🔄 开始同步所有文章...")
-
-        try:
-            from app.models.database import Article
-
-            articles = db.query(Article).all()
-
-            logger.info(f"📚 找到{len(articles)}篇文章")
-
-            for article in articles:
-                metadata = {
-                    "article_type": article.article_type,
-                    "status": article.status,
-                    "created_at": str(article.created_at)
-                }
-
-                await self.sync_article(
-                    article.id,
-                    article.title,
-                    article.content,
-                    metadata
-                )
-
-            logger.info(f"✅ 所有文章同步完成")
-
-        except Exception as e:
-            logger.error(f"❌ 同步所有文章失败: {str(e)}")
+        logger.warning("sync_all_articles is deprecated: Article table removed")
+        return
     
     async def sync_all_projects(self, db: Session):
         """

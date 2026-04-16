@@ -1484,18 +1484,6 @@ class ProcessOrchestrator:
         except Exception as e:
             logger.warning("deepseek_generation_failed", error=str(e))
 
-        # 回退到 Qwen
-        try:
-            from app.services.llm_service import QwenLLMService
-
-            qwen = QwenLLMService()
-            # QwenLLMService 没有 chat 接口，用 generate_article 兜底
-            # 但实际上我们应该使用通用的 chat 调用
-            # 这里构造一个简单回复，提示需要配置 LLM
-            pass
-        except Exception:
-            pass
-
         # 最终回退：返回结构化的提示
         return (
             "⚠️ LLM 服务暂不可用，以下是基于现有信息的初步建议：\n\n"

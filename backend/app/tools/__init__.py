@@ -78,7 +78,6 @@ def discover_tools() -> List[str]:
 
     # 新的标准 Tool 文件（使用 @ToolRegistry.register 装饰器）
     tool_modules = [
-        "rag_retriever",
         "terminology_tool",
         "compliance_tool",
         "document_tool",

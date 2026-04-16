@@ -16,7 +16,6 @@ from app.database import get_db
 from app.models.database import Material, CreationProject, EditorVersion, SearchResult, Figure, MaterialPage, WebImage, UploadedImage
 from app.services.llm_service import llm_service
 from app.services.document_processor import document_processor
-from app.services.rag_sync_service import get_rag_sync_service
 from app.services.vl_service import vl_service
 from app.shared.logging import get_logger
 logger = get_logger(__name__)

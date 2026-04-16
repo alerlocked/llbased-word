@@ -11,18 +11,6 @@ from sqlalchemy.orm import relationship
 # 创建基类
 Base = declarative_base()
 
-class Article(Base):
-    """稿件表"""
-    __tablename__ = "articles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255), nullable=False, comment="标题")
-    content = Column(Text, nullable=False, comment="内容")
-    article_type = Column(String(50), default="general", comment="文章类型: news/feature/interview/etc")
-    status = Column(String(20), default="draft", comment="状态: draft/published/archived")
-    created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
-
 class Project(Base):
     """项目表(用于管理音频文件) - 已废弃，保留用于兼容性"""
     __tablename__ = "projects"
@@ -151,22 +139,6 @@ class StyleLearningLog(Base):
     modified_content = Column(Text, comment="修改后内容")
     extracted_preferences = Column(JSON, comment="提取的偏好")
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
-
-
-class StyleArticle(Base):
-    """用户风格文章库表"""
-    __tablename__ = "style_articles"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, comment="用户ID")
-    title = Column(String(255), nullable=False, comment="文章标题")
-    content = Column(Text, nullable=False, comment="文章内容")
-    source = Column(String(50), nullable=False, comment="来源: upload/agent_generated/editor_saved")
-    source_id = Column(Integer, nullable=True, comment="来源ID（如article_id, project_id）")
-    is_trained = Column(Boolean, default=False, comment="是否已用于训练")
-    word_count = Column(Integer, default=0, comment="字数")
-    created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
 
 
 class Annotation(Base):

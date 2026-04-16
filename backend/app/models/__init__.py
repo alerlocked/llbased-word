@@ -1,5 +1,5 @@
 """数据库模型包"""
-from .database import Base, Article, Project, KnowledgeCard, NodeDocument
+from .database import Base, Project, KnowledgeCard, NodeDocument
 from .task_memory import (
     TaskMeta,
     TaskState,
@@ -18,7 +18,6 @@ from .task_memory import (
 __all__ = [
     # 数据库模型
     "Base",
-    "Article",
     "Project",
     "KnowledgeCard",
     "NodeDocument",
@@ -36,27 +35,3 @@ __all__ = [
     "ProcessState",
     "StateTransition",
 ]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
