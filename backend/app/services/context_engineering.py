@@ -474,83 +474,84 @@ class LongTermMemory(BaseMemory if LANGCHAIN_AVAILABLE else object):
 
     def _is_duplicate(self, memory: Dict[str, Any]) -> bool:
         """
-        检查是否重复（改进版：使用Embedding语义相似度）
-        
-        Args:
-            memory: 记忆项（包含content和可选的embedding）
-            
-        Returns:
-            bool: 是否重复
+        Check if memory is a duplicate.
+
+        Uses embedding similarity when available, falls back to text overlap.
         """
         content = memory.get("content", "")
         new_embedding = memory.get("embedding")
-        
-        # 必须有embedding才能进行语义去重
-        if not new_embedding:
-            logger.warning("⚠️ [LTM] 新记忆无embedding，跳过语义去重检查")
-            return False
-        
-        # 使用语义相似度检查
+
         similarity_threshold = getattr(settings, 'CONTEXT_SEMANTIC_DEDUP_THRESHOLD', 0.85)
-        
+
         for existing in self.memories:
+            existing_content = existing.get("content", "")
+
+            # Fast path: exact match
+            if content == existing_content:
+                return True
+
+            # Semantic similarity if embeddings available
             existing_embedding = existing.get("embedding")
-            if not existing_embedding:
-                # 如果已有记忆没有embedding，尝试计算（但可能影响性能）
-                existing_content = existing.get("content", "")
-                if existing_content:
-                    existing_embedding = calculate_embedding(existing_content)
-                    if existing_embedding:
-                        existing["embedding"] = existing_embedding  # 缓存embedding
-            
-            if existing_embedding:
+            if new_embedding and existing_embedding:
                 similarity = calculate_similarity(new_embedding, existing_embedding)
                 if similarity > similarity_threshold:
-                    logger.debug(
-                        f"🔄 [LTM] 语义重复检测：相似度={similarity:.3f} > {similarity_threshold}，"
-                        f"跳过重复记忆: {content[:30]}..."
-                    )
+                    logger.debug(f"[LTM] Semantic dedup: similarity={similarity:.3f}")
                     return True
-        
+
+            # Fallback: text overlap when no embeddings
+            if not new_embedding or not existing_embedding:
+                if len(content) > 10 and content[:10] in existing_content:
+                    return True
+
         return False
     
     def retrieve(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """
         检索相关记忆（使用Embedding语义搜索）
-        
+
         Args:
             query: 查询内容
             top_k: 返回Top-K结果
-            
+
         Returns:
             List[Dict[str, Any]]: 相关记忆列表
         """
         if not self.memories:
             return []
-        
-        # 使用Embedding进行语义搜索
+
+        # Use Embedding for semantic search
         query_embedding = calculate_embedding(query)
         if not query_embedding:
-            logger.warning(f"⚠️ [LTM] Embedding计算失败，无法检索: {query[:30]}...")
-            return []
-        
-        # 使用Embedding计算相似度
-        results = []
+            logger.warning(f"[LTM] Embedding unavailable, falling back to keyword retrieval")
+            return self._retrieve_by_keywords(query, top_k)
+
+        # Use stored embeddings where available, avoid N+1 API calls
+        results: List[Dict[str, Any]] = []
         for memory in self.memories:
-            # 计算记忆内容的embedding
-            memory_text = f"{memory['topic']} {memory['content']}"
-            memory_embedding = calculate_embedding(memory_text)
-            
+            memory_embedding = memory.get("embedding")
+            if not memory_embedding:
+                # Only compute if not already stored
+                memory_text = f"{memory['topic']} {memory['content']}"
+                memory_embedding = calculate_embedding(memory_text)
+                if memory_embedding:
+                    memory["embedding"] = memory_embedding  # cache for next time
+
             if memory_embedding:
                 similarity = calculate_similarity(query_embedding, memory_embedding)
                 results.append({
                     **memory,
                     "relevance_score": similarity
                 })
-        
-        # 按相关性排序
+            else:
+                # No embedding available, assign low score
+                results.append({
+                    **memory,
+                    "relevance_score": 0.0
+                })
+
+        # Sort by relevance
         results.sort(key=lambda x: x["relevance_score"], reverse=True)
-        logger.debug(f"📚 [LTM] 使用Embedding检索: 查询='{query[:30]}...', 找到{len(results)}条相关记忆")
+        logger.debug(f"[LTM] Retrieved {len(results)} memories for query='{query[:30]}...'")
         return results[:top_k]
     
     def _retrieve_by_keywords(self, query: str, top_k: int) -> List[Dict[str, Any]]:
