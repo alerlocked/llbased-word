@@ -171,6 +171,7 @@ class SearchAgent:
         # 依赖服务（延迟初始化）
         self._file_selector = None
         self._ontology_service = None
+        self._indexing_service = None
 
         logger.info(
             "search_agent_initialized",
@@ -432,6 +433,18 @@ class SearchAgent:
                 results.extend(rag_results)
                 search_stats["file_selector"] = "fallback_rag"
 
+            # Merge vector search results (semantic retrieval via ChromaDB)
+            vector_results = await self._vector_search(query, top_k=5, filters=filters)
+            if vector_results:
+                # Deduplicate by content hash
+                seen_hashes = {hashlib.md5(r.content.encode()).hexdigest() for r in results}
+                for vr in vector_results:
+                    content_hash = hashlib.md5(vr.content.encode()).hexdigest()
+                    if content_hash not in seen_hashes:
+                        results.append(vr)
+                        seen_hashes.add(content_hash)
+                search_stats["vector_count"] = len(vector_results)
+
         except Exception as e:
             logger.error("files_only_search_failed", error=str(e))
             search_stats["error"] = str(e)
@@ -584,9 +597,10 @@ class SearchAgent:
         knowledge_task = self._knowledge_only_search(
             query, allocation["knowledge"], filters
         )
+        vector_task = self._vector_search(query, top_k=8, filters=filters)
 
-        files_result, knowledge_result = await asyncio.gather(
-            files_task, knowledge_task, return_exceptions=True
+        files_result, knowledge_result, vector_results = await asyncio.gather(
+            files_task, knowledge_task, vector_task, return_exceptions=True
         )
 
         # 处理结果
@@ -610,6 +624,22 @@ class SearchAgent:
             search_stats["knowledge_tokens"] = knowledge_result.total_tokens
         else:
             search_stats["knowledge_error"] = str(knowledge_result)
+
+        # 添加向量检索结果
+        if isinstance(vector_results, list):
+            # Deduplicate against existing results
+            seen_hashes = {hashlib.md5(r.content.encode()).hexdigest() for r in all_results}
+            vector_added = 0
+            for vr in vector_results:
+                content_hash = hashlib.md5(vr.content.encode()).hexdigest()
+                if content_hash not in seen_hashes:
+                    all_results.append(vr)
+                    seen_hashes.add(content_hash)
+                    vector_added += 1
+            search_stats["vector_count"] = len(vector_results)
+            search_stats["vector_added"] = vector_added
+        else:
+            search_stats["vector_error"] = str(vector_results)
 
         # 按相关性排序
         all_results.sort(key=lambda r: r.relevance_score, reverse=True)
@@ -749,6 +779,65 @@ class SearchAgent:
         except ImportError:
             logger.debug("ontology_service_not_available")
             return None
+
+    async def _vector_search(
+        self,
+        query: str,
+        top_k: int = 5,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[SearchResult]:
+        """
+        Vector semantic search via ChromaDB.
+
+        Uses IndexingService to perform semantic retrieval over indexed
+        process document tables and text blocks.
+
+        Args:
+            query: Search query text
+            top_k: Number of results to return
+            filters: Optional metadata filters
+
+        Returns:
+            List of SearchResult from vector search
+        """
+        results: List[SearchResult] = []
+
+        try:
+            if self._indexing_service is None:
+                from app.services.indexing_service import IndexingService
+                self._indexing_service = IndexingService()
+
+            search_result = await self._indexing_service.search(
+                query=query, top_k=top_k, filters=filters
+            )
+
+            if not search_result.get("success"):
+                return results
+
+            for item in search_result.get("results", []):
+                text = item.get("text", "")
+                similarity = item.get("similarity", 0.0)
+                meta = item.get("metadata", {})
+                token_count = self._estimate_tokens(text)
+
+                results.append(SearchResult(
+                    content=text,
+                    source=f"vector:{meta.get('source', 'unknown')}",
+                    relevance_score=similarity,
+                    token_count=token_count,
+                    metadata={
+                        "page": meta.get("page"),
+                        "item_type": meta.get("item_type"),
+                        "table_type": meta.get("table_type"),
+                        "caption": meta.get("caption"),
+                        "retrieval_method": "vector",
+                    }
+                ))
+
+        except Exception as e:
+            logger.error("vector_search_failed", error=str(e))
+
+        return results
 
     async def _fallback_rag_search(
         self,

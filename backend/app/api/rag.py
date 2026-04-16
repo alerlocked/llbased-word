@@ -10,6 +10,7 @@ from datetime import datetime
 
 from app.database import get_db
 from app.services.rag_sync_service import get_rag_sync_service
+from app.services.indexing_service import IndexingService
 from app.shared.logging import get_logger
 logger = get_logger(__name__)
 
@@ -362,4 +363,91 @@ async def rag_health_check():
             "status": "error",
             "error": str(e)
         }
+
+
+# ============ IndexingService endpoints (Phase 2) ============
+
+_indexing_service: Optional[IndexingService] = None
+
+
+def _get_indexing_service() -> IndexingService:
+    """Get or create IndexingService singleton."""
+    global _indexing_service
+    if _indexing_service is None:
+        _indexing_service = IndexingService()
+    return _indexing_service
+
+
+class IndexDocumentRequest(BaseModel):
+    """Index document request"""
+    doc_name: str
+
+
+class SemanticSearchRequest(BaseModel):
+    """Semantic search request"""
+    query: str
+    top_k: int = 5
+    filters: Optional[dict] = None
+
+
+@router.post("/index-document")
+async def index_document(request: IndexDocumentRequest):
+    """
+    Index a single VLM-parsed document into ChromaDB.
+
+    Args:
+        request: Document name to index
+
+    Returns:
+        Indexing result with count of indexed items
+    """
+    service = _get_indexing_service()
+    result = await service.index_document(request.doc_name)
+    return result
+
+
+@router.post("/index-all")
+async def index_all_documents(background_tasks: BackgroundTasks):
+    """
+    Index all VLM-parsed documents into ChromaDB (runs in background).
+
+    Returns:
+        Task acknowledgment
+    """
+    service = _get_indexing_service()
+    background_tasks.add_task(service.index_all)
+    return {"message": "Indexing all documents in background", "status": "started"}
+
+
+@router.post("/search")
+async def semantic_search(request: SemanticSearchRequest):
+    """
+    Semantic search across indexed process documents.
+
+    Args:
+        request: Query and search parameters
+
+    Returns:
+        Search results ranked by semantic similarity
+    """
+    service = _get_indexing_service()
+    result = await service.search(
+        query=request.query,
+        top_k=request.top_k,
+        filters=request.filters,
+    )
+    return result
+
+
+@router.get("/indexed-sources")
+async def get_indexed_sources():
+    """
+    Get list of document sources currently indexed in ChromaDB.
+
+    Returns:
+        List of source document names
+    """
+    service = _get_indexing_service()
+    sources = await service.get_indexed_sources()
+    return {"sources": sources, "total": len(sources)}
 
