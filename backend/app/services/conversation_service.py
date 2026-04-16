@@ -8,11 +8,46 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
+from typing import TypedDict, Optional, Dict, Any
 from app.shared.logging import get_logger
 logger = get_logger(__name__)
 from app.models.database import ConversationSession
-from app.agents.workflows.creation_graph import GraphState
 from app.services.context_engineering import get_ltm
+from app.services.memory_service import MemoryService
+from app.config import settings
+
+
+# GraphState type alias - conversation state dict
+class GraphState(TypedDict, total=False):
+    user_input: str
+    user_id: Optional[int]
+    project_id: Optional[int]
+    session_id: str
+    plan: Optional[Any]
+    materials: Dict[str, Any]
+    content: str
+    review: Dict[str, Any]
+    current_step: str
+    intermediate_steps: list
+    conversation_history: list
+    pending_questions: list
+    user_confirmations: Dict[str, Any]
+    reference_texts: list
+    style_profile: Optional[Any]
+    business_scenario: Optional[Any]
+    plan_options: list
+    material_report: Optional[Any]
+    review_suggestions: Optional[Any]
+    shared_knowledge: Dict[str, Any]
+    knowledge_version: Dict[str, Any]
+    knowledge_update_history: list
+    agent_commands: list
+    command_results: Dict[str, Any]
+    call_stack: list
+    improvement_solutions: list
+    selected_solutions: list
+    todo_items: list
+    completed_todo_ids: list
 
 
 class ConversationService:
@@ -272,13 +307,45 @@ class ConversationService:
                     }
                     ltm.write(solution_text, metadata)
                     logger.info(f"💾 [ConversationService] 写入方案选择到LTM: {selected_solutions}")
-            
+
+            # 5. Save session summary for cross-session memory
+            if conversation_history:
+                self._save_session_summary(session_id, conversation_history)
+
             return True
             
         except Exception as e:
             logger.error(f"❌ 保存状态（上下文工程）失败: {str(e)}")
             return False
-    
+
+    def _save_session_summary(
+        self,
+        session_id: str,
+        conversation_history: list,
+    ) -> None:
+        """Save a brief summary of the conversation to MemoryService.
+
+        Called after every save_state_with_context_engineering so that
+        cross-session memory is always up to date.
+        """
+        try:
+            memory_dir = str(settings.DATA_DIR / "memory")
+            memory_service = MemoryService(memory_dir)
+
+            # Build summary from last few turns
+            recent = conversation_history[-6:] if len(conversation_history) > 6 else conversation_history
+            summary_lines = []
+            for msg in recent:
+                role = msg.get("role", "unknown") if isinstance(msg, dict) else "unknown"
+                content = msg.get("content", "")[:200] if isinstance(msg, dict) else str(msg)[:200]
+                role_label = "用户" if role == "user" else "助手"
+                summary_lines.append(f"{role_label}: {content}")
+            summary = "\n".join(summary_lines)
+
+            memory_service.save_summary(session_id=session_id, summary=summary)
+        except Exception as e:
+            logger.warning(f"[ConversationService] Session summary save skipped: {e}")
+
     def restore_state(
         self,
         db: Session,
