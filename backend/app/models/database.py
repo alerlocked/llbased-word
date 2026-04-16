@@ -127,7 +127,7 @@ class Figure(Base):
 class UserStyleProfile(Base):
     """用户风格档案表"""
     __tablename__ = "user_style_profiles"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, unique=True, nullable=False, comment="用户ID")
     style_profile = Column(JSON, nullable=False, comment="风格档案JSON")
@@ -136,6 +136,8 @@ class UserStyleProfile(Base):
     last_updated = Column(DateTime, default=datetime.utcnow, comment="最后更新时间")
     update_count = Column(Integer, default=0, comment="更新次数")
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
+    # Phase 4: dynamic preference schema (WritingPreferences JSON)
+    preference_schema = Column(JSON, default={}, comment="动态偏好 schema")
 
 
 class StyleLearningLog(Base):

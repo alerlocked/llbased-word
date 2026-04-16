@@ -300,6 +300,26 @@ class ProcessOrchestrator:
             else:
                 logger.warning("agent_not_available", agent=name)
 
+        # Load dynamic preferences into WritingAgent
+        self._load_writing_preferences()
+
+    def _load_writing_preferences(self) -> None:
+        """Load dynamic writing preferences into the writing agent."""
+        if "writing" not in self._agents:
+            return
+
+        try:
+            from app.models.profile import WritingPreferences
+
+            # TODO: Load from UserStyleProfile.preference_schema when
+            # user_id is available in session context. For now use defaults.
+            prefs = WritingPreferences()
+            writing_agent = self._agents["writing"]
+            if hasattr(writing_agent, "load_preferences"):
+                writing_agent.load_preferences(prefs)
+        except Exception as e:
+            logger.debug("preferences_load_skipped", error=str(e))
+
     async def create_task(
         self,
         task_name: str,

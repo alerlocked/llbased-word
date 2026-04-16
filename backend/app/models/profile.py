@@ -1,9 +1,9 @@
 """
 Profile 模型
 
-用户画像模型，包含写作配置和审查配置
+用户画像模型，包含写作配置、审查配置和动态偏好
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 import yaml
@@ -54,6 +54,65 @@ class ReviewConfig:
             check_accuracy=data.get("check_accuracy", True),
             allowed_deviation=data.get("allowed_deviation", 0.1)
         )
+
+
+@dataclass
+class WritingPreferences:
+    """
+    Dynamic writing preferences learned from user interactions.
+
+    Extends WritingConfig with structured preference data that evolves
+    as the user edits AI-generated content.
+    """
+    # Base config (inherited fields)
+    tone: str = "技术文档"
+    terminology: str = "standard"
+    detail_level: str = "详细"
+
+    # Learned preferences
+    preferred_sentence_length: str = "medium"  # short/medium/long
+    use_passive_voice: bool = True
+    include_examples: bool = True
+    include_caution_notes: bool = True
+    section_order_preference: List[str] = field(default_factory=list)
+    custom_vocabulary: Dict[str, str] = field(default_factory=dict)
+    avoid_phrases: List[str] = field(default_factory=list)
+
+    # Metadata
+    confidence: float = 0.0  # 0.0-1.0, how confident we are in these prefs
+    sample_count: int = 0    # Number of interactions used to learn
+    last_updated: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WritingPreferences":
+        return cls(
+            tone=data.get("tone", "技术文档"),
+            terminology=data.get("terminology", "standard"),
+            detail_level=data.get("detail_level", "详细"),
+            preferred_sentence_length=data.get("preferred_sentence_length", "medium"),
+            use_passive_voice=data.get("use_passive_voice", True),
+            include_examples=data.get("include_examples", True),
+            include_caution_notes=data.get("include_caution_notes", True),
+            section_order_preference=data.get("section_order_preference", []),
+            custom_vocabulary=data.get("custom_vocabulary", {}),
+            avoid_phrases=data.get("avoid_phrases", []),
+            confidence=data.get("confidence", 0.0),
+            sample_count=data.get("sample_count", 0),
+            last_updated=data.get("last_updated", ""),
+        )
+
+    def merge_update(self, updates: Dict[str, Any]) -> None:
+        """Merge partial updates, incrementing sample_count and confidence."""
+        for key, value in updates.items():
+            if hasattr(self, key) and value is not None:
+                setattr(self, key, value)
+        self.sample_count += 1
+        self.confidence = min(1.0, self.sample_count / 20.0)  # Max at 20 samples
+        from datetime import datetime
+        self.last_updated = datetime.now().isoformat()
 
 
 @dataclass

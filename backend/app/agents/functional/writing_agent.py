@@ -78,6 +78,9 @@ class WritingAgent(BaseAgent):
         # Search Agent 实例（依赖注入）
         self._search_agent: Optional[SearchAgent] = None
 
+        # Dynamic writing preferences (loaded per session)
+        self._writing_preferences: Optional["WritingPreferences"] = None
+
         # 版本历史（用于多轮修改）
         self._version_history: List[VersionHistory] = []
         self._current_version = 0
@@ -333,6 +336,47 @@ class WritingAgent(BaseAgent):
             "content": generated_content,
             "template": template
         }
+
+    def load_preferences(self, preferences: "WritingPreferences") -> None:
+        """
+        Load dynamic writing preferences for this session.
+
+        Args:
+            preferences: WritingPreferences instance
+        """
+        from app.models.profile import WritingPreferences
+        self._writing_preferences = preferences
+        logger.info("writing_preferences_loaded", confidence=preferences.confidence)
+
+    def _get_preference_prompt_fragment(self) -> str:
+        """Generate a prompt fragment from loaded preferences."""
+        if not self._writing_preferences:
+            return ""
+
+        prefs = self._writing_preferences
+        lines = []
+
+        if prefs.confidence > 0.3:
+            lines.append(f"- 语气: {prefs.tone}")
+            lines.append(f"- 详细程度: {prefs.detail_level}")
+            lines.append(f"- 句式长度偏好: {prefs.preferred_sentence_length}")
+
+            if not prefs.use_passive_voice:
+                lines.append("- 尽量使用主动语态")
+            if not prefs.include_examples:
+                lines.append("- 不需要举例说明")
+            if not prefs.include_caution_notes:
+                lines.append("- 不需要额外注意事项")
+
+            if prefs.avoid_phrases:
+                lines.append(f"- 避免使用: {', '.join(prefs.avoid_phrases[:5])}")
+            if prefs.custom_vocabulary:
+                for cn, en in list(prefs.custom_vocabulary.items())[:5]:
+                    lines.append(f"- 术语 {cn} 对应 {en}")
+
+        if lines:
+            return "\n## 用户写作偏好 (基于历史交互学习)\n" + "\n".join(lines)
+        return ""
 
     async def _search_knowledge(
         self,
