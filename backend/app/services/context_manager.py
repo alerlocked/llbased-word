@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
 from app.shared.logging import get_logger
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -61,8 +62,7 @@ class ContextManager:
             data_dir: exports_vlm_full目录路径（默认使用项目根目录下的data/exports_vlm_full）
         """
         if data_dir is None:
-            # 硬编码绝对路径测试
-            data_dir = r"D:\Project Nantianmen\projects\localknowledgebase-word\data\exports_vlm_full"
+            data_dir = str(settings.EXPORTS_VLM_DIR)
         self.data_dir = Path(data_dir)
         self._document_cache: Dict[str, List[Any]] = {}
         self._summary_cache: Optional[Dict[str, Any]] = None

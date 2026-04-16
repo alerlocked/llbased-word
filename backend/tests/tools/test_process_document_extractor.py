@@ -20,7 +20,7 @@ class TestProcessDocumentExtractor:
     def test_extract_sample_process_document(self):
         """测试提取样例工艺文件"""
         # 使用项目中的样例文件
-        pdf_path = "D:/ai_idea/localknowledgebase-word/backend/data/process_docs/全单电缆装配规程.pdf"
+        pdf_path = str(Path(__file__).parent.parent.parent / "data" / "process_docs" / "全单电缆装配规程.pdf")
 
         if not Path(pdf_path).exists():
             pytest.skip(f"测试文件不存在: {pdf_path}")
@@ -51,7 +51,7 @@ class TestProcessDocumentExtractor:
 
     def test_tool_list_extraction(self):
         """测试工具清单提取"""
-        pdf_path = "D:/ai_idea/localknowledgebase-word/backend/data/process_docs/全单电缆装配规程.pdf"
+        pdf_path = str(Path(__file__).parent.parent.parent / "data" / "process_docs" / "全单电缆装配规程.pdf")
 
         if not Path(pdf_path).exists():
             pytest.skip(f"测试文件不存在: {pdf_path}")
@@ -80,7 +80,7 @@ class TestProcessDocumentExtractor:
 
     def test_core_content_filtering(self):
         """测试核心内容过滤（忽略边缘内容）"""
-        pdf_path = "D:/ai_idea/localknowledgebase-word/backend/data/process_docs/全单电缆装配规程.pdf"
+        pdf_path = str(Path(__file__).parent.parent.parent / "data" / "process_docs" / "全单电缆装配规程.pdf")
 
         if not Path(pdf_path).exists():
             pytest.skip(f"测试文件不存在: {pdf_path}")
@@ -135,7 +135,7 @@ class TestProcessDocumentExtractor:
 
     def test_real_cable_assembly_document(self):
         """测试真实的电缆装配文档"""
-        pdf_path = "D:/ai_idea/localknowledgebase-word/backend/data/process_docs/全单电缆装配规程.pdf"
+        pdf_path = str(Path(__file__).parent.parent.parent / "data" / "process_docs" / "全单电缆装配规程.pdf")
 
         if not Path(pdf_path).exists():
             pytest.skip(f"测试文件不存在: {pdf_path}")

@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     CSV_EXPORTS_DIR: Path = DATA_DIR / "csv_exports"  # CSV表格导出目录
     LOGS_DIR: Path = DATA_DIR / "logs"  # 日志目录
 
+    # Project-root data directories (exports_vlm_full, standards, etc.)
+    PROJECT_ROOT: Path = BASE_DIR.parent  # project root directory
+    EXPORTS_VLM_DIR: Path = PROJECT_ROOT / "data" / "exports_vlm_full"  # VLM parsed results
+    EXPORTS_HTML_DIR: Path = PROJECT_ROOT / "data" / "exports_html"  # Generated HTML exports
+    STANDARDS_DIR: Path = PROJECT_ROOT / "data" / "standards_parsed"  # Parsed standards
+
     # 数据库配置
     DATABASE_URL: str = f"sqlite:///{DB_DIR}/craftdoc.db"
 
