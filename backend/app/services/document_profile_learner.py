@@ -1,12 +1,11 @@
 """
 DocumentProfileLearner - Extract user profile from parsed documents.
 
-Analyzes document content (from PDF parsing, standards, or user uploads)
-to extract terminology, style patterns, and structural preferences.
+Extracts triple-structured knowledge (subject, relation, object) from
+process documents, ready for direct migration to knowledge graphs.
 """
 import re
-import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 from collections import Counter
 from datetime import datetime
@@ -15,7 +14,6 @@ from app.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Common Chinese stop words to filter out from term extraction
 STOP_WORDS = {
     "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都",
     "一", "一个", "上", "也", "很", "到", "说", "要", "去", "你",
@@ -28,7 +26,7 @@ STOP_WORDS = {
 
 
 class DocumentProfileLearner:
-    """Extract profile features from parsed document content."""
+    """Extract profile features and triple-structured knowledge from documents."""
 
     def learn_from_content(
         self,
@@ -37,15 +35,7 @@ class DocumentProfileLearner:
         document_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Extract profile features from document text.
-
-        Args:
-            content: Parsed document text content
-            domain: Document domain (assembly, welding, coating)
-            document_id: Source document ID for traceability
-
-        Returns:
-            Extracted profile features ready to merge into Profile
+        Extract profile features including triples from document text.
         """
         features: Dict[str, Any] = {
             "domain": domain,
@@ -55,35 +45,109 @@ class DocumentProfileLearner:
         if document_id:
             features["source_document_id"] = document_id
 
-        # 1. Extract terminology frequency
-        features["frequent_terms"] = self._extract_terms(content)
+        # 1. Extract triples (core knowledge structure)
+        features["triples"] = self._extract_triples(content)
 
-        # 2. Extract document structure patterns
-        features["document_patterns"] = self._extract_patterns(content)
+        # 2. Extract term frequency (supplementary)
+        features["frequent_terms"] = self._extract_terms(content)
 
         # 3. Extract style indicators
         style = self._extract_style(content)
         features.update(style)
 
-        # 4. Generate compact summary
-        features["ai_generated_summary"] = self._generate_summary(content, domain)
+        # 4. Generate summary
+        features["ai_generated_summary"] = self._generate_summary(
+            content, domain, len(features["triples"])
+        )
 
         logger.info(
             "document_profile_learned",
             domain=domain,
-            terms_count=len(features["frequent_terms"]),
-            patterns_count=len(features["document_patterns"]),
+            triples=len(features["triples"]),
+            terms=len(features["frequent_terms"]),
         )
         return features
 
-    def _extract_terms(self, content: str) -> Dict[str, int]:
+    def _extract_triples(self, content: str) -> List[Dict[str, str]]:
         """
-        Extract high-frequency technical terms.
+        Extract (subject, relation, object) triples from process documents.
 
-        Returns terms sorted by frequency, top 50.
+        Uses rule-based patterns common in Chinese process documentation:
+        - "XX温度控制在YY" → (XX, 温度, YY)
+        - "使用XX拧紧" → (当前工序, 使用, XX)
+        - "XX力矩为YY" → (XX, 力矩, YY)
+        - "按XX标准执行" → (检验, 标准, XX)
         """
-        # Extract noun-like phrases: 2-4 char Chinese words excluding stop words
-        # Technical terms often appear as: XX工艺, XX参数, XX要求, XX设备
+        triples: List[Dict[str, str]] = []
+        seen: set = set()
+
+        def _add(s: str, r: str, o: str) -> None:
+            key = f"{s}|{r}|{o}"
+            if key not in seen and len(s) >= 2 and len(o) >= 2:
+                seen.add(key)
+                triples.append({"s": s, "r": r, "o": o})
+
+        # Pattern 1: quantity specs — "温度控制在800-850°C" / "力矩为45±5 N·m"
+        qty_patterns = [
+            (r"([\u4e00-\u9fff]{0,6})(?:温度|温度控制)(?:为|在|应[为在])?([\d\-±~.]+\s*(?:°C|度|℃))", "温度"),
+            (r"([\u4e00-\u9fff]{0,6})(?:力矩|扭矩)(?:为|是|应[为在])?([\d\-±~.]+\s*(?:N·m|Nm|N\.m|kgf))", "力矩"),
+            (r"([\u4e00-\u9fff]{0,6})(?:压力)(?:为|在|应[为在])?([\d\-±~.]+\s*(?:MPa|Pa|kPa|bar))", "压力"),
+            (r"([\u4e00-\u9fff]{0,6})(?:时间|保温时间|保压时间)(?:为|是|不少于)?([\d\-±~.]+\s*(?:小时|min|s|秒|分钟))", "时间"),
+            (r"([\u4e00-\u9fff]{0,6})(?:速度|进给速度)(?:为|是|应[为在])?([\d\-±~.]+\s*(?:mm/min|cm/min|m/min|r/min|rpm))", "速度"),
+            (r"([\u4e00-\u9fff]{0,6})(?:间隙|公差|精度)(?:为|是|应[为在])?([\d\-±~.]+\s*mm)", "公差"),
+            (r"([\u4e00-\u9fff]{0,6})(?:硬度)(?:为|应[为在达到])?([\d\-±~.]+\s*(?:HRC|HB|HV|HRB))", "硬度"),
+        ]
+        current_section = self._guess_current_section(content)
+        for pattern, relation in qty_patterns:
+            for match in re.finditer(pattern, content):
+                subject = match.group(1) if match.group(1) else current_section
+                _add(subject, relation, match.group(2))
+
+        # Pattern 2: standards references — "按XX标准执行" / "符合XX"
+        std_matches = re.findall(
+            r"按\s*([\u4e00-\u9fff]+[/T\d]*\s*[\u4e00-\u9fff]*(?:\d+(?:\.\d+)*)?)\s*(?:标准|规范|规程|要求)",
+            content,
+        )
+        for std in std_matches:
+            _add("检验", "标准", std.strip())
+
+        # Pattern 3: tool/equipment usage — "使用XX" / "采用XX方法"
+        tool_matches = re.findall(
+            r"(?:使用|采用|选用|使用)\s*([\u4e00-\u9fff]{2,10}(?:螺栓|扳手|量具|工具|设备|仪器|焊机|卡尺))",
+            content,
+        )
+        context_section = self._guess_current_section(content)
+        for tool in tool_matches:
+            _add(context_section, "使用", tool.strip())
+
+        # Pattern 4: process flow — "XX后进行YY" / "先XX再YY"
+        flow_matches = re.findall(
+            r"([\u4e00-\u9fff]{2,6})(?:后|完成后|合格后)\s*(?:进行|开始|转入)\s*([\u4e00-\u9fff]{2,6})",
+            content,
+        )
+        for before, after in flow_matches:
+            _add(before.strip(), "下一步", after.strip())
+
+        # Pattern 5: safety constraints — "严禁XX" / "禁止XX"
+        safety_matches = re.findall(
+            r"(?:严禁|禁止|不得|不允许)\s*([\u4e00-\u9fff]{2,15})",
+            content,
+        )
+        for safety in safety_matches:
+            _add(context_section, "禁止", safety.strip())
+
+        return triples[:100]
+
+    def _guess_current_section(self, content: str) -> str:
+        """Guess the current process section from context."""
+        # Look for the nearest numbered section header
+        sections = re.findall(r"(?:^|\n)\s*\d+(?:\.\d+)*\s+([\u4e00-\u9fff]{2,8})", content)
+        if sections:
+            return sections[-1].strip()
+        return "工艺"
+
+    def _extract_terms(self, content: str) -> Dict[str, int]:
+        """Extract high-frequency technical terms."""
         term_patterns = [
             r"[\u4e00-\u9fff]{2,4}(?:工艺|参数|要求|设备|方法|标准|规范|规程|检验|试验|测量)",
             r"[\u4e00-\u9fff]{2,4}(?:温度|压力|时间|速度|力矩|精度|公差|表面|硬度)",
@@ -92,108 +156,47 @@ class DocumentProfileLearner:
 
         counter: Counter = Counter()
         for pattern in term_patterns:
-            matches = re.findall(pattern, content)
-            for m in matches:
+            for m in re.findall(pattern, content):
                 if m not in STOP_WORDS and len(m) >= 2:
                     counter[m] += 1
 
-        # Also extract terms from numbered items: 1. xxx 2. xxx
-        numbered_items = re.findall(r"\d+[.、]\s*([^\n]{2,20})", content)
-        for item in numbered_items:
-            item = item.strip()
-            if item not in STOP_WORDS and len(item) >= 2:
-                counter[item] += 1
-
         return dict(counter.most_common(50))
-
-    def _extract_patterns(self, content: str) -> List[str]:
-        """
-        Extract document structural patterns.
-
-        Detects heading patterns, table references, section structures.
-        """
-        patterns: List[str] = []
-
-        # Detect heading patterns
-        headings = re.findall(r"(?:^|\n)(#{1,4}\s+.+)", content)
-        if headings:
-            patterns.extend([h.strip() for h in headings[:10]])
-
-        # Detect numbered section patterns
-        sections = re.findall(r"(?:^|\n)(\d+(?:\.\d+)*\s+[^\n]{2,30})", content)
-        if sections:
-            patterns.extend([s.strip() for s in sections[:10]])
-
-        # Detect table-like patterns
-        tables = re.findall(r"\|.+\|.+\|", content)
-        if tables:
-            patterns.append(f"tables:{len(tables)}")
-
-        return patterns[:20]
 
     def _extract_style(self, content: str) -> Dict[str, Any]:
         """Extract writing style indicators."""
         style: Dict[str, Any] = {}
 
-        # Sentence length
-        sentences = re.split(r"[。！？\n]+", content)
-        sentences = [s.strip() for s in sentences if s.strip()]
+        sentences = [s.strip() for s in re.split(r"[。！？\n]+", content) if s.strip()]
         if sentences:
             avg_len = sum(len(s) for s in sentences) / len(sentences)
-            if avg_len < 20:
-                style["preferred_sentence_length"] = "short"
-            elif avg_len > 50:
-                style["preferred_sentence_length"] = "long"
-            else:
-                style["preferred_sentence_length"] = "medium"
+            style["preferred_sentence_length"] = (
+                "short" if avg_len < 20 else ("long" if avg_len > 50 else "medium")
+            )
 
-        # Passive voice tendency
-        passive_markers = len(re.findall(r"被|受|由.*?(?:完成|处理|执行)", content))
-        active_markers = len(re.findall(r"将|把|使", content))
-        if passive_markers + active_markers > 0:
-            style["use_passive_voice"] = passive_markers > active_markers
+        passive = len(re.findall(r"被|受|由.*?(?:完成|处理|执行)", content))
+        active = len(re.findall(r"将|把|使", content))
+        if passive + active > 0:
+            style["use_passive_voice"] = passive > active
 
-        # Caution/safety notes presence
-        has_caution = bool(re.search(r"注意|警告|安全|危险|禁止|严禁", content))
-        style["include_caution_notes"] = has_caution
-
+        style["include_caution_notes"] = bool(
+            re.search(r"注意|警告|安全|危险|禁止|严禁", content)
+        )
         return style
 
-    def _generate_summary(self, content: str, domain: str) -> str:
-        """
-        Generate a compact profile summary from document content.
+    def _generate_summary(self, content: str, domain: str, triple_count: int) -> str:
+        """Generate a compact profile summary."""
+        domain_labels = {"assembly": "装配", "welding": "焊接", "coating": "涂装"}
+        label = domain_labels.get(domain, domain)
 
-        This is a rule-based summary (no LLM call). Can be upgraded
-        to LLM-generated summary later for richer extraction.
-        """
-        domain_labels = {
-            "assembly": "装配",
-            "welding": "焊接",
-            "coating": "涂装",
-        }
-        domain_label = domain_labels.get(domain, domain)
-
-        # Extract first meaningful paragraph as basis
         paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
-        first_para = paragraphs[0][:100] if paragraphs else ""
+        first = paragraphs[0][:100] if paragraphs else ""
 
-        # Count key indicators
-        term_count = len(self._extract_terms(content))
-        has_tables = bool(re.search(r"\|.+\|.+\|", content))
-        has_specs = bool(re.search(r"\d+(?:\.\d+)?\s*(?:mm|cm|m|kg|N|MPa|°C|度)", content))
-
-        summary_parts = [
-            f"[{domain_label}]领域工艺文件画像",
-            f"提取术语{term_count}个",
-        ]
-        if has_tables:
-            summary_parts.append("含表格数据")
-        if has_specs:
-            summary_parts.append("含数值规格")
-        if first_para:
-            summary_parts.append(f"摘要: {first_para}")
-
-        return "。".join(summary_parts)
+        parts = [f"[{label}]领域工艺文件画像", f"三元组{triple_count}条"]
+        if re.search(r"\d+(?:\.\d+)?\s*(?:mm|cm|m|kg|N|MPa|°C|度)", content):
+            parts.append("含数值规格")
+        if first:
+            parts.append(f"摘要: {first}")
+        return "。".join(parts)
 
     def merge_features_to_profile(
         self,
@@ -201,48 +204,43 @@ class DocumentProfileLearner:
         features: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        Merge extracted features into an existing profile.
+        Merge extracted features into existing profile.
 
-        Args:
-            profile_data: Current profile as dict
-            features: Features from learn_from_content
-
-        Returns:
-            Updated profile dict
+        Triples are deduplicated by (s, r, o) key.
         """
-        # Merge frequent terms (accumulate counts)
+        # Merge triples (deduplicate by s|r|o key)
+        existing_triples = profile_data.get("triples", [])
+        seen_keys = {f"{t['s']}|{t['r']}|{t['o']}" for t in existing_triples}
+        for t in features.get("triples", []):
+            key = f"{t['s']}|{t['r']}|{t['o']}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                existing_triples.append(t)
+        profile_data["triples"] = existing_triples[:200]
+
+        # Merge frequent terms (accumulate)
         existing_terms: Dict[str, int] = profile_data.get("frequent_terms", {})
-        new_terms: Dict[str, int] = features.get("frequent_terms", {})
-        for term, count in new_terms.items():
+        for term, count in features.get("frequent_terms", {}).items():
             existing_terms[term] = existing_terms.get(term, 0) + count
         profile_data["frequent_terms"] = dict(
             sorted(existing_terms.items(), key=lambda x: -x[1])[:100]
         )
 
-        # Merge document patterns (deduplicate)
-        existing_patterns = set(profile_data.get("document_patterns", []))
-        for p in features.get("document_patterns", []):
-            existing_patterns.add(p)
-        profile_data["document_patterns"] = list(existing_patterns)[:30]
-
-        # Update style preferences (latest wins)
+        # Update style preferences
         for key in ("preferred_sentence_length", "use_passive_voice", "include_caution_notes"):
             if key in features:
                 profile_data.setdefault("preferences", {})[key] = features[key]
 
-        # Update summary
         if features.get("ai_generated_summary"):
             profile_data["ai_generated_summary"] = features["ai_generated_summary"]
 
-        # Track source document
         doc_id = features.get("source_document_id")
         if doc_id:
-            source_ids = profile_data.get("source_document_ids", [])
-            if doc_id not in source_ids:
-                source_ids.append(doc_id)
-            profile_data["source_document_ids"] = source_ids
+            ids = profile_data.get("source_document_ids", [])
+            if doc_id not in ids:
+                ids.append(doc_id)
+            profile_data["source_document_ids"] = ids
 
-        # Update domain
         if features.get("domain"):
             profile_data["domain"] = features["domain"]
 

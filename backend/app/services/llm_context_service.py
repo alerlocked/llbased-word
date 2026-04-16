@@ -111,9 +111,9 @@ class LLMContextService:
         context_parts.append(system_context)
         token_breakdown["system"] = system_tokens
         
-        # Layer 1: Profile (通过 ContextService 加载)
+        # Layer 1: Profile (through ContextService, loads JSON or YAML)
         profile = self.context_service.load_profile(user_id=profile_name, domain="assembly")
-        profile_context = profile.to_prompt_context() if hasattr(profile, 'to_prompt_context') else str(profile)
+        profile_context = profile.to_context_text() if hasattr(profile, 'to_context_text') else str(profile)
         profile_tokens = self._estimate_tokens(profile_context)
         
         if profile_tokens > budget["profile"]:

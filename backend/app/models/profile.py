@@ -121,9 +121,21 @@ class Profile:
     用户画像
 
     包含用户的写作偏好、审查标准和从文档学习的领域知识。
-    数据结构设计预留了知识图谱迁移空间：
-    - frequent_terms → 图谱节点 (Term)
-    - document_patterns → 图谱节点 (Pattern) + 关系 (USES_PATTERN)
+    核心数据结构为三元组 (subject, relation, object)，可直接迁移到图数据库。
+
+    JSON 存储示例：
+    {
+      "triples": [
+        {"s": "M12螺栓拧紧", "r": "力矩", "o": "45±5 N·m"},
+        {"s": "热处理", "r": "温度", "o": "800-850°C"},
+        {"s": "装配工艺", "r": "使用", "o": "对角交叉拧紧"}
+      ]
+    }
+
+    图谱迁移映射：
+    - triples[i].s → Node(:Entity {name})
+    - triples[i].r → Edge(:RELATION {type})
+    - triples[i].o → Node(:Value {name}) 或 Node(:Entity {name})
     """
     id: str
     user_id: str
@@ -132,9 +144,12 @@ class Profile:
     review: ReviewConfig = field(default_factory=ReviewConfig)
     preferences: WritingPreferences = field(default_factory=WritingPreferences)
 
-    # Domain knowledge extracted from documents (graph-ready structure)
+    # Domain knowledge: triple structure (graph-ready)
+    triples: List[Dict[str, str]] = field(default_factory=list)
+
+    # Kept for backward compat and quick term lookup
     frequent_terms: Dict[str, int] = field(default_factory=dict)
-    document_patterns: List[str] = field(default_factory=list)
+
     ai_generated_summary: str = ""
     source_document_ids: List[str] = field(default_factory=list)
 
@@ -146,8 +161,8 @@ class Profile:
             "writing": self.writing.to_dict(),
             "review": self.review.to_dict(),
             "preferences": self.preferences.to_dict(),
+            "triples": self.triples,
             "frequent_terms": self.frequent_terms,
-            "document_patterns": self.document_patterns,
             "ai_generated_summary": self.ai_generated_summary,
             "source_document_ids": self.source_document_ids,
         }
@@ -155,7 +170,6 @@ class Profile:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Profile":
         prefs_data = data.get("preferences", {})
-        # Handle case where preferences might be stored as WritingConfig-like fields
         if not prefs_data and any(k in data for k in ["preferred_sentence_length", "custom_vocabulary"]):
             prefs_data = {k: data[k] for k in data if k in [
                 "preferred_sentence_length", "use_passive_voice",
@@ -169,11 +183,29 @@ class Profile:
             writing=WritingConfig.from_dict(data.get("writing", {})),
             review=ReviewConfig.from_dict(data.get("review", {})),
             preferences=WritingPreferences.from_dict(prefs_data),
+            triples=data.get("triples", []),
             frequent_terms=data.get("frequent_terms", {}),
-            document_patterns=data.get("document_patterns", []),
             ai_generated_summary=data.get("ai_generated_summary", ""),
             source_document_ids=data.get("source_document_ids", []),
         )
+
+    def to_context_text(self, max_tokens: int = 300) -> str:
+        """Render profile as context text for LLM injection."""
+        parts: List[str] = []
+        parts.append(f"领域: {self.domain}")
+        parts.append(f"语气: {self.writing.tone}, 详细程度: {self.writing.detail_level}")
+
+        if self.ai_generated_summary:
+            parts.append(f"画像摘要: {self.ai_generated_summary}")
+
+        # Render top triples as structured knowledge
+        if self.triples:
+            triple_lines = []
+            for t in self.triples[:30]:
+                triple_lines.append(f"- {t['s']} [{t['r']}] {t['o']}")
+            parts.append("领域知识:\n" + "\n".join(triple_lines))
+
+        return "\n".join(parts)
     
     @classmethod
     def from_yaml(cls, yaml_path: Path) -> "Profile":

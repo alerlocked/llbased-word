@@ -127,30 +127,50 @@ class ContextService:
     def load_profile(self, user_id: str, domain: str) -> Profile:
         """
         加载用户画像
-        
+
+        Lookup order:
+        1. JSON profile (from profile API: data/profiles/{user_id}.json)
+        2. YAML profile (legacy: .project-meta/profiles/{user_id}_{domain}.yaml)
+        3. Default profile
+
         Args:
             user_id: 用户ID
             domain: 领域
-            
+
         Returns:
             Profile 对象
         """
+        import json
+        from app.config import settings
+
         cache_key = f"{user_id}_{domain}"
         if cache_key in self._profile_cache:
             return self._profile_cache[cache_key]
-        
-        # 尝试加载用户画像
-        user_profile_path = self.profiles_dir / f"{user_id}_{domain}.yaml"
-        if user_profile_path.exists():
+
+        # 1. Try JSON profile from profile API storage
+        json_path = Path(settings.DATA_DIR) / "profiles" / f"{user_id}.json"
+        if json_path.exists():
             try:
-                profile = Profile.from_yaml(user_profile_path)
+                data = json.loads(json_path.read_text(encoding="utf-8"))
+                profile = Profile.from_dict(data)
                 self._profile_cache[cache_key] = profile
-                logger.info("loaded_user_profile", user_id=user_id, domain=domain)
+                logger.info("loaded_json_profile", user_id=user_id, domain=domain)
                 return profile
             except Exception as e:
-                logger.error("failed_to_load_user_profile", error=str(e), path=str(user_profile_path))
-        
-        # 返回默认画像
+                logger.error("failed_to_load_json_profile", error=str(e))
+
+        # 2. Try legacy YAML profile
+        yaml_path = self.profiles_dir / f"{user_id}_{domain}.yaml"
+        if yaml_path.exists():
+            try:
+                profile = Profile.from_yaml(yaml_path)
+                self._profile_cache[cache_key] = profile
+                logger.info("loaded_yaml_profile", user_id=user_id, domain=domain)
+                return profile
+            except Exception as e:
+                logger.error("failed_to_load_yaml_profile", error=str(e))
+
+        # 3. Default profile
         default_profile = self._load_default_profile(domain)
         self._profile_cache[cache_key] = default_profile
         logger.info("loaded_default_profile", user_id=user_id, domain=domain)

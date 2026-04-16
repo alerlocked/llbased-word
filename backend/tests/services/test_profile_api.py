@@ -62,10 +62,13 @@ class TestDocumentProfileLearner:
         learner = DocumentProfileLearner()
         features = learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly")
 
-        patterns = features["document_patterns"]
-        assert isinstance(patterns, list)
-        # Should detect numbered sections
-        assert any("装配" in p or "检验" in p for p in patterns)
+        # Should extract triples (replaces old document_patterns)
+        triples = features["triples"]
+        assert isinstance(triples, list)
+        assert len(triples) > 0
+        # Verify triple structure: {s, r, o}
+        for t in triples:
+            assert "s" in t and "r" in t and "o" in t
 
     def test_learn_from_content_extracts_style(self):
         from app.services.document_profile_learner import DocumentProfileLearner
@@ -97,28 +100,70 @@ class TestDocumentProfileLearner:
         assert isinstance(features, dict)
         assert "frequent_terms" in features
 
+    def test_triple_extraction_from_process_doc(self):
+        """Verify triples are extracted with correct s-r-o structure."""
+        from app.services.document_profile_learner import DocumentProfileLearner
+
+        learner = DocumentProfileLearner()
+        features = learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly")
+
+        triples = features["triples"]
+        # Should extract temperature spec
+        temp_triples = [t for t in triples if t["r"] == "温度"]
+        assert len(temp_triples) > 0
+        assert "800" in temp_triples[0]["o"] or "850" in temp_triples[0]["o"]
+
+        # Should extract torque spec
+        torque_triples = [t for t in triples if t["r"] == "力矩"]
+        assert len(torque_triples) > 0
+        assert "45" in torque_triples[0]["o"]
+
+        # Should extract safety constraints
+        safety_triples = [t for t in triples if t["r"] == "禁止"]
+        assert len(safety_triples) > 0
+
+    def test_to_context_text_renders_triples(self):
+        """Profile.to_context_text should include triple knowledge."""
+        from app.models.profile import Profile
+
+        profile = Profile(
+            id="test",
+            user_id="u1",
+            domain="assembly",
+            triples=[
+                {"s": "M12螺栓拧紧", "r": "力矩", "o": "45±5 N·m"},
+                {"s": "热处理", "r": "温度", "o": "800-850°C"},
+            ],
+        )
+        text = profile.to_context_text()
+        assert "领域知识" in text
+        assert "M12螺栓拧紧" in text
+        assert "45±5" in text
+
     def test_merge_features_accumulates_terms(self):
         from app.services.document_profile_learner import DocumentProfileLearner
 
         learner = DocumentProfileLearner()
         profile_data = {
+            "triples": [],
             "frequent_terms": {"装配工艺": 5, "检验": 3},
-            "document_patterns": [],
             "source_document_ids": [],
         }
         features = {
+            "triples": [{"s": "热处理", "r": "温度", "o": "800-850°C"}],
             "frequent_terms": {"装配工艺": 2, "热处理": 4},
-            "document_patterns": ["3.1 工艺步骤"],
             "ai_generated_summary": "test summary",
             "domain": "assembly",
         }
 
         merged = learner.merge_features_to_profile(profile_data, features)
 
-        # "装配工艺" should accumulate: 5 + 2 = 7
+        # Terms accumulate
         assert merged["frequent_terms"]["装配工艺"] == 7
         assert merged["frequent_terms"]["热处理"] == 4
-        assert "3.1 工艺步骤" in merged["document_patterns"]
+        # Triples are added
+        assert len(merged["triples"]) == 1
+        assert merged["triples"][0]["r"] == "温度"
 
     def test_merge_deduplicates_source_ids(self):
         from app.services.document_profile_learner import DocumentProfileLearner
