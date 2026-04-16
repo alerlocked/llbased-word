@@ -64,7 +64,7 @@ class LLMContextService:
         
         logger.info(
             f"[上下文服务] 初始化完成: "
-            f"profile_dir={profile_dir}, memory_dir={memory_dir}, data_dir={data_dir}"
+            f"base_path={base_path}, memory_dir={memory_dir}, data_dir={data_dir}"
         )
     
     def build_context(
@@ -136,7 +136,7 @@ class LLMContextService:
         # Layer 3: 检索层
         # 计算剩余预算
         used_tokens = sum(token_breakdown.values())
-        rag_budget = min(budget["rag"], max_tokens - used_tokens - budget["reserved"])
+        rag_budget = min(budget["retrieval"], max_tokens - used_tokens - budget["reserved"])
         
         if rag_budget > 0:
             # 设置 HierarchicalContext 的 token 限制
