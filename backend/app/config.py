@@ -41,12 +41,6 @@ class Settings(BaseSettings):
     # 数据库配置
     DATABASE_URL: str = f"sqlite:///{DB_DIR}/craftdoc.db"
 
-    # Redis配置（用于Celery任务队列）
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_DB: int = 0
-    REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-
     # 通义千问统一配置
     DASHSCOPE_API_KEY: str = ""
     DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # 文本API
