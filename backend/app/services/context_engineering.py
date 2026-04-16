@@ -1185,35 +1185,43 @@ class ContextCompressor:
     def _compress_key_info(self, history: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """
         关键信息提取法（简化版：保留包含关键词的句子）
-        
+
         Args:
             history: 对话历史
-            
+
         Returns:
             List[Dict[str, str]]: 压缩后的历史
         """
         key_keywords = ["决定", "选择", "确认", "需求", "方案", "问题", "目标"]
         compressed = []
-        
+
         for msg in history:
             content = msg.get("content", "")
-            # 提取包含关键词的句子
+
+            # Short messages are kept as-is (confirmations, brief replies)
+            if len(content) <= 100:
+                compressed.append({
+                    "role": msg.get("role", "user"),
+                    "content": content
+                })
+                continue
+
+            # Extract sentences containing key keywords
             sentences = re.split(r'[。！？\n]', content)
             key_sentences = [s.strip() for s in sentences if any(kw in s for kw in key_keywords) and s.strip()]
-            
+
             if key_sentences:
-                compressed_content = "。".join(key_sentences[:3])  # 最多3个关键句子
+                compressed_content = "。".join(key_sentences[:3])
                 compressed.append({
                     "role": msg.get("role", "user"),
                     "content": compressed_content
                 })
             else:
-                # 保留原始消息（如果没有关键词，保留前50字）
                 compressed.append({
                     "role": msg.get("role", "user"),
-                    "content": content[:50] + "..." if len(content) > 50 else content
+                    "content": content[:50] + "..."
                 })
-        
+
         return compressed
     
     def _compress_summary(self, history: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -1298,7 +1306,18 @@ class ProgressiveContextLoader:
         if depth in ["medium", "deep"] and len(conversation_history) > 5:
             layer2_history = conversation_history[-20:-5]  # 6-20轮
             if layer2_history:
-                context["layer2"] = self.compressor.compress(layer2_history, method="key_info")
+                # Only compress if threshold is met
+                history_tokens = sum(
+                    len(m.get("content", "")) for m in layer2_history
+                )
+                if self.compressor.should_compress(
+                    current_tokens=history_tokens,
+                    max_tokens=settings.CONTEXT_MODEL_WINDOW_SIZE,
+                    history_turns=len(layer2_history) // 2,
+                ):
+                    context["layer2"] = self.compressor.compress(layer2_history, method="key_info")
+                else:
+                    context["layer2"] = layer2_history
         
         # Layer 3：LTM上下文（如果需要深度加载）
         if depth == "deep" and ltm:
