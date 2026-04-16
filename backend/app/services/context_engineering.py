@@ -451,12 +451,24 @@ class LongTermMemory(BaseMemory if LANGCHAIN_AVAILABLE else object):
                 "topic": memory["topic"],
                 "timestamp": memory["timestamp"],
             }]
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If called from async context, schedule as task
-                asyncio.ensure_future(vs.add_documents(documents, metadatas))
+
+            async def _do_persist():
+                await vs.add_documents(documents, metadatas)
+
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Already in async context — spawn a background thread
+                import threading
+                def _run_in_thread():
+                    asyncio.run(_do_persist())
+                t = threading.Thread(target=_run_in_thread, daemon=True)
+                t.start()
             else:
-                loop.run_until_complete(vs.add_documents(documents, metadatas))
+                asyncio.run(_do_persist())
         except Exception as e:
             logger.debug(f"[LTM] ChromaDB persist skipped: {e}")
 

@@ -314,9 +314,24 @@ class MemoryService:
 
             if documents:
                 import asyncio
-                asyncio.get_event_loop().run_until_complete(
-                    vs.add_documents(documents, metadatas)
-                )
+
+                async def _do_index():
+                    await vs.add_documents(documents, metadatas)
+
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+
+                if loop and loop.is_running():
+                    import threading
+                    def _run():
+                        asyncio.run(_do_index())
+                    t = threading.Thread(target=_run, daemon=True)
+                    t.start()
+                    t.join(timeout=10)
+                else:
+                    asyncio.run(_do_index())
 
             logger.info("memories_indexed", count=len(documents))
             return {"indexed": len(documents)}
