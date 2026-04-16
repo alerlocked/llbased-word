@@ -119,32 +119,60 @@ class WritingPreferences:
 class Profile:
     """
     用户画像
-    
-    包含用户的写作偏好和审查标准
+
+    包含用户的写作偏好、审查标准和从文档学习的领域知识。
+    数据结构设计预留了知识图谱迁移空间：
+    - frequent_terms → 图谱节点 (Term)
+    - document_patterns → 图谱节点 (Pattern) + 关系 (USES_PATTERN)
     """
     id: str
     user_id: str
     domain: str  # assembly, welding, coating, etc.
     writing: WritingConfig = field(default_factory=WritingConfig)
     review: ReviewConfig = field(default_factory=ReviewConfig)
-    
+    preferences: WritingPreferences = field(default_factory=WritingPreferences)
+
+    # Domain knowledge extracted from documents (graph-ready structure)
+    frequent_terms: Dict[str, int] = field(default_factory=dict)
+    document_patterns: List[str] = field(default_factory=list)
+    ai_generated_summary: str = ""
+    source_document_ids: List[str] = field(default_factory=list)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "user_id": self.user_id,
             "domain": self.domain,
             "writing": self.writing.to_dict(),
-            "review": self.review.to_dict()
+            "review": self.review.to_dict(),
+            "preferences": self.preferences.to_dict(),
+            "frequent_terms": self.frequent_terms,
+            "document_patterns": self.document_patterns,
+            "ai_generated_summary": self.ai_generated_summary,
+            "source_document_ids": self.source_document_ids,
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Profile":
+        prefs_data = data.get("preferences", {})
+        # Handle case where preferences might be stored as WritingConfig-like fields
+        if not prefs_data and any(k in data for k in ["preferred_sentence_length", "custom_vocabulary"]):
+            prefs_data = {k: data[k] for k in data if k in [
+                "preferred_sentence_length", "use_passive_voice",
+                "include_examples", "include_caution_notes",
+                "custom_vocabulary", "avoid_phrases",
+            ]}
         return cls(
             id=data.get("id", str(uuid.uuid4())),
             user_id=data.get("user_id", "default"),
             domain=data.get("domain", "assembly"),
             writing=WritingConfig.from_dict(data.get("writing", {})),
-            review=ReviewConfig.from_dict(data.get("review", {}))
+            review=ReviewConfig.from_dict(data.get("review", {})),
+            preferences=WritingPreferences.from_dict(prefs_data),
+            frequent_terms=data.get("frequent_terms", {}),
+            document_patterns=data.get("document_patterns", []),
+            ai_generated_summary=data.get("ai_generated_summary", ""),
+            source_document_ids=data.get("source_document_ids", []),
         )
     
     @classmethod

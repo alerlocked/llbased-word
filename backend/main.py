@@ -20,6 +20,7 @@ from app.api import task_router, document_router
 from app.api import pdf_status, agent, assistant, process_documents, deepseek
 from app.api import context
 from app.api import draft
+from app.api import profile
 from app.config import settings
 from app.shared.logging import get_logger
 logger = get_logger(__name__)
@@ -220,6 +221,9 @@ app.include_router(context.router, prefix="/api/context", tags=["context"])
 
 # Draft API
 app.include_router(draft.router, prefix="/api/drafts", tags=["初稿管理"])
+
+# Profile API
+app.include_router(profile.router, prefix="/api/profile", tags=["用户画像"])
 
 
 
