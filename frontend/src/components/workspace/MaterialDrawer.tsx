@@ -7,12 +7,13 @@
  * - 点击"添加引用"按钮 → 添加引用到编辑栏
  */
 import { useState, useEffect } from 'react'
-import { Drawer, Upload, Button, message, Tabs, Divider, Modal, Spin } from 'antd'
+import { Drawer, Upload, Button, message, Tabs, Divider, Modal, Spin, Tag } from 'antd'
 import {
   CloudUploadOutlined,
   DatabaseOutlined,
   FolderOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  UserOutlined
 } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
 import { colors } from '../../styles/design-tokens'
@@ -68,6 +69,9 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const [previewFile, setPreviewFile] = useState<MaterialFile | null>(null)
   const [previewContent, setPreviewContent] = useState<string>('')
   const [previewLoading, setPreviewLoading] = useState(false)
+
+  // profile learning state
+  const [learningFileId, setLearningFileId] = useState<number | null>(null)
 
   // 加载文件夹和素材
   useEffect(() => {
@@ -212,6 +216,58 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     message.success('文件已移动')
   }
 
+  // Learn file content as user profile
+  const handleLearnProfile = async (file: MaterialFile) => {
+    setLearningFileId(file.id)
+    try {
+      // Fetch file content first
+      let content = file.content || ''
+      if (!content) {
+        const resp = await fetch(
+          `http://localhost:8000/api/creation/projects/${projectId}/materials/${file.id}`
+        )
+        if (resp.ok) {
+          const data = await resp.json()
+          content = data.content || data.text || ''
+        }
+      }
+
+      if (!content || content.length < 10) {
+        message.warning('文件内容不足，无法提取画像')
+        return
+      }
+
+      // Strip HTML tags for profile learning
+      const textContent = content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+
+      const resp = await fetch('http://localhost:8000/api/profile/default/learn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: textContent,
+          domain: 'assembly',
+          document_id: String(file.id),
+        }),
+      })
+
+      if (resp.ok) {
+        const data = await resp.json()
+        const termsCount = data.extracted_features?.terms_count || 0
+        const triplesCount = data.profile?.triples?.length || 0
+        message.success(
+          `画像学习完成：提取 ${triplesCount} 条知识、${termsCount} 个术语`
+        )
+      } else {
+        message.error('画像学习失败')
+      }
+    } catch (error) {
+      console.error('Profile learning failed:', error)
+      message.error('画像学习出错')
+    } finally {
+      setLearningFileId(null)
+    }
+  }
+
   // 上传配置
   const uploadProps: UploadProps = {
     name: 'file',
@@ -335,6 +391,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
                         currentFolder={selectedFolder}
                         onPreview={handleFilePreview}
                         onInsert={handleFileInsert}
+                        onLearnProfile={handleLearnProfile}
                         onDelete={handleFileDelete}
                         onMove={handleFileMove}
                         folders={getFlatFolders()}
@@ -404,6 +461,18 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
         footer={[
           <Button key="close" onClick={() => setPreviewVisible(false)}>
             关闭
+          </Button>,
+          <Button
+            key="learn-profile"
+            icon={<UserOutlined />}
+            loading={learningFileId === previewFile?.id}
+            onClick={() => {
+              if (previewFile) {
+                handleLearnProfile(previewFile)
+              }
+            }}
+          >
+            学习为画像
           </Button>,
           <Button
             key="insert"

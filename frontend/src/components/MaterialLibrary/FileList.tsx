@@ -20,7 +20,8 @@ import {
   SyncOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  UserOutlined
 } from '@ant-design/icons'
 import { colors } from '../../styles/design-tokens'
 
@@ -40,8 +41,9 @@ interface FileListProps {
   files: MaterialFile[]
   loading?: boolean
   currentFolder: string
-  onPreview: (file: MaterialFile) => void  // 预览文件
-  onInsert: (file: MaterialFile) => void   // 添加引用到编辑栏
+  onPreview: (file: MaterialFile) => void  // preview file
+  onInsert: (file: MaterialFile) => void   // add reference to editor
+  onLearnProfile?: (file: MaterialFile) => void  // learn as user profile
   onDelete?: (fileId: number) => void
   onMove?: (fileId: number, folderId: string) => void
   folders: { key: string; title: string }[]
@@ -120,6 +122,7 @@ const FileList: React.FC<FileListProps> = ({
   currentFolder,
   onPreview,
   onInsert,
+  onLearnProfile,
   onDelete,
   onMove,
   folders
@@ -173,6 +176,17 @@ const FileList: React.FC<FileListProps> = ({
         }
       }
     },
+    ...(onLearnProfile ? [{
+      key: 'learn-profile',
+      icon: <UserOutlined />,
+      label: '学习为画像',
+      onClick: () => {
+        if (contextMenuFile) {
+          onLearnProfile(contextMenuFile)
+          setContextMenuFile(null)
+        }
+      }
+    }] : []),
     { type: 'divider' as const },
     {
       key: 'delete',
@@ -289,6 +303,20 @@ const FileList: React.FC<FileListProps> = ({
                     title="添加引用到编辑栏"
                     style={{ color: colors.primary }}
                   />
+                  {onLearnProfile && (
+                    <Tooltip title="学习为画像">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<UserOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onLearnProfile(item)
+                        }}
+                        style={{ color: colors.textSecondary }}
+                      />
+                    </Tooltip>
+                  )}
                 </div>
               }
               description={
