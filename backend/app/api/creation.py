@@ -311,26 +311,18 @@ async def get_project_materials(
         素材列表
     """
     try:
-        # 1. 先获取项目
-        project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
-
-        # 2. 从 material_ids 获取素材ID列表
-        material_ids = project.material_ids or []
-
-        # 3. 根据ID列表查询素材
-        materials = db.query(Material).filter(Material.id.in_(material_ids)).all() if material_ids else []
+        # Return all materials globally (shared across projects)
+        materials = db.query(Material).order_by(Material.created_at.desc()).all()
 
         result = {
             "searches": [],
             "documents": []
         }
 
-        # 获取 PDF 队列管理器
         pdf_manager = get_pdf_queue_manager()
-        
+
         for material in materials:
             if material.material_type == "search" and material.search_result_id:
-                # 获取检索结果
                 search = db.query(SearchResult).filter(SearchResult.id == material.search_result_id).first()
                 if search:
                     result["searches"].append({
@@ -342,66 +334,44 @@ async def get_project_materials(
                         "createdAt": search.created_at.isoformat()
                     })
             elif material.material_type in ["document", "pdf", "docx", "txt"]:
-                # 获取文档的图片和页面
                 pages = db.query(MaterialPage).filter(MaterialPage.material_id == material.id).order_by(MaterialPage.page_number).all()
-                
-                # 查询 PDF 解析状态
+
                 parse_status = "unknown"
                 parse_error = None
-                
+
                 if material.material_type in ["pdf", "document"]:
-                    # 尝试匹配 PDF 队列任务
-                    # 1. 尝试通过源路径匹配（上传时保存的路径）
-                    upload_base_dir = Path(settings.DATA_DIR) / "uploads" / str(project_id)
-                    possible_source_paths = [
-                        str(upload_base_dir / material.name),
-                        str(upload_base_dir / f"material_{project_id}_{material.name}")
-                    ]
-                    
-                    task = None
-                    for source_path in possible_source_paths:
-                        task = pdf_manager.get_task_by_path(source_path)
-                        if task:
-                            break
-                    
-                    if task:
-                        # 找到队列任务
-                        parse_status = task.status.value
-                        if task.error_message:
-                            parse_error = task.error_message
+                    # Check parse status via output file existence
+                    output_path = Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html"
+                    if output_path.exists():
+                        parse_status = "completed"
                     else:
-                        # 没有队列任务，检查输出文件是否存在
-                        # 实际输出路径是 documents/{material_id}/content.html
-                        output_path = Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html"
-                        if output_path.exists():
-                            parse_status = "completed"
+                        # Try matching PDF queue task by scanning all upload dirs
+                        task = pdf_manager.get_task_by_path(
+                            str(Path(settings.DATA_DIR) / "uploads" / str(material.id) / material.name)
+                        )
+                        if task:
+                            parse_status = task.status.value
+                            if task.error_message:
+                                parse_error = task.error_message
                         else:
-                            # 检查 parsed_pdfs 目录（旧格式兼容）
-                            legacy_output_path = Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / f"{Path(material.name).stem}.html"
-                            if legacy_output_path.exists():
-                                parse_status = "completed"
-                            else:
-                                # 文件可能还未上传或已被删除
-                                parse_status = "pending"
+                            parse_status = "pending"
 
                 result["documents"].append({
                     "id": material.id,
                     "name": material.name,
                     "type": material.material_type,
-                    # content 已删除，内容保存在文件系统
                     "parse_status": parse_status,
                     "parse_error": parse_error,
                     "pages": [
                         {
                             "page_number": p.page_number,
                             "image_path": p.image_path
-                            # text_content 和 figures 已删除，内容在文件系统
                         } for p in pages
                     ],
                     "createdAt": material.created_at.isoformat()
                 })
 
-        logger.info(f"✅ 获取项目{project_id}素材,检索:{len(result['searches'])},文档:{len(result['documents'])}")
+        logger.info(f"✅ 获取全部素材,检索:{len(result['searches'])},文档:{len(result['documents'])}")
 
         return result
 
@@ -510,42 +480,42 @@ async def remove_material_from_project(
 ):
     """
     从项目中移除素材
-    
+
     Args:
         project_id: 项目ID
         material_id: 素材ID
         db: 数据库会话
-    
+
     Returns:
         移除结果
     """
     try:
         # 查找项目
         project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
-        
+
         # 检查素材是否在项目的 material_ids 中
         material_ids = list(project.material_ids) if project.material_ids else []
-        
+
         if material_id not in material_ids:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="素材不在该项目中"
             )
-        
+
         # 从项目的 material_ids 中移除该素材ID（创建新列表，确保SQLAlchemy检测到变化）
         new_material_ids = [mid for mid in material_ids if mid != material_id]
         project.material_ids = new_material_ids
-        
+
         # 对于JSON字段，需要显式标记为已修改
         from sqlalchemy.orm.attributes import flag_modified
         flag_modified(project, "material_ids")
-        
+
         db.commit()
-        
+
         logger.info(f"✅ 已从项目{project_id}移除素材{material_id}")
-        
+
         return {"message": "移除成功"}
-        
+
     except Exception as e:
         db.rollback()
         logger.error(f"❌ 移除素材失败: {str(e)}")
@@ -553,6 +523,75 @@ async def remove_material_from_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"移除失败: {str(e)}"
         )
+
+
+@router.get("/materials/{material_id}")
+async def get_material_detail(
+    material_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get material content by material ID (global, no project scope)"""
+    try:
+        material = get_or_404(db, Material, Material.id == material_id, "素材不存在")
+
+        content_json_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.json"
+        content_html_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
+
+        if content_json_path.exists():
+            import json
+            with open(content_json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            content = data.get("content", "")
+            return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
+        elif content_html_path.exists():
+            with open(content_html_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="素材内容文件不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 获取素材内容失败: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取失败: {str(e)}")
+
+
+@router.delete("/materials/{material_id}")
+async def delete_material(
+    material_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete material globally"""
+    try:
+        material = get_or_404(db, Material, Material.id == material_id, "素材不存在")
+
+        # Remove document files
+        doc_dir = Path(settings.DATA_DIR) / "documents" / str(material_id)
+        if doc_dir.exists():
+            import shutil
+            shutil.rmtree(doc_dir, ignore_errors=True)
+
+        # Remove from all projects' material_ids
+        projects = db.query(CreationProject).all()
+        for project in projects:
+            if project.material_ids and material_id in project.material_ids:
+                project.material_ids = [mid for mid in project.material_ids if mid != material_id]
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(project, "material_ids")
+
+        # Remove associated pages
+        db.query(MaterialPage).filter(MaterialPage.material_id == material_id).delete()
+
+        # Remove material record
+        db.delete(material)
+        db.commit()
+
+        logger.info(f"✅ 已删除素材{material_id}")
+        return {"message": "删除成功"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ 删除素材失败: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"删除失败: {str(e)}")
 
 @router.post("/generate-draft")
 async def generate_draft(

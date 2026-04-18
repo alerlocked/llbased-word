@@ -77,12 +77,10 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   useEffect(() => {
     if (visible) {
       loadFolders()
-      if (projectId) {
-        fetchMaterials()
-      }
+      fetchMaterials()
       loadSelectedScopes()
     }
-  }, [visible, projectId])
+  }, [visible])
 
   // 从 localStorage 加载文件夹
   const loadFolders = () => {
@@ -120,7 +118,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const fetchMaterials = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/creation/projects/${projectId}/materials`)
+      const response = await fetch(`http://localhost:8000/api/creation/projects/0/materials`)
       if (response.ok) {
         const data = await response.json()
         // 转换数据格式
@@ -163,7 +161,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     try {
       // 获取文件内容
       const response = await fetch(
-        `http://localhost:8000/api/creation/projects/${projectId}/materials/${file.id}`
+        `http://localhost:8000/api/creation/materials/${file.id}`
       )
       if (response.ok) {
         const data = await response.json()
@@ -196,7 +194,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const handleFileDelete = async (fileId: number) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/creation/projects/${projectId}/materials/${fileId}`,
+        `http://localhost:8000/api/creation/materials/${fileId}`,
         { method: 'DELETE' }
       )
       if (response.ok) {
@@ -224,7 +222,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
       let content = file.content || ''
       if (!content) {
         const resp = await fetch(
-          `http://localhost:8000/api/creation/projects/${projectId}/materials/${file.id}`
+          `http://localhost:8000/api/creation/materials/${file.id}`
         )
         if (resp.ok) {
           const data = await resp.json()
