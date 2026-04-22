@@ -63,6 +63,11 @@ class SearchContext:
     # 检索统计
     search_stats: Dict[str, Any] = field(default_factory=dict)
 
+    # Material status tracking
+    search_performed: bool = True
+    search_query: str = ""
+    missing_topics: List[str] = field(default_factory=list)
+
 
 @dataclass
 class CacheStats:
@@ -345,6 +350,15 @@ class SearchAgent:
             total_tokens = sum(r.token_count for r in result.contexts)
             result.total_tokens = total_tokens
             result.mode = mode
+            result.search_query = query
+            result.search_performed = True
+
+            # Analyze missing topics when results are insufficient
+            if not result.contexts:
+                result.search_performed = False
+                result.missing_topics = self._extract_missing_topics(query)
+            elif len(result.contexts) < 2:
+                result.missing_topics = self._extract_missing_topics(query, result.contexts)
 
             # 设置缓存
             self._set_cache(cache_key, result)
@@ -374,7 +388,10 @@ class SearchAgent:
                 contexts=[],
                 total_tokens=0,
                 mode=mode,
-                metadata={"error": str(e)}
+                metadata={"error": str(e)},
+                search_performed=False,
+                search_query=query,
+                missing_topics=[query] if query else [],
             )
 
     async def _files_only_search(
@@ -887,6 +904,44 @@ class SearchAgent:
         self._cache.clear()
         self._cache_stats = CacheStats()
         logger.info("cache_cleared")
+
+    def _extract_missing_topics(
+        self,
+        query: str,
+        existing_results: Optional[List[SearchResult]] = None,
+    ) -> List[str]:
+        """Extract topics from query that are not covered by existing results.
+
+        Uses simple keyword extraction to identify what the user is asking
+        about that wasn't found in the search results.
+
+        Args:
+            query: User query
+            existing_results: Search results already found
+
+        Returns:
+            List of missing topic keywords
+        """
+        if not query:
+            return []
+
+        # Simple keyword extraction
+        import re
+        chinese_words = set(re.findall(r'[\u4e00-\u9fff]{2,}', query))
+        english_words = set(re.findall(r'[a-zA-Z]{2,}', query.lower()))
+        query_keywords = chinese_words | english_words
+
+        if not existing_results:
+            return list(query_keywords)[:5]
+
+        # Collect covered keywords from results
+        covered: set = set()
+        for r in existing_results:
+            covered.update(re.findall(r'[\u4e00-\u9fff]{2,}', r.content.lower()))
+            covered.update(re.findall(r'[a-zA-Z]{2,}', r.content.lower()))
+
+        missing = [kw for kw in query_keywords if kw.lower() not in covered]
+        return missing[:5]
 
     def get_cache_info(self) -> Dict[str, Any]:
         """获取缓存信息"""

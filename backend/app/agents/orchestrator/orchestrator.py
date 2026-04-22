@@ -1274,7 +1274,10 @@ class ProcessOrchestrator:
             profile_context = await self._load_profile_context(context)
 
             # 3. 构建检索上下文
-            retrieved_context = await self._build_retrieval_context(user_input, context)
+            retrieved_context, material_status = await self._build_retrieval_context(user_input, context)
+
+            # 3.5 Build material status instruction for Agent context injection
+            material_instruction = self._build_material_status_instruction(material_status)
 
             # 4. 读取初稿内容
             draft_content, draft_id = await self._load_draft_content(context)
@@ -1291,6 +1294,7 @@ class ProcessOrchestrator:
                 retrieved_context=retrieved_context,
                 draft_content=draft_content,
                 user_requirement=user_input,
+                material_instruction=material_instruction,
             )
 
             # 6. 缓存以便后续确认使用
@@ -1301,6 +1305,8 @@ class ProcessOrchestrator:
             self._collected_info["context"] = context
             self._collected_info["profile_context"] = profile_context
             self._collected_info["retrieved_context"] = retrieved_context
+            self._collected_info["material_status"] = material_status
+            self._collected_info["material_instruction"] = material_instruction
 
             # 7. 转到用户确认
             await self.state_machine.transition_to(
@@ -1370,8 +1376,8 @@ class ProcessOrchestrator:
             logger.warning("profile_load_failed, using defaults", error=str(e))
             return "领域: assembly\n写作风格: 专业严谨\n术语库: 企业标准术语\n详细程度: 详细"
 
-    async def _build_retrieval_context(self, query: str, context: Dict[str, Any]) -> str:
-        """构建检索上下文
+    async def _build_retrieval_context(self, query: str, context: Dict[str, Any]) -> tuple:
+        """构建检索上下文，同时返回素材状态摘要
 
         尝试使用 LLMContextService；如果不可用，回退到 HierarchicalContext。
 
@@ -1380,7 +1386,7 @@ class ProcessOrchestrator:
             context: 会话上下文
 
         Returns:
-            检索上下文字符串
+            (retrieved_context: str, material_status: dict)
         """
         try:
             from app.services.hierarchical_context import HierarchicalContext
@@ -1389,12 +1395,57 @@ class ProcessOrchestrator:
             hc = HierarchicalContext(data_dir)
             hc.set_max_tokens(3000)
             session_id = context.get("session_id", self.current_task_id or "default")
-            rag_ctx, _ = hc.build_context(query=query, session_id=session_id, max_tokens=3000)
-            return rag_ctx or "（未检索到相关参考资料）"
+            rag_ctx = hc.build_context(query=query, session_id=session_id, max_tokens=3000)
+
+            # Get material status
+            material_status = hc.get_material_status(query)
+
+            return rag_ctx or "（未检索到相关参考资料）", material_status
 
         except Exception as e:
             logger.warning("retrieval_context_build_failed", error=str(e))
-            return "（检索服务不可用）"
+            return "（检索服务不可用）", {"has_documents": False, "document_count": 0, "documents": [], "search_performed": False, "missing_topics": []}
+
+    def _build_material_status_instruction(self, material_status: Dict[str, Any]) -> str:
+        """Build instruction text based on material status for Agent context injection.
+
+        Three decision paths:
+        1. No documents → tell user to upload first
+        2. Partial coverage → list what's missing and what's available
+        3. Sufficient → proceed with high confidence
+
+        Args:
+            material_status: Material status dict from HierarchicalContext
+
+        Returns:
+            Instruction string to inject into Agent context
+        """
+        if not material_status.get("has_documents"):
+            return (
+                "【素材状态指令】系统当前没有任何可用素材文档。"
+                "请在回复中明确告知用户：系统暂无参考资料，请先通过素材库上传相关工艺文件（PDF/Word），"
+                "上传后系统会自动解析内容供后续使用。"
+            )
+
+        missing = material_status.get("missing_topics", [])
+        doc_names = [d.get("name", "") for d in material_status.get("documents", [])]
+        doc_list_str = "、".join(doc_names) if doc_names else "无"
+
+        if missing and len(missing) >= 2:
+            missing_str = "、".join(missing[:5])
+            return (
+                f"【素材状态指令】当前有 {material_status.get('document_count', 0)} 个参考文档"
+                f"（{doc_list_str}），但用户查询涉及的内容中，以下主题在已有素材中可能未充分覆盖："
+                f"{missing_str}。"
+                "请在回复中：(1) 基于已有素材提供能确定的部分；"
+                f"(2) 明确指出哪些内容因缺少参考素材而无法确认，建议用户补充上传相关文档。"
+            )
+
+        return (
+            f"【素材状态指令】素材充足，当前有 {material_status.get('document_count', 0)} 个参考文档"
+            f"（{doc_list_str}），覆盖了用户查询的主要内容。"
+            "请基于这些素材高置信度地执行任务。如果有不确定的地方，列出2-3个具体方案让用户确认。"
+        )
 
     async def _load_draft_content(self, context: Dict[str, Any]) -> tuple:
         """加载初稿内容
@@ -1437,6 +1488,7 @@ class ProcessOrchestrator:
         retrieved_context: str,
         draft_content: str,
         user_requirement: str,
+        material_instruction: str = "",
     ) -> str:
         """调用 LLM 生成修改方案
 
@@ -1445,12 +1497,17 @@ class ProcessOrchestrator:
             retrieved_context: 检索到的参考资料
             draft_content: 初稿内容
             user_requirement: 用户需求
+            material_instruction: Material status instruction from Orchestrator
 
         Returns:
             修改方案文本
         """
-        prompt = f"""你是工艺文件编辑助手。基于以下信息生成修改方案：
+        material_section = ""
+        if material_instruction:
+            material_section = f"\n## 素材状态指令\n{material_instruction}\n"
 
+        prompt = f"""你是工艺文件编辑助手。基于以下信息生成修改方案：
+{material_section}
 ## 用户画像
 {profile_context}
 
@@ -1507,6 +1564,7 @@ class ProcessOrchestrator:
         draft_content = self._collected_info.get("draft_content", "")
         profile_context = self._collected_info.get("profile_context", "")
         retrieved_context = self._collected_info.get("retrieved_context", "")
+        material_instruction = self._collected_info.get("material_instruction", "")
         intent = self._collected_info.get("intent", {})
 
         if not draft_id:
@@ -1526,6 +1584,7 @@ class ProcessOrchestrator:
             "modification_plan": modification_plan,
             "profile_context": profile_context,
             "retrieved_context": retrieved_context,
+            "material_instruction": material_instruction,
         }
 
         # 3. 执行任务

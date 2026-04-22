@@ -713,8 +713,22 @@ async def generate_stream(request: GenerateStreamRequest):
                     logger.info(f"[AI助手] 元信息查询命中: {meta_answer}")
                     # 元信息查询成功，在上下文前面添加快速回答
                     doc_context = f"# 快速参考\n\n{meta_answer}\n\n---\n\n{doc_context}"
-                
-                logger.info(f"[AI助手] 上下文注入成功: 长度={len(doc_context)}")
+
+                # Get material status and build instruction
+                material_status = hierarchical_context.get_material_status(user_input)
+                material_instruction = ""
+                if not material_status.get("has_documents"):
+                    material_instruction = "【系统提示】当前素材库中没有任何参考文档。请在回复中明确告知用户：请先通过素材库上传相关工艺文件。"
+                elif material_status.get("missing_topics") and len(material_status["missing_topics"]) >= 2:
+                    missing_str = "、".join(material_status["missing_topics"][:5])
+                    doc_names = "、".join(d.get("name", "") for d in material_status.get("documents", []))
+                    material_instruction = (
+                        f"【素材状态】当前有参考文档（{doc_names}），"
+                        f"但以下主题可能未被覆盖：{missing_str}。"
+                        "基于已有素材回答，对缺少参考信息的部分明确告知用户。"
+                    )
+
+                logger.info(f"[AI助手] 上下文注入成功: 长度={len(doc_context)}, has_materials={material_status.get('has_documents')}")
                 
             except Exception as e:
                 logger.warning(f"[AI助手] 上下文注入失败（将继续无上下文生成）: {e}")
@@ -731,9 +745,12 @@ async def generate_stream(request: GenerateStreamRequest):
                 ])
                 logger.info(f"[AI助手] 注入用户选中素材: {len(reference_materials)} 个")
 
+            # Inject material instruction if available
+            material_section = f"\n{material_instruction}\n" if material_instruction else ""
+
             if doc_context:
                 full_prompt = f"""{system_prompt}
-
+{material_section}
 ## 参考文档
 
 {doc_context}
@@ -746,6 +763,7 @@ async def generate_stream(request: GenerateStreamRequest):
 请基于参考文档和用户选中的素材回答用户问题。如果参考文档中没有相关信息，请如实告知。"""
             elif user_materials_context:
                 full_prompt = f"""{system_prompt}
+{material_section}
 {user_materials_context}
 
 ## 用户问题
@@ -754,7 +772,11 @@ async def generate_stream(request: GenerateStreamRequest):
 
 请基于用户选中的素材回答问题。如果素材中没有相关信息，请如实告知。"""
             else:
+                no_material_hint = ""
+                if not material_instruction:
+                    pass  # no special instruction needed for general chat
                 full_prompt = f"""{system_prompt}
+{material_section}
 
 用户输入：{user_input}
 
@@ -779,6 +801,15 @@ async def generate_stream(request: GenerateStreamRequest):
 
             content = result.get("content", "")
             logger.info(f"[AI助手] LLM响应成功: 长度={len(content)}")
+
+            # Async save conversation memory (fire-and-forget)
+            try:
+                from app.services.hierarchical_context import hierarchical_context
+                hierarchical_context._memory_service.save_summary_async(
+                    session_id, user_input, content
+                )
+            except Exception as mem_err:
+                logger.warning(f"[AI助手] 记忆保存跳过: {mem_err}")
 
             # 发送最终结果（前端期望 type: 'result'）
             yield f"data: {json.dumps({'type': 'result', 'content': content})}\n\n"

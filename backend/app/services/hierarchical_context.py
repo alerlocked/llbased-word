@@ -52,14 +52,15 @@ class TableMatch:
 
 class HierarchicalContext:
     """分层上下文管理器
-    
+
     架构：
     - Layer 0: 元信息索引（所有文档的名称 + 表格ID列表 + 材料列表）~500 tokens
     - Layer 1: 表格索引（表格 ID → 类型 → 页码 → 摘要）~2000 tokens
     - Layer 2: 按需加载表格（根据查询匹配相关表格，加载 HTML）~5000-20000 tokens
     - Layer 3: 精确检索（参数搜索、关键词匹配、全文搜索）~500-2000 tokens
+    - Layer 4: 历史对话记忆（跨会话持久化摘要）~800 tokens
     """
-    
+
     def __init__(self, data_dir: str = None):
         if data_dir is None:
             # 默认使用项目根目录下的 data/exports_html
@@ -72,7 +73,23 @@ class HierarchicalContext:
         self._table_index_cache: Optional[str] = None  # Layer 1 缓存
         self._loaded_sessions: Set[str] = set()  # 已加载 Layer 0/1 的会话
         self._max_rag_tokens: int = 15000  # RAG 层最大 token 数量
-        self._layer_tokens: Dict[str, int] = {"layer0": 0, "layer1": 0, "layer2": 0, "layer3": 0, "total": 0}  # 各层 token 使用量
+        self._layer_tokens: Dict[str, int] = {"layer0": 0, "layer1": 0, "layer2": 0, "layer3": 0, "layer4": 0, "total": 0}  # 各层 token 使用量
+
+        # Material status tracking
+        self._material_status: Dict[str, Any] = {
+            "has_documents": False,
+            "document_count": 0,
+            "documents": [],
+        }
+
+        # Layer 4: initialize memory service
+        try:
+            from app.config import settings
+            from app.services.memory_service import MemoryService
+            self._memory_service = MemoryService(str(settings.MEMORY_DIR))
+        except Exception as e:
+            logger.warning(f"[上下文] 记忆服务初始化失败: {e}")
+            self._memory_service = None
         
     def _get_all_documents(self) -> List[Dict[str, Any]]:
         """获取所有文档的 index.json"""
@@ -118,12 +135,19 @@ class HierarchicalContext:
         
         if not documents:
             self._meta_cache = "# 参考文档\n\n当前没有可用的工艺文档。"
+            self._material_status = {
+                "has_documents": False,
+                "document_count": 0,
+                "documents": [],
+            }
             return self._meta_cache
         
         # 构建元信息
         lines = ["# 参考文档索引\n"]
         lines.append("以下是系统中可用的工艺文档：\n")
-        
+
+        # Track material status
+        doc_list = []
         for doc in documents:
             doc_name = doc.get("name", "未命名文档")
             pages = doc.get("pages", 0)
@@ -143,7 +167,20 @@ class HierarchicalContext:
                            (f" 等{len(materials)}种" if len(materials) > 5 else ""))
             
             lines.append("")
-        
+
+            doc_list.append({
+                "name": doc_name,
+                "pages": pages,
+                "table_count": len(tables),
+                "materials": materials,
+            })
+
+        self._material_status = {
+            "has_documents": len(doc_list) > 0,
+            "document_count": len(doc_list),
+            "documents": doc_list,
+        }
+
         self._meta_cache = "\n".join(lines)
         logger.info(f"[上下文] Layer 0 加载完成，长度: {len(self._meta_cache)}")
         return self._meta_cache
@@ -442,7 +479,7 @@ class HierarchicalContext:
         used_tokens = 0
         
         # 重置 token 统计
-        self._layer_tokens = {"layer0": 0, "layer1": 0, "layer2": 0, "layer3": 0, "total": 0}
+        self._layer_tokens = {"layer0": 0, "layer1": 0, "layer2": 0, "layer3": 0, "layer4": 0, "total": 0}
         
         logger.info(f"[上下文] 开始构建上下文: session={session_id}, query={query[:50]}, max_tokens={effective_max_tokens}")
         
@@ -535,6 +572,25 @@ class HierarchicalContext:
                     logger.info(f"[上下文] Layer 3 加载完成: {layer3_tokens} tokens, 总计 {used_tokens} tokens")
 
         self._layer_tokens["layer3"] = layer3_tokens
+
+        # Layer 4: historical conversation memory
+        layer4_tokens = 0
+        if self._memory_service:
+            try:
+                from app.config import settings
+                memory_budget = min(settings.MEMORY_MAX_TOKENS, effective_max_tokens - used_tokens)
+                if memory_budget > 100:
+                    memory_text = self._load_filtered_memory(query, memory_budget)
+                    if memory_text:
+                        memory_section = f"\n## 历史对话记忆\n\n{memory_text}\n"
+                        layer4_tokens = self._estimate_tokens(memory_section)
+                        context_parts.append(memory_section)
+                        used_tokens += layer4_tokens
+                        logger.info(f"[上下文] Layer 4 加载完成: {layer4_tokens} tokens, 总计 {used_tokens} tokens")
+            except Exception as e:
+                logger.warning(f"[上下文] Layer 4 记忆加载失败: {e}")
+
+        self._layer_tokens["layer4"] = layer4_tokens
 
         final_context = "\n\n---\n\n".join(context_parts)
         final_tokens = self._estimate_tokens(final_context)
@@ -724,11 +780,117 @@ class HierarchicalContext:
     
     def get_layer_tokens(self) -> Dict[str, int]:
         """获取各层 token 使用情况
-        
+
         Returns:
-            {"layer0": 500, "layer1": 2000, "layer2": 3000, "layer3": 500, "total": 6000}
+            {"layer0": 500, "layer1": 2000, "layer2": 3000, "layer3": 500, "layer4": 300, "total": 6300}
         """
         return self._layer_tokens.copy()
+
+    def get_material_status(self, query: str = "") -> Dict[str, Any]:
+        """Get structured material status summary.
+
+        Returns a dict with:
+        - has_documents: bool
+        - document_count: int
+        - documents: list of available documents
+        - search_performed: bool (whether any search context was built)
+        - missing_topics: list of topics from the query not covered by materials
+
+        Args:
+            query: User query to analyze for missing topics
+
+        Returns:
+            Material status dict
+        """
+        status = dict(self._material_status)
+        status["search_performed"] = self._meta_cache is not None
+
+        # Analyze missing topics from query
+        missing: List[str] = []
+        if query and status["has_documents"]:
+            query_keywords = extract_keywords(query)
+            covered: Set[str] = set()
+            for doc in status["documents"]:
+                # Collect all known topics from document names, materials, table types
+                covered.add(doc["name"].lower())
+                for m in doc.get("materials", []):
+                    covered.update(extract_keywords(m))
+
+            # Check which query keywords are not covered
+            for kw in query_keywords:
+                kw_lower = kw.lower()
+                if not any(kw_lower in c or c in kw_lower for c in covered):
+                    missing.append(kw)
+
+        status["missing_topics"] = missing
+        return status
+
+    def _load_filtered_memory(self, query: str, max_tokens: int) -> str:
+        """Load memory filtered by query relevance.
+
+        1. Keyword-match against query; inject top 2-3 relevant memories.
+        2. Fallback: inject the most recent 1 memory.
+        """
+        if not self._memory_service:
+            return ""
+
+        query_keywords = extract_keywords(query)
+        memory_dir = self._memory_service.memory_dir
+        if not memory_dir.exists():
+            return ""
+
+        def _safe_mtime(p: Path) -> float:
+            try:
+                return p.stat().st_mtime
+            except OSError:
+                return 0.0
+
+        memory_files = sorted(
+            memory_dir.glob("*.md"),
+            key=_safe_mtime,
+            reverse=True,
+        )
+        if not memory_files:
+            return ""
+
+        # Score each memory file by keyword overlap
+        scored: List[tuple] = []  # (score, path, content)
+        for mf in memory_files:
+            try:
+                content = mf.read_text(encoding="utf-8")
+                if not query_keywords:
+                    scored.append((0.0, mf, content))
+                else:
+                    content_keywords = extract_keywords(content)
+                    overlap = len(query_keywords & content_keywords)
+                    scored.append((float(overlap), mf, content))
+            except Exception:
+                continue
+
+        # Sort: relevant first, then recent (already sorted by mtime desc)
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        # Pick relevant memories (score > 0) or fallback to most recent
+        relevant = [(s, c) for s, _, c in scored if s > 0]
+        selected = relevant[:2] if relevant else [(scored[0][0], scored[0][2])] if scored else []
+
+        if not selected:
+            return ""
+
+        parts: List[str] = []
+        used_tokens = 0
+        for _, content in selected:
+            tokens = self._estimate_tokens(content)
+            if used_tokens + tokens > max_tokens:
+                remaining = max_tokens - used_tokens
+                if remaining > 100:
+                    parts.append(self._memory_service._truncate_to_tokens(content, remaining))
+                    used_tokens += remaining
+                break
+            parts.append(content)
+            used_tokens += tokens
+
+        return "\n\n---\n\n".join(parts)
 
 
 # 全局单例

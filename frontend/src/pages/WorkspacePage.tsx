@@ -9,10 +9,9 @@ import { useSearchParams } from 'react-router-dom'
 import { Select, Button, Space, message, Modal, Input, Tooltip, Popconfirm } from 'antd'
 import {
   PlusOutlined, SaveOutlined, UndoOutlined,
-  CloudUploadOutlined, DatabaseOutlined, SettingOutlined, RobotOutlined, DeleteOutlined, UserOutlined
+  DatabaseOutlined, SettingOutlined, RobotOutlined, DeleteOutlined, UserOutlined
 } from '@ant-design/icons'
 import { useCreationStore } from '../stores/creationStore'
-import UploadDrawer from '../components/workspace/UploadDrawer'
 import MaterialDrawer from '../components/workspace/MaterialDrawer'
 import SettingsDrawer from '../components/workspace/SettingsDrawer'
 import ImageInsertDialog from '../components/AICreation/ImageInsertDialog'
@@ -54,8 +53,8 @@ const WorkspacePage: React.FC = () => {
 
   // UI状态
   const [aiPanelVisible, setAiPanelVisible] = useState(false)
-  const [uploadDrawerVisible, setUploadDrawerVisible] = useState(false)
   const [materialDrawerVisible, setMaterialDrawerVisible] = useState(false)
+  const [materialDrawerTab, setMaterialDrawerTab] = useState<string | undefined>(undefined)
   const [settingsDrawerVisible, setSettingsDrawerVisible] = useState(false)
   const [imageModalVisible, setImageModalVisible] = useState(false)
 
@@ -72,19 +71,36 @@ const WorkspacePage: React.FC = () => {
     try {
       const response = await fetch('http://localhost:8000/api/creation/projects')
       if (response.ok) {
-        const data = await response.json()
-        const list = data.items || data
-        setProjects(list)
-        // 设置初始项目：优先使用 URL 参数，否则使用第一个项目
-        if (list.length > 0 && !currentProjectId) {
-          // 检查 URL 参数中的项目ID是否有效
-          const urlProjectId = searchParams.get('project')
-          const validProject = urlProjectId ? list.find((p: Project) => p.id === parseInt(urlProjectId, 10)) : null
-          if (validProject) {
-            setCurrentProjectId(validProject.id)
-          } else {
-            setCurrentProjectId(list[0].id)
+        let list = await response.json()
+        list = list.items || list
+
+        // Auto-create a default project when none exist
+        if (list.length === 0) {
+          try {
+            const createRes = await fetch('http://localhost:8000/api/creation/projects', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: '默认项目' })
+            })
+            if (createRes.ok) {
+              const newProject = await createRes.json()
+              list = [newProject]
+            }
+          } catch {
+            // creation failed, list stays empty
           }
+        }
+
+        setProjects(list)
+
+        if (list.length > 0) {
+          // Validate currentProjectId: if set, check it exists in the list
+          const urlProjectId = searchParams.get('project')
+          const requestedId = currentProjectId || (urlProjectId ? parseInt(urlProjectId, 10) : null)
+          const validProject = requestedId ? list.find((p: Project) => p.id === requestedId) : null
+          setCurrentProjectId(validProject ? validProject.id : list[0].id)
+        } else {
+          setCurrentProjectId(null)
         }
       }
     } catch (error) {
@@ -510,19 +526,14 @@ const WorkspacePage: React.FC = () => {
 
         {/* 右侧：功能入口 */}
         <Space size={8}>
-          <Tooltip title="上传素材">
-            <Button
-              type="text"
-              icon={<CloudUploadOutlined />}
-              onClick={() => setUploadDrawerVisible(true)}
-              style={{ color: colors.textSecondary }}
-            />
-          </Tooltip>
           <Tooltip title="素材库">
             <Button
               type="text"
               icon={<DatabaseOutlined />}
-              onClick={() => setMaterialDrawerVisible(true)}
+              onClick={() => {
+                setMaterialDrawerTab('files')
+                setMaterialDrawerVisible(true)
+              }}
               style={{ color: colors.textSecondary }}
             />
           </Tooltip>
@@ -685,21 +696,15 @@ const WorkspacePage: React.FC = () => {
       </div>
 
       {/* 抽屉组件 */}
-      <UploadDrawer
-        visible={uploadDrawerVisible}
-        onClose={() => setUploadDrawerVisible(false)}
-        projectId={currentProjectId}
-        projectName={projects.find(p => p.id === currentProjectId)?.name}
-        onUploadComplete={() => {
-          // 刷新素材
-        }}
-      />
-
       <MaterialDrawer
         visible={materialDrawerVisible}
-        onClose={() => setMaterialDrawerVisible(false)}
+        onClose={() => {
+          setMaterialDrawerVisible(false)
+          setMaterialDrawerTab(undefined)
+        }}
         projectId={currentProjectId}
         onInsert={handleInsertToEditor}
+        defaultTab={materialDrawerTab}
       />
 
       <SettingsDrawer

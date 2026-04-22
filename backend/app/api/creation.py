@@ -32,6 +32,35 @@ from app.services.pdf_queue_manager import (
 
 router = APIRouter()
 
+
+def _check_duplicate_document(filename: str) -> Optional[dict]:
+    """Check if a document with this filename already exists on disk.
+
+    Scans data/documents/*/index.json for matching name field.
+    Returns existing doc info if found, None otherwise.
+    """
+    documents_dir = Path(settings.DATA_DIR) / "documents"
+    if not documents_dir.exists():
+        return None
+    for doc_dir in documents_dir.iterdir():
+        if not doc_dir.is_dir():
+            continue
+        index_path = doc_dir / "index.json"
+        if not index_path.exists():
+            continue
+        try:
+            with open(index_path, "r", encoding="utf-8") as f:
+                index_data = json.load(f)
+            if index_data.get("name") == filename:
+                return {
+                    "material_id": index_data.get("material_id", doc_dir.name),
+                    "name": index_data.get("name"),
+                    "pages": index_data.get("pages", 0),
+                }
+        except Exception:
+            continue
+    return None
+
 class CreateProjectRequest(BaseModel):
     """创建项目请求"""
     name: str = "新项目"
@@ -341,8 +370,18 @@ async def get_project_materials(
 
                 if material.material_type in ["pdf", "document"]:
                     # Check parse status via output file existence
-                    output_path = Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html"
-                    if output_path.exists():
+                    doc_html = Path(settings.DATA_DIR) / "documents" / str(material.id) / "document.html"
+                    content_html = Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html"
+                    # Also check materials directory
+                    materials_dir = Path(settings.DATA_DIR) / "materials"
+                    material_parsed = False
+                    if materials_dir.exists():
+                        for d in materials_dir.iterdir():
+                            if d.is_dir() and d.name.startswith(f"{material.id}_"):
+                                if (d / "full.html").exists() or (d / "summary.json").exists():
+                                    material_parsed = True
+                                    break
+                    if doc_html.exists() or content_html.exists() or material_parsed:
                         parse_status = "completed"
                     else:
                         # Try matching PDF queue task by scanning all upload dirs
@@ -356,11 +395,21 @@ async def get_project_materials(
                         else:
                             parse_status = "pending"
 
+                # Get parse progress from queue task
+                parse_progress = 0
+                if material.material_type in ["pdf", "document"]:
+                    task = pdf_manager.get_task_by_path(
+                        str(Path(settings.DATA_DIR) / "uploads" / str(material.id) / material.name)
+                    )
+                    if task:
+                        parse_progress = task.progress
+
                 result["documents"].append({
                     "id": material.id,
                     "name": material.name,
                     "type": material.material_type,
                     "parse_status": parse_status,
+                    "parse_progress": parse_progress,
                     "parse_error": parse_error,
                     "pages": [
                         {
@@ -592,6 +641,57 @@ async def delete_material(
         db.rollback()
         logger.error(f"❌ 删除素材失败: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"删除失败: {str(e)}")
+
+
+@router.get("/materials/{material_id}/parse-status")
+async def get_material_parse_status(
+    material_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get parse status and progress for a single material (lightweight polling endpoint)."""
+    try:
+        material = get_or_404(db, Material, Material.id == material_id, "素材不存在")
+
+        if material.material_type not in ["pdf", "document"]:
+            return {"status": "completed", "progress": 100, "error_message": None}
+
+        # Check file existence first
+        doc_html = Path(settings.DATA_DIR) / "documents" / str(material_id) / "document.html"
+        content_html = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
+        # Also check materials directory (for pre-parsed files)
+        materials_dir = Path(settings.DATA_DIR) / "materials"
+        material_parsed = False
+        if materials_dir.exists():
+            for d in materials_dir.iterdir():
+                if d.is_dir() and d.name.startswith(f"{material_id}_"):
+                    if (d / "full.html").exists() or (d / "summary.json").exists():
+                        material_parsed = True
+                        break
+        if doc_html.exists() or content_html.exists() or material_parsed:
+            return {"status": "completed", "progress": 100, "error_message": None}
+
+        # Check queue task
+        pdf_manager = get_pdf_queue_manager()
+        task = pdf_manager.get_task_by_path(
+            str(Path(settings.DATA_DIR) / "uploads" / str(material_id) / material.name)
+        )
+        if task:
+            return {
+                "status": task.status.value,
+                "progress": task.progress,
+                "error_message": task.error_message
+            }
+
+        return {"status": "pending", "progress": 0, "error_message": None}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 获取解析状态失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取失败: {str(e)}"
+        )
 
 @router.post("/generate-draft")
 async def generate_draft(
@@ -1020,6 +1120,14 @@ async def upload_document(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="不支持的文件格式，仅支持PDF、Word和TXT文档"
+            )
+
+        # Check for duplicate document on disk
+        existing_doc = _check_duplicate_document(file.filename)
+        if existing_doc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"文档已存在: {existing_doc['name']} (material_id={existing_doc['material_id']}, pages={existing_doc['pages']})。如需重新上传，请先删除已有文档。"
             )
 
         # 保存上传的文件，保持目录结构
@@ -1897,6 +2005,7 @@ async def batch_upload_materials(
 
         uploaded_files = []
         failed_count = 0
+        skipped_files = []
 
         for idx, file in enumerate(files):
             try:
@@ -1909,6 +2018,18 @@ async def batch_upload_materials(
                     logger.warning(f"跳过不支持的文件格式: {file.filename}")
                     failed_count += 1
                     continue
+
+                # Check for duplicate document on disk (only for document types)
+                if file_ext in ['.pdf', '.docx', '.doc', '.txt']:
+                    existing_doc = _check_duplicate_document(file.filename)
+                    if existing_doc:
+                        logger.info(f"跳过重复文档: {file.filename} (已有 material_id={existing_doc['material_id']})")
+                        skipped_files.append({
+                            "name": file.filename,
+                            "reason": f"文档已存在 (material_id={existing_doc['material_id']}, pages={existing_doc['pages']})",
+                            "existing_material_id": existing_doc["material_id"],
+                        })
+                        continue
 
                 # 确定保存路径
                 if relative_path:
@@ -1997,7 +2118,8 @@ async def batch_upload_materials(
             "files": uploaded_files,
             "manifest_path": manifest_path,
             "task_ids": task_ids,
-            "queue_message": f"{len(task_ids)} 个 PDF 已加入解析队列"
+            "queue_message": f"{len(task_ids)} 个 PDF 已加入解析队列",
+            "skipped": skipped_files
         }
 
     except HTTPException:
