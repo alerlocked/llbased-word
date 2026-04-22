@@ -670,6 +670,20 @@ async def delete_material(
             import shutil
             shutil.rmtree(doc_dir, ignore_errors=True)
 
+        # Remove materials directory ({id}_{name}/)
+        materials_dir = Path(settings.DATA_DIR) / "materials"
+        if materials_dir.exists():
+            for d in list(materials_dir.iterdir()):
+                if d.is_dir() and d.name.startswith(f"{material_id}_"):
+                    shutil.rmtree(d, ignore_errors=True)
+
+        # Remove parsed_pdfs output
+        parsed_dir = Path(settings.DATA_DIR) / "parsed_pdfs"
+        if parsed_dir.exists():
+            import glob
+            for f in glob.glob(str(parsed_dir / "**" / f"*{material.name}*"), recursive=True):
+                Path(f).unlink(missing_ok=True)
+
         # Remove from all projects' material_ids
         projects = db.query(CreationProject).all()
         for project in projects:
@@ -714,7 +728,14 @@ async def get_material_parse_status(
         if materials_dir.exists():
             for d in materials_dir.iterdir():
                 if d.is_dir() and d.name.startswith(f"{material_id}_"):
-                    if (d / "full.html").exists() or (d / "summary.json").exists():
+                    full_html = d / "full.html"
+                    if full_html.exists():
+                        # Verify it's not an empty skeleton (has actual table content)
+                        size = full_html.stat().st_size
+                        if size > 20000:  # Real content is typically > 20KB
+                            material_parsed = True
+                            break
+                    if (d / "summary.json").exists() and (d / "original.pdf").exists():
                         material_parsed = True
                         break
         if doc_html.exists() or content_html.exists() or material_parsed:
