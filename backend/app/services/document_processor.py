@@ -382,6 +382,14 @@ class DocumentProcessor:
             self._save_html(result, content_html)
             logger.info(f"Content synced to documents/{material_id}/content.html")
 
+        # 7. Invalidate hierarchical context cache so AI can discover new documents
+        try:
+            from app.services.hierarchical_context import hierarchical_context
+            hierarchical_context.invalidate_cache()
+            logger.info("Hierarchical context cache invalidated after parse")
+        except Exception as e:
+            logger.warning(f"Failed to invalidate context cache: {e}")
+
         logger.info(f"队列任务完成: {task.task_id}")
 
         return {

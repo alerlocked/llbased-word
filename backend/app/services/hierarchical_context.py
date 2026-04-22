@@ -63,17 +63,32 @@ class HierarchicalContext:
 
     def __init__(self, data_dir: str = None):
         if data_dir is None:
-            # 默认使用项目根目录下的 data/exports_html
-            # backend/app/services -> ../../../data/exports_html
+            # Use settings.DOCUMENTS_DIR (backend/data/documents) as primary,
+            # and also scan legacy exports_html directory
+            from app.config import settings
+            self.data_dir = settings.DOCUMENTS_DIR
             backend_dir = Path(__file__).parent.parent.parent
-            self.data_dir = backend_dir.parent / "data" / "exports_html"
+            self._legacy_dir = backend_dir.parent / "data" / "exports_html"
         else:
             self.data_dir = Path(data_dir)
+            self._legacy_dir = None
         self._meta_cache: Optional[str] = None  # Layer 0 缓存
         self._table_index_cache: Optional[str] = None  # Layer 1 缓存
         self._loaded_sessions: Set[str] = set()  # 已加载 Layer 0/1 的会话
         self._max_rag_tokens: int = 15000  # RAG 层最大 token 数量
         self._layer_tokens: Dict[str, int] = {"layer0": 0, "layer1": 0, "layer2": 0, "layer3": 0, "layer4": 0, "total": 0}  # 各层 token 使用量
+
+    def invalidate_cache(self):
+        """Clear all caches so next query reloads from disk."""
+        self._meta_cache = None
+        self._table_index_cache = None
+        self._loaded_sessions.clear()
+        self._material_status = {
+            "has_documents": False,
+            "document_count": 0,
+            "documents": [],
+        }
+        logger.info("[上下文] 缓存已清除")
 
         # Material status tracking
         self._material_status: Dict[str, Any] = {
@@ -94,27 +109,36 @@ class HierarchicalContext:
     def _get_all_documents(self) -> List[Dict[str, Any]]:
         """获取所有文档的 index.json"""
         documents = []
-        
-        if not self.data_dir.exists():
-            logger.warning(f"[上下文] 数据目录不存在: {self.data_dir}")
-            return documents
-        
-        for doc_dir in self.data_dir.iterdir():
-            if not doc_dir.is_dir():
+        seen_dirs = set()
+
+        # Scan both primary and legacy directories
+        scan_dirs = [self.data_dir]
+        if self._legacy_dir and self._legacy_dir != self.data_dir:
+            scan_dirs.append(self._legacy_dir)
+
+        for base_dir in scan_dirs:
+            if not base_dir.exists():
                 continue
-            
-            index_path = doc_dir / "index.json"
-            if not index_path.exists():
-                continue
-            
-            try:
-                with open(index_path, "r", encoding="utf-8") as f:
-                    index_data = json.load(f)
-                    index_data["_doc_dir"] = doc_dir.name  # 保存目录名
-                    documents.append(index_data)
-            except Exception as e:
-                logger.error(f"[上下文] 读取 index.json 失败: {index_path}, {e}")
-        
+
+            for doc_dir in base_dir.iterdir():
+                if not doc_dir.is_dir():
+                    continue
+                if doc_dir.name in seen_dirs:
+                    continue
+
+                index_path = doc_dir / "index.json"
+                if not index_path.exists():
+                    continue
+
+                try:
+                    with open(index_path, "r", encoding="utf-8") as f:
+                        index_data = json.load(f)
+                        index_data["_doc_dir"] = doc_dir.name
+                        documents.append(index_data)
+                        seen_dirs.add(doc_dir.name)
+                except Exception as e:
+                    logger.error(f"[上下文] 读取 index.json 失败: {index_path}, {e}")
+
         logger.info(f"[上下文] 找到 {len(documents)} 个文档")
         return documents
     
