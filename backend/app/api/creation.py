@@ -466,7 +466,7 @@ async def get_material_content(
         # 读取内容文件 - 优先 content.json (完整内容)
         content_json_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.json"
         content_html_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
-        
+
         if content_json_path.exists():
             import json
             with open(content_json_path, "r", encoding="utf-8") as f:
@@ -491,7 +491,40 @@ async def get_material_content(
                 "content": content,
                 "content_type": "html"
             }
-        else:
+
+        # Check materials directory (pre-parsed by PDF pipeline)
+        materials_dir = Path(settings.DATA_DIR) / "materials"
+        if materials_dir.exists():
+            for d in materials_dir.iterdir():
+                if d.is_dir() and d.name.startswith(f"{material_id}_"):
+                    full_html = d / "full.html"
+                    summary_json = d / "summary.json"
+                    if full_html.exists():
+                        with open(full_html, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        logger.info(f"✅ 获取素材内容: {material_id} (from materials/full.html)")
+                        return {
+                            "id": material.id,
+                            "name": material.name,
+                            "type": material.material_type,
+                            "content": content,
+                            "content_type": "html"
+                        }
+                    elif summary_json.exists():
+                        with open(summary_json, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        content = json.dumps(data, ensure_ascii=False, indent=2)
+                        logger.info(f"✅ 获取素材内容: {material_id} (from materials/summary.json)")
+                        return {
+                            "id": material.id,
+                            "name": material.name,
+                            "type": material.material_type,
+                            "content": content,
+                            "content_type": "json"
+                        }
+                    break
+
+        # Fallback: check legacy format
             # 检查旧格式
             legacy_path = Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / f"{Path(material.name).stem}.html"
             if legacy_path.exists():
@@ -596,8 +629,25 @@ async def get_material_detail(
             with open(content_html_path, "r", encoding="utf-8") as f:
                 content = f.read()
             return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
-        else:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="素材内容文件不存在")
+
+        # Check materials directory (pre-parsed by PDF pipeline)
+        materials_dir = Path(settings.DATA_DIR) / "materials"
+        if materials_dir.exists():
+            for d in materials_dir.iterdir():
+                if d.is_dir() and d.name.startswith(f"{material_id}_"):
+                    full_html = d / "full.html"
+                    summary_json = d / "summary.json"
+                    if full_html.exists():
+                        with open(full_html, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
+                    elif summary_json.exists():
+                        with open(summary_json, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        return {"id": material.id, "name": material.name, "type": material.material_type, "content": json.dumps(data, ensure_ascii=False, indent=2), "content_type": "json"}
+                    break
+
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="素材内容文件不存在")
     except HTTPException:
         raise
     except Exception as e:
