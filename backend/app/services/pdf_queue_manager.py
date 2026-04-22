@@ -167,6 +167,20 @@ class PDFQueueManager:
             logger.warning("pdf_queue_already_running")
             return
 
+        # Re-queue pending/queued tasks that were not processed before restart
+        requeued = 0
+        for task_id, task in self._tasks.items():
+            if task.status in [PDFTaskStatus.PENDING, PDFTaskStatus.QUEUED]:
+                await self._queue.put((task.priority.value, task_id))
+                requeued += 1
+                logger.info(
+                    "pdf_task_requeued",
+                    task_id=task_id,
+                    source_path=task.source_path
+                )
+        if requeued > 0:
+            logger.info("pdf_queue_requeued_tasks", count=requeued)
+
         self._running = True
         self._worker_task = asyncio.create_task(self._process_queue())
         logger.info("pdf_queue_started")
