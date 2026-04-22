@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     EXPORTS_VLM_DIR: Path = PROJECT_ROOT / "data" / "exports_vlm_full"  # VLM parsed results
     EXPORTS_HTML_DIR: Path = PROJECT_ROOT / "data" / "exports_html"  # Generated HTML exports
     STANDARDS_DIR: Path = PROJECT_ROOT / "data" / "standards_parsed"  # Parsed standards
+    SCRIPTS_DIR: Path = PROJECT_ROOT / "scripts"  # Utility scripts
+    TOOLS_DIR: Path = BASE_DIR / "app" / "tools"  # Agent tools directory
+    AGENTS_FUNC_DIR: Path = BASE_DIR / "app" / "agents" / "functional"  # Functional agents directory
+    MATERIALS_DIR: Path = DATA_DIR / "materials"  # Material index directory
 
     # 数据库配置
     DATABASE_URL: str = f"sqlite:///{DB_DIR}/craftdoc.db"
@@ -91,6 +95,12 @@ class Settings(BaseSettings):
     REPOSITORY_TYPE: str = "json"  # json | sqlite
     TASK_DATA_DIR: Path = DATA_DIR / "tasks"  # JSON文件存储目录
     SQLITE_DB_PATH: Path = DATA_DIR / "tasks.db"  # SQLite数据库文件路径
+
+    # 记忆系统配置
+    MEMORY_DIR: Path = DATA_DIR / "memory"
+    MEMORY_MAX_TOKENS: int = 800  # memory injection token hard cap
+    MEMORY_KEEP_COUNT: int = 20  # max memory files to keep
+    MEMORY_SUMMARY_MAX_TOKENS: int = 200  # max_tokens for LLM summary generation
 
     # 上下文工程配置
     CONTEXT_COMPRESSION_THRESHOLD: float = 0.85  # 压缩触发阈值（窗口85%）
@@ -193,6 +203,7 @@ settings.DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 settings.CSV_EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 settings.STATIC_DIR.mkdir(parents=True, exist_ok=True)
 settings.TASK_DATA_DIR.mkdir(parents=True, exist_ok=True)
+settings.MEMORY_DIR.mkdir(parents=True, exist_ok=True)
 settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 settings.EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)

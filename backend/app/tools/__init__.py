@@ -71,9 +71,9 @@ def discover_tools() -> List[str]:
     """
     import importlib
     import pkgutil
-    from pathlib import Path
+    from app.config import settings
 
-    tools_dir = Path(__file__).parent
+    tools_dir = settings.TOOLS_DIR
     registered_tools = []
 
     # 新的标准 Tool 文件（使用 @ToolRegistry.register 装饰器）

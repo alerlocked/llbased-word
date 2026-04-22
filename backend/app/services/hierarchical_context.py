@@ -67,8 +67,7 @@ class HierarchicalContext:
             # and also scan legacy exports_html directory
             from app.config import settings
             self.data_dir = settings.DOCUMENTS_DIR
-            backend_dir = Path(__file__).parent.parent.parent
-            self._legacy_dir = backend_dir.parent / "data" / "exports_html"
+            self._legacy_dir = settings.EXPORTS_HTML_DIR
         else:
             self.data_dir = Path(data_dir)
             self._legacy_dir = None

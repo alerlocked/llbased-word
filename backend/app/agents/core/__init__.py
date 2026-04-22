@@ -42,9 +42,9 @@ def discover_tools():
     """
     import importlib
     import pkgutil
-    from pathlib import Path
+    from app.config import settings
 
-    tools_dir = Path(__file__).parent.parent.parent / "tools"
+    tools_dir = settings.TOOLS_DIR
 
     if not tools_dir.exists():
         return
@@ -66,9 +66,9 @@ def discover_agents():
     """
     import importlib
     import pkgutil
-    from pathlib import Path
+    from app.config import settings
 
-    agents_dir = Path(__file__).parent.parent / "functional"
+    agents_dir = settings.AGENTS_FUNC_DIR
 
     if not agents_dir.exists():
         return

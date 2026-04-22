@@ -25,7 +25,8 @@ def get_context_service() -> ContextService:
     global _context_service
     if _context_service is None:
         # 使用项目根目录作为基础路径
-        base_path = Path(__file__).parent.parent.parent.parent.parent
+        from app.config import settings
+        base_path = settings.PROJECT_ROOT
         _context_service = ContextService(base_path=base_path)
     return _context_service
 

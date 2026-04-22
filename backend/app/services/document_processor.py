@@ -32,9 +32,8 @@ if platform.system() == "Windows":
 # 动态导入 HTML 生成函数
 def _import_html_generator():
     """动态导入 HTML 生成模块"""
-    # __file__ = backend/app/services/document_processor.py
-    # 需要向上 4 层到达项目根目录
-    scripts_dir = Path(__file__).parent.parent.parent.parent / "scripts"
+    from app.config import settings
+    scripts_dir = settings.SCRIPTS_DIR
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     
