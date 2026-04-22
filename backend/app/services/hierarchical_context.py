@@ -77,18 +77,6 @@ class HierarchicalContext:
         self._max_rag_tokens: int = 15000  # RAG 层最大 token 数量
         self._layer_tokens: Dict[str, int] = {"layer0": 0, "layer1": 0, "layer2": 0, "layer3": 0, "layer4": 0, "total": 0}  # 各层 token 使用量
 
-    def invalidate_cache(self):
-        """Clear all caches so next query reloads from disk."""
-        self._meta_cache = None
-        self._table_index_cache = None
-        self._loaded_sessions.clear()
-        self._material_status = {
-            "has_documents": False,
-            "document_count": 0,
-            "documents": [],
-        }
-        logger.info("[上下文] 缓存已清除")
-
         # Material status tracking
         self._material_status: Dict[str, Any] = {
             "has_documents": False,
@@ -104,6 +92,18 @@ class HierarchicalContext:
         except Exception as e:
             logger.warning(f"[上下文] 记忆服务初始化失败: {e}")
             self._memory_service = None
+
+    def invalidate_cache(self):
+        """Clear all caches so next query reloads from disk."""
+        self._meta_cache = None
+        self._table_index_cache = None
+        self._loaded_sessions.clear()
+        self._material_status = {
+            "has_documents": False,
+            "document_count": 0,
+            "documents": [],
+        }
+        logger.info("[上下文] 缓存已清除")
         
     def _get_all_documents(self) -> List[Dict[str, Any]]:
         """获取所有文档的 index.json"""

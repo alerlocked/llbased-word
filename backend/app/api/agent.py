@@ -746,6 +746,7 @@ async def generate_stream(request: GenerateStreamRequest):
                 logger.info(f"[AI助手] 注入用户选中素材: {len(reference_materials)} 个")
 
             # Inject material instruction if available
+            material_instruction = locals().get('material_instruction', '')
             material_section = f"\n{material_instruction}\n" if material_instruction else ""
 
             if doc_context:
