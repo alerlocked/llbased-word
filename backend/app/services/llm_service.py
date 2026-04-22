@@ -319,6 +319,58 @@ class QwenLLMService:
                 "content": ""
             }
 
+    async def generate_with_messages(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: int = 2000
+    ) -> Dict:
+        """
+        Chat completion with native message array (OpenAI-compatible format).
+
+        This is the preferred way to call the LLM — it preserves conversation
+        structure so the model can distinguish system instructions, prior turns,
+        and the current user input.
+
+        Args:
+            messages: [{"role": "system"|"user"|"assistant", "content": "..."}]
+            temperature: sampling temperature
+            max_tokens: max tokens to generate
+
+        Returns:
+            {"status": "success"|"error", "content": str}
+        """
+        start_time = time.time()
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+
+            content = response.choices[0].message.content.strip()
+
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "消息生成", "success", duration_ms)
+
+            return {
+                "status": "success",
+                "content": content
+            }
+
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "消息生成", "error", duration_ms)
+            logger.error(f"❌ 消息生成失败: {str(e)}")
+
+            return {
+                "status": "error",
+                "error": str(e),
+                "content": ""
+            }
+
 # 创建全局实例
 llm_service = QwenLLMService()
 

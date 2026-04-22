@@ -800,67 +800,56 @@ async def generate_stream(request: GenerateStreamRequest):
             material_instruction = locals().get('material_instruction', '')
             material_section = f"\n{material_instruction}\n" if material_instruction else ""
 
-            # Build chat history section for multi-turn context
+            # Build structured message array (OpenAI/Claude standard format)
+            # instead of flattening everything into one string.
+            # This lets the model natively distinguish system rules, prior turns,
+            # retrieved context, and the current user input.
+
+            messages: List[Dict[str, str]] = []
+
+            # 1. System message: behavior rules
+            system_parts = [system_prompt]
+            if material_section:
+                system_parts.append(material_section)
+            messages.append({"role": "system", "content": "\n".join(system_parts)})
+
+            # 2. Chat history (prior turns from current session)
             chat_history = request.chat_history or []
-            history_section = ""
-            if chat_history:
-                history_lines = []
-                for msg in chat_history[-10:]:  # Keep last 10 turns max
-                    role = msg.get("role", "user")
-                    content = msg.get("content", "")
-                    if not content:
-                        continue
-                    label = "用户" if role == "user" else "助手"
-                    # Truncate very long messages
-                    if len(content) > 500:
-                        content = content[:500] + "..."
-                    history_lines.append(f"{label}：{content}")
-                if history_lines:
-                    history_section = "## 对话历史\n\n" + "\n".join(history_lines) + "\n\n"
+            for msg in chat_history[-10:]:  # Keep last 10 turns
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if not content:
+                    continue
+                # Map frontend roles to API roles
+                api_role = "assistant" if role == "assistant" else "user"
+                # Truncate very long messages
+                if len(content) > 500:
+                    content = content[:500] + "..."
+                messages.append({"role": api_role, "content": content})
 
+            # 3. Current user message with injected context
+            # Context (retrieved docs + materials) goes with the current user message
+            # so the model knows these are reference materials for THIS query
+            context_parts: List[str] = []
             if doc_context:
-                full_prompt = f"""{system_prompt}
-{material_section}
-{history_section}
-## 参考文档
+                context_parts.append(f"## 参考文档\n\n{doc_context}")
+            if user_materials_context:
+                context_parts.append(user_materials_context)
 
-{doc_context}
-{user_materials_context}
-
-## 用户问题
-
-{user_input}
-
-请基于对话历史和参考文档回答用户问题。如果参考文档中没有相关信息，请如实告知。"""
-            elif user_materials_context:
-                full_prompt = f"""{system_prompt}
-{material_section}
-{history_section}
-{user_materials_context}
-
-## 用户问题
-
-{user_input}
-
-请基于对话历史和用户选中的素材回答问题。如果素材中没有相关信息，请如实告知。"""
+            if context_parts:
+                user_message = "\n\n".join(context_parts) + f"\n\n## 用户问题\n\n{user_input}\n\n请基于参考文档和对话历史回答用户问题。如果参考文档中没有相关信息，请如实告知。"
             else:
-                no_material_hint = ""
-                if not material_instruction:
-                    pass  # no special instruction needed for general chat
-                full_prompt = f"""{system_prompt}
-{material_section}
-{history_section}
-用户输入：{user_input}
+                user_message = user_input
 
-请基于对话历史理解用户的意图并回复。如果用户想要生成工艺文件，请先了解具体需求。"""
+            messages.append({"role": "user", "content": user_message})
 
             # 发送进度：正在生成
             yield f"data: {json.dumps({'type': 'progress', 'node': 'writer', 'message': '正在生成回复...', 'data': {'content_preview': ''}})}\n\n"
 
-            # 调用LLM生成内容
-            logger.info(f"[AI助手] 开始调用LLM API...")
-            result = await llm_service.generate_text(
-                prompt=full_prompt,
+            # 调用LLM生成内容 — 使用消息数组格式
+            logger.info(f"[AI助手] 开始调用LLM API (messages={len(messages)})...")
+            result = await llm_service.generate_with_messages(
+                messages=messages,
                 temperature=0.7,
                 max_tokens=2000
             )
