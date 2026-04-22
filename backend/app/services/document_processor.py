@@ -345,8 +345,8 @@ class DocumentProcessor:
         # 1. 获取源文件路径
         source_path = Path(task.source_path)
 
-        # 2. 从 task_id 提取 material_id
-        material_id = self._extract_material_id(task.task_id)
+        # 2. 从 source_path 和 DB 提取 material_id
+        material_id = self._extract_material_id(task.source_path, db)
 
         logger.info(f"开始处理队列任务: {task.task_id}, material_id={material_id}")
 
@@ -390,14 +390,34 @@ class DocumentProcessor:
             "output_path": str(output_path)
         }
 
-    def _extract_material_id(self, task_id: str) -> int:
-        """从 task_id 提取 material_id"""
-        parts = task_id.split("_")
-        if len(parts) >= 2:
-            try:
-                return int(parts[1])
-            except ValueError:
-                logger.warning(f"无法提取 material_id: {task_id}")
+    def _extract_material_id(self, source_path: str, db) -> int:
+        """Extract material_id by looking up the filename in DB.
+
+        Source path format: data/uploads/{project_id}/material_{project_id}_{filename}
+        The filename part is the original upload name, which matches Material.name.
+        """
+        import re
+        # Extract original filename from upload path
+        # Path: .../material_{project_id}_{original_filename}
+        m = re.search(r'material_\d+_(.+)$', source_path)
+        if m:
+            filename = m.group(1)
+            # Look up material by name (most recently created match)
+            material = db.query(Material).filter(
+                Material.name == filename
+            ).order_by(Material.id.desc()).first()
+            if material:
+                return material.id
+
+        # Fallback: try the directory name under uploads
+        m = re.search(r'uploads[/\\](\d+)[/\\]', source_path)
+        if m:
+            # Check if there's a material with this as part of its path
+            potential_id = int(m.group(1))
+            material = db.query(Material).filter(Material.id == potential_id).first()
+            if material:
+                return potential_id
+
         return 0
 
     def _save_html(self, result: Dict, html_path: Path):
