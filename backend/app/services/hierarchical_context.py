@@ -63,14 +63,10 @@ class HierarchicalContext:
 
     def __init__(self, data_dir: str = None):
         if data_dir is None:
-            # Use settings.DOCUMENTS_DIR (backend/data/documents) as primary,
-            # and also scan legacy exports_html directory
             from app.config import settings
             self.data_dir = settings.DOCUMENTS_DIR
-            self._legacy_dir = settings.EXPORTS_HTML_DIR
         else:
             self.data_dir = Path(data_dir)
-            self._legacy_dir = None
         self._meta_cache: Optional[str] = None  # Layer 0 缓存
         self._table_index_cache: Optional[str] = None  # Layer 1 缓存
         self._loaded_sessions: Set[str] = set()  # 已加载 Layer 0/1 的会话
@@ -108,36 +104,25 @@ class HierarchicalContext:
     def _get_all_documents(self) -> List[Dict[str, Any]]:
         """获取所有文档的 index.json"""
         documents = []
-        seen_dirs = set()
 
-        # Scan both primary and legacy directories
-        scan_dirs = [self.data_dir]
-        if self._legacy_dir and self._legacy_dir != self.data_dir:
-            scan_dirs.append(self._legacy_dir)
+        if not self.data_dir.exists():
+            return documents
 
-        for base_dir in scan_dirs:
-            if not base_dir.exists():
+        for doc_dir in self.data_dir.iterdir():
+            if not doc_dir.is_dir():
                 continue
 
-            for doc_dir in base_dir.iterdir():
-                if not doc_dir.is_dir():
-                    continue
-                if doc_dir.name in seen_dirs:
-                    continue
+            index_path = doc_dir / "index.json"
+            if not index_path.exists():
+                continue
 
-                index_path = doc_dir / "index.json"
-                if not index_path.exists():
-                    continue
-
-                try:
-                    with open(index_path, "r", encoding="utf-8") as f:
-                        index_data = json.load(f)
-                        index_data["_doc_dir"] = doc_dir.name
-                        index_data["_doc_base"] = str(doc_dir)  # full path for content reading
-                        documents.append(index_data)
-                        seen_dirs.add(doc_dir.name)
-                except Exception as e:
-                    logger.error(f"[上下文] 读取 index.json 失败: {index_path}, {e}")
+            try:
+                with open(index_path, "r", encoding="utf-8") as f:
+                    index_data = json.load(f)
+                    index_data["_doc_dir"] = doc_dir.name
+                    documents.append(index_data)
+            except Exception as e:
+                logger.error(f"[上下文] 读取 index.json 失败: {index_path}, {e}")
 
         logger.info(f"[上下文] 找到 {len(documents)} 个文档")
         return documents
@@ -405,17 +390,6 @@ class HierarchicalContext:
         
         return None
     
-    def _resolve_doc_dir(self, doc_dir_name: str) -> Path:
-        """Resolve doc directory by checking both primary and legacy dirs."""
-        primary = self.data_dir / doc_dir_name
-        if primary.exists():
-            return primary
-        if self._legacy_dir:
-            legacy = self._legacy_dir / doc_dir_name
-            if legacy.exists():
-                return legacy
-        return primary  # fallback, will fail gracefully downstream
-
     def extract_table_html(self, doc_dir_name: str, table_id: str) -> str:
         """从 document.html 中提取指定表格
 
@@ -426,7 +400,7 @@ class HierarchicalContext:
         Returns:
             表格的 HTML 内容
         """
-        doc_dir = self._resolve_doc_dir(doc_dir_name)
+        doc_dir = self.data_dir / doc_dir_name
         html_path = doc_dir / "document.html"
         
         if not html_path.exists():
@@ -665,7 +639,7 @@ class HierarchicalContext:
                 continue
 
             doc_name = doc.get("name", "未命名文档")
-            doc_dir = self._resolve_doc_dir(doc_dir_name)
+            doc_dir = self.data_dir / doc_dir_name
             html_path = doc_dir / "document.html"
 
             if not html_path.exists():
