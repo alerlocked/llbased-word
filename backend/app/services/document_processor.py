@@ -6,7 +6,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Callable
 from io import BytesIO
 import fitz  # PyMuPDF
 from PIL import Image
@@ -140,7 +140,13 @@ class DocumentProcessor:
             logger.error(f"❌ PDF转图片失败: {str(e)}")
             raise
     
-    async def process_document(self, file_path: Path, material_id: int, db: Session) -> Dict:
+    async def process_document(
+        self,
+        file_path: Path,
+        material_id: int,
+        db: Session,
+        progress_callback: Optional[Callable[[int], None]] = None
+    ) -> Dict:
         """
         处理文档：转图片 -> OCR提取文字 -> 保存 -> 生成HTML
         
@@ -157,6 +163,9 @@ class DocumentProcessor:
         try:
             # 1. 栅格化：转换为图片序列
             image_paths = await self._convert_to_images(file_path, material_id)
+
+            if progress_callback:
+                progress_callback(5)
             
             total_pages = len(image_paths)
             all_markdown_parts = []
@@ -222,6 +231,11 @@ class DocumentProcessor:
             
                 # 组合Markdown
                 all_markdown_parts.append(f"## 第 {page_num} 页\n\n{page_content}\n\n")
+
+                # Update progress after each page
+                if progress_callback:
+                    pct = 10 + int(page_num / total_pages * 80)
+                    progress_callback(min(pct, 90))
             
             # 提交数据库变更
             db.commit()
@@ -297,6 +311,9 @@ class DocumentProcessor:
                 logger.error(f"⚠️ HTML生成失败（不影响OCR）: {str(e)}")
                 import traceback
                 logger.error(traceback.format_exc())
+
+            if progress_callback:
+                progress_callback(95)
             
             return {
                 "content": final_content,
@@ -312,7 +329,8 @@ class DocumentProcessor:
     async def process_document_from_task(
         self,
         task: PDFTask,
-        db: Session
+        db: Session,
+        progress_callback: Optional[Callable[[int], None]] = None
     ) -> Dict[str, Any]:
         """
         从队列任务处理文档
@@ -336,7 +354,8 @@ class DocumentProcessor:
         result = await self.process_document(
             file_path=source_path,
             material_id=material_id,
-            db=db
+            db=db,
+            progress_callback=progress_callback
         )
 
         # 4. 更新素材内容
@@ -354,6 +373,14 @@ class DocumentProcessor:
 
         json_path = output_path.with_suffix(".json")
         self._save_json(result, json_path)
+
+        # 6. Also save to documents/{material_id}/ for API discovery
+        if material_id and material_id > 0:
+            doc_dir = Path(settings.DATA_DIR) / "documents" / str(material_id)
+            doc_dir.mkdir(parents=True, exist_ok=True)
+            content_html = doc_dir / "content.html"
+            self._save_html(result, content_html)
+            logger.info(f"Content synced to documents/{material_id}/content.html")
 
         logger.info(f"队列任务完成: {task.task_id}")
 

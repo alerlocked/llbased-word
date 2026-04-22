@@ -235,12 +235,24 @@ class PDFQueueManager:
                 existing_task_id = self._file_hash_index[file_hash]
                 existing_task = self._tasks.get(existing_task_id)
                 if existing_task and existing_task.status == PDFTaskStatus.COMPLETED:
-                    logger.info(
-                        "pdf_already_parsed",
-                        source_path=source_path,
-                        task_id=existing_task_id
-                    )
-                    return None  # 已解析，跳过
+                    # Verify output actually exists on disk
+                    output_exists = Path(existing_task.output_path).exists() if existing_task.output_path else False
+                    if output_exists:
+                        logger.info(
+                            "pdf_already_parsed",
+                            source_path=source_path,
+                            task_id=existing_task_id
+                        )
+                        return None  # 已解析，跳过
+                    else:
+                        logger.info(
+                            "pdf_parsed_but_output_missing",
+                            source_path=source_path,
+                            task_id=existing_task_id,
+                            output_path=existing_task.output_path
+                        )
+                        # Output missing, remove stale index and re-parse
+                        del self._file_hash_index[file_hash]
 
         # 检查是否已有相同路径的任务
         if source_path in self._source_path_index:
@@ -358,6 +370,12 @@ class PDFQueueManager:
 
         self._save_state()
         return True
+
+    def update_progress(self, task_id: str, progress: int):
+        """Update task progress (0-100)."""
+        task = self._tasks.get(task_id)
+        if task:
+            task.progress = max(0, min(100, progress))
 
     def get_task(self, task_id: str) -> Optional[PDFTask]:
         """获取任务信息"""
