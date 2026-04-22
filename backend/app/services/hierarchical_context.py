@@ -133,6 +133,7 @@ class HierarchicalContext:
                     with open(index_path, "r", encoding="utf-8") as f:
                         index_data = json.load(f)
                         index_data["_doc_dir"] = doc_dir.name
+                        index_data["_doc_base"] = str(doc_dir)  # full path for content reading
                         documents.append(index_data)
                         seen_dirs.add(doc_dir.name)
                 except Exception as e:
@@ -404,17 +405,28 @@ class HierarchicalContext:
         
         return None
     
+    def _resolve_doc_dir(self, doc_dir_name: str) -> Path:
+        """Resolve doc directory by checking both primary and legacy dirs."""
+        primary = self.data_dir / doc_dir_name
+        if primary.exists():
+            return primary
+        if self._legacy_dir:
+            legacy = self._legacy_dir / doc_dir_name
+            if legacy.exists():
+                return legacy
+        return primary  # fallback, will fail gracefully downstream
+
     def extract_table_html(self, doc_dir_name: str, table_id: str) -> str:
         """从 document.html 中提取指定表格
-        
+
         Args:
             doc_dir_name: 文档目录名
             table_id: 表格 ID（如 "G4a"）
-            
+
         Returns:
             表格的 HTML 内容
         """
-        doc_dir = self.data_dir / doc_dir_name
+        doc_dir = self._resolve_doc_dir(doc_dir_name)
         html_path = doc_dir / "document.html"
         
         if not html_path.exists():
@@ -653,7 +665,8 @@ class HierarchicalContext:
                 continue
 
             doc_name = doc.get("name", "未命名文档")
-            html_path = self.data_dir / doc_dir_name / "document.html"
+            doc_dir = self._resolve_doc_dir(doc_dir_name)
+            html_path = doc_dir / "document.html"
 
             if not html_path.exists():
                 continue
