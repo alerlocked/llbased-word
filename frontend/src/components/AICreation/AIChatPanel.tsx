@@ -546,7 +546,11 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             name: m.name,
             content: m.content,
             type: m.type
-          })) : undefined  // 注入选中的素材
+          })) : undefined,  // 注入选中的素材
+          chat_history: messages.slice(-10).map((m: any) => ({
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content.slice(0, 500) : '',
+          }))  // 注入最近10条对话历史
         }),
         signal: controller.signal  // 支持取消请求
       })

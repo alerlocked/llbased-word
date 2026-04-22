@@ -188,6 +188,7 @@ class GenerateStreamRequest(BaseModel):
     user_id: Optional[int] = Field(None, description="用户ID")
     project_id: Optional[int] = Field(None, description="项目ID")
     reference_materials: Optional[List[dict]] = Field(None, description="用户选中的参考素材")
+    chat_history: Optional[List[dict]] = Field(None, description="最近对话历史 [{role, content}]")
 
 
 class SelectSolutionRequest(BaseModel):
@@ -799,9 +800,28 @@ async def generate_stream(request: GenerateStreamRequest):
             material_instruction = locals().get('material_instruction', '')
             material_section = f"\n{material_instruction}\n" if material_instruction else ""
 
+            # Build chat history section for multi-turn context
+            chat_history = request.chat_history or []
+            history_section = ""
+            if chat_history:
+                history_lines = []
+                for msg in chat_history[-10:]:  # Keep last 10 turns max
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if not content:
+                        continue
+                    label = "用户" if role == "user" else "助手"
+                    # Truncate very long messages
+                    if len(content) > 500:
+                        content = content[:500] + "..."
+                    history_lines.append(f"{label}：{content}")
+                if history_lines:
+                    history_section = "## 对话历史\n\n" + "\n".join(history_lines) + "\n\n"
+
             if doc_context:
                 full_prompt = f"""{system_prompt}
 {material_section}
+{history_section}
 ## 参考文档
 
 {doc_context}
@@ -811,27 +831,28 @@ async def generate_stream(request: GenerateStreamRequest):
 
 {user_input}
 
-请基于参考文档和用户选中的素材回答用户问题。如果参考文档中没有相关信息，请如实告知。"""
+请基于对话历史和参考文档回答用户问题。如果参考文档中没有相关信息，请如实告知。"""
             elif user_materials_context:
                 full_prompt = f"""{system_prompt}
 {material_section}
+{history_section}
 {user_materials_context}
 
 ## 用户问题
 
 {user_input}
 
-请基于用户选中的素材回答问题。如果素材中没有相关信息，请如实告知。"""
+请基于对话历史和用户选中的素材回答问题。如果素材中没有相关信息，请如实告知。"""
             else:
                 no_material_hint = ""
                 if not material_instruction:
                     pass  # no special instruction needed for general chat
                 full_prompt = f"""{system_prompt}
 {material_section}
-
+{history_section}
 用户输入：{user_input}
 
-请根据用户的输入，提供专业的回复。如果用户想要生成工艺文件，请先了解具体需求。"""
+请基于对话历史理解用户的意图并回复。如果用户想要生成工艺文件，请先了解具体需求。"""
 
             # 发送进度：正在生成
             yield f"data: {json.dumps({'type': 'progress', 'node': 'writer', 'message': '正在生成回复...', 'data': {'content_preview': ''}})}\n\n"
