@@ -153,6 +153,27 @@ class Settings(BaseSettings):
     # MinerU失败时是否回退到Qwen
     VL_SERVICE_FALLBACK_TO_QWEN: bool = True
 
+    # Document file name conventions (single source of truth)
+    DOC_INDEX_FILE: str = "index.json"           # metadata per document dir
+    DOC_CONTENT_HTML_FILE: str = "content.html"  # MinerU raw parsed content
+    DOC_DISPLAY_HTML_FILE: str = "document.html" # styled display HTML
+    DOC_CONTENT_JSON_FILE: str = "content.json"  # structured content JSON
+
+    @staticmethod
+    def resolve_doc_content_html(doc_dir: Path) -> Path:
+        """Resolve the best HTML content file for a document directory.
+
+        Priority: content.html (raw parsed) > document.html (styled display).
+        Returns the first existing file, or content.html as default.
+        """
+        content = doc_dir / "content.html"
+        if content.exists():
+            return content
+        display = doc_dir / "document.html"
+        if display.exists():
+            return display
+        return content  # default, even if missing
+
     # 结构化提取配置
     CONTEXT_STRUCTURED_EXTRACTION_ENABLED: bool = True  # 是否启用结构化提取
     CONTEXT_DIMENSION_KEYWORDS: Dict[str, List[str]] = {

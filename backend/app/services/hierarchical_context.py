@@ -391,7 +391,7 @@ class HierarchicalContext:
         return None
     
     def extract_table_html(self, doc_dir_name: str, table_id: str) -> str:
-        """从 document.html 中提取指定表格
+        """从 content.html / document.html 中提取指定表格
 
         Args:
             doc_dir_name: 文档目录名
@@ -400,9 +400,10 @@ class HierarchicalContext:
         Returns:
             表格的 HTML 内容
         """
+        from app.config import settings
         doc_dir = self.data_dir / doc_dir_name
-        html_path = doc_dir / "document.html"
-        
+        html_path = settings.resolve_doc_content_html(doc_dir)
+
         if not html_path.exists():
             logger.warning(f"[上下文] HTML 文件不存在: {html_path}")
             return f"[表格 {table_id} 的 HTML 内容未找到]"
@@ -640,7 +641,8 @@ class HierarchicalContext:
 
             doc_name = doc.get("name", "未命名文档")
             doc_dir = self.data_dir / doc_dir_name
-            html_path = doc_dir / "document.html"
+            from app.config import settings
+            html_path = settings.resolve_doc_content_html(doc_dir)
 
             if not html_path.exists():
                 continue
@@ -653,30 +655,79 @@ class HierarchicalContext:
                 soup = BeautifulSoup(html_content, "html.parser")
                 plain_text = soup.get_text(separator="\n")
 
-                # 按段落分割（非空行）
-                paragraphs = [p.strip() for p in plain_text.split("\n") if p.strip()]
+                # Split into lines, then group by PDF page (## 第 N 页)
+                lines = plain_text.split("\n")
+                pages: Dict[int, str] = {}  # page_number -> full page text
+                current_page = 0
+                current_lines: List[str] = []
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith("## 第") and "页" in stripped:
+                        # Save previous page
+                        if current_page > 0:
+                            pages[current_page] = "\n".join(current_lines)
+                        import re
+                        m = re.search(r"第\s*(\d+)\s*页", stripped)
+                        current_page = int(m.group(1)) if m else current_page + 1
+                        current_lines = []
+                    else:
+                        if stripped:
+                            current_lines.append(stripped)
+                # Save last page
+                if current_page > 0:
+                    pages[current_page] = "\n".join(current_lines)
 
-                for para in paragraphs:
+                # Build a paragraph->page mapping for keyword matching
+                paragraphs = [p.strip() for p in plain_text.split("\n") if p.strip()]
+                para_page_map: Dict[int, int] = {}  # para index -> page number
+                page_boundary = 0
+                for idx, para in enumerate(paragraphs):
+                    if para.startswith("## 第") and "页" in para:
+                        import re
+                        m = re.search(r"第\s*(\d+)\s*页", para)
+                        page_boundary = int(m.group(1)) if m else page_boundary
+                    para_page_map[idx] = page_boundary
+
+                # Track which (doc, page) combos already added to avoid duplicates
+                seen_doc_pages: Set[tuple] = set()
+                # Collect hits: (score, para_idx) to rank
+                hits: List[tuple] = []
+
+                for idx, para in enumerate(paragraphs):
                     para_lower = para.lower()
-                    # 计算命中关键词数
                     hit_keywords = {kw for kw in keywords if kw.lower() in para_lower}
                     if not hit_keywords:
                         continue
+                    hits.append((len(hit_keywords), idx, para))
 
-                    score = len(hit_keywords)
+                # Sort by score descending
+                hits.sort(key=lambda x: x[0], reverse=True)
 
-                    # 估算页码：简单按段落位置估算
-                    page = self._estimate_page(para, paragraphs, doc.get("pages", 1))
+                for score, idx, para in hits:
+                    page_num = para_page_map.get(idx, 0)
+                    doc_page_key = (doc_name, page_num)
+                    if doc_page_key in seen_doc_pages:
+                        continue
+                    seen_doc_pages.add(doc_page_key)
 
-                    # 提取片段：以第一个命中关键词为中心，前后各 100 字
-                    snippet = self._extract_snippet(para, hit_keywords)
+                    # Inject entire page content
+                    if page_num > 0 and page_num in pages:
+                        snippet = pages[page_num]
+                        # Truncate if page is very long (> 2000 chars)
+                        if len(snippet) > 2000:
+                            snippet = snippet[:2000] + "\n...(页面内容过长，已截断)"
+                    else:
+                        snippet = para
 
                     results.append({
                         "doc_name": doc_name,
                         "snippet": snippet,
                         "score": float(score),
-                        "page": page,
+                        "page": page_num,
                     })
+
+                    if len(seen_doc_pages) >= top_k:
+                        break
 
             except Exception as e:
                 logger.error(f"[上下文] L3 搜索文档失败: {doc_dir_name}, {e}")

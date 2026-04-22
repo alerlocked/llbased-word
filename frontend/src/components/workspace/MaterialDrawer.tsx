@@ -21,7 +21,7 @@ import KnowledgeScopeSelector from '../MaterialLibrary/KnowledgeScopeSelector'
 
 const { Dragger } = Upload
 
-const FOLDERS_STORAGE_KEY = 'material_folders'
+const API_BASE = 'http://localhost:8000/api/creation'
 const SCOPE_STORAGE_KEY = 'knowledge_scope_selection'
 const POLL_INTERVAL = 2000
 
@@ -34,25 +34,22 @@ interface MaterialDrawerProps {
   defaultTab?: string
 }
 
-// default folder structure
-const defaultFolders: FolderNode[] = [
-  {
-    key: 'folder_process',
-    title: '工艺规程',
-    children: [
-      { key: 'folder_model_a', title: '型号 A' },
-      { key: 'folder_model_b', title: '型号 B' }
-    ]
-  },
-  {
-    key: 'folder_standard',
-    title: '检验标准'
-  },
-  {
-    key: 'folder_training',
-    title: '培训资料'
-  }
-]
+// Convert flat API folder tree to FolderNode[] for FolderTree component
+interface ApiFolderNode {
+  id: number
+  name: string
+  parentId: number | null
+  sortOrder: number
+  children: ApiFolderNode[]
+}
+
+const apiFolderToFolderNode = (nodes: ApiFolderNode[]): FolderNode[] => {
+  return nodes.map(node => ({
+    key: String(node.id),
+    title: node.name,
+    children: node.children ? apiFolderToFolderNode(node.children) : undefined,
+  }))
+}
 
 const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   visible,
@@ -116,7 +113,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     return () => clearInterval(timer)
   }, [visible, materials])
 
-  // --- Polling logic (from UploadDrawer) ---
+  // --- Polling logic ---
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -192,24 +189,47 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     }
   }, [visible, stopPolling])
 
-  // --- Folders ---
+  // --- Folders (API-backed) ---
 
-  const loadFolders = () => {
-    const saved = localStorage.getItem(FOLDERS_STORAGE_KEY)
-    if (saved) {
-      try {
-        setFolders(JSON.parse(saved))
-      } catch {
-        setFolders(defaultFolders)
+  const loadFolders = async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/material-folders`)
+      if (resp.ok) {
+        const data: ApiFolderNode[] = await resp.json()
+        setFolders(apiFolderToFolderNode(data))
       }
-    } else {
-      setFolders(defaultFolders)
+    } catch {
+      console.error('获取文件夹失败')
     }
   }
 
-  const saveFolders = (newFolders: FolderNode[]) => {
-    localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(newFolders))
-    setFolders(newFolders)
+  const handleCreateFolder = async (name: string, parentId: number | null = null) => {
+    const resp = await fetch(`${API_BASE}/material-folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, parent_id: parentId }),
+    })
+    if (!resp.ok) throw new Error('创建失败')
+    await loadFolders()
+  }
+
+  const handleRenameFolder = async (folderId: number, name: string) => {
+    const resp = await fetch(`${API_BASE}/material-folders/${folderId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    if (!resp.ok) throw new Error('重命名失败')
+    await loadFolders()
+  }
+
+  const handleDeleteFolder = async (folderId: number) => {
+    const resp = await fetch(`${API_BASE}/material-folders/${folderId}`, {
+      method: 'DELETE',
+    })
+    if (!resp.ok) throw new Error('删除失败')
+    await loadFolders()
+    await fetchMaterials()
   }
 
   // --- Knowledge scope ---
@@ -230,7 +250,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const fetchMaterials = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/creation/projects/0/materials`)
+      const response = await fetch(`${API_BASE}/projects/0/materials`)
       if (response.ok) {
         const data = await response.json()
         const files: MaterialFile[] = []
@@ -245,7 +265,8 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
               content: (doc.content as string) || '',
               parse_status: (doc.parse_status as MaterialFile['parse_status']) || 'unknown',
               parse_progress: (doc.parse_progress as number) || 0,
-              parse_error: doc.parse_error as string | undefined
+              parse_error: doc.parse_error as string | undefined,
+              folderId: doc.folderId != null ? String(doc.folderId) : undefined,
             })
           })
         }
@@ -279,7 +300,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const uploadProps: UploadProps = {
     name: 'file',
     multiple: true,
-    action: `http://localhost:8000/api/creation/projects/${projectId || 0}/documents`,
+    action: `${API_BASE}/projects/${projectId || 0}/documents`,
     showUploadList: false,
     onChange(info) {
       if (info.file.status === 'uploading') {
@@ -302,10 +323,6 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
 
   // --- File operations ---
 
-  const handleFoldersUpdate = (newFolders: FolderNode[]) => {
-    saveFolders(newFolders)
-  }
-
   const handleFilePreview = async (file: MaterialFile) => {
     setPreviewFile(file)
     setPreviewVisible(true)
@@ -314,7 +331,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/creation/materials/${file.id}`
+        `${API_BASE}/materials/${file.id}`
       )
       if (response.ok) {
         const data = await response.json()
@@ -343,7 +360,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const handleFileDelete = async (fileId: number) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/creation/materials/${fileId}`,
+        `${API_BASE}/materials/${fileId}`,
         { method: 'DELETE' }
       )
       if (response.ok) {
@@ -355,11 +372,22 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     }
   }
 
-  const handleFileMove = (fileId: number, folderId: string) => {
-    setMaterials(prev =>
-      prev.map(m => m.id === fileId ? { ...m, folderId } : m)
-    )
-    message.success('文件已移动')
+  const handleFileMove = async (fileId: number, folderId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/materials/${fileId}/move`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_id: folderId === 'root' ? null : Number(folderId) }),
+      })
+      if (response.ok) {
+        message.success('文件已移动')
+        fetchMaterials()
+      } else {
+        message.error('移动失败')
+      }
+    } catch {
+      message.error('移动失败')
+    }
   }
 
   const handleLearnProfile = async (file: MaterialFile) => {
@@ -368,7 +396,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
       let content = file.content || ''
       if (!content) {
         const resp = await fetch(
-          `http://localhost:8000/api/creation/materials/${file.id}`
+          `${API_BASE}/materials/${file.id}`
         )
         if (resp.ok) {
           const data = await resp.json()
@@ -572,7 +600,9 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
                       folders={folders}
                       selectedFolder={selectedFolder}
                       onSelect={setSelectedFolder}
-                      onUpdate={handleFoldersUpdate}
+                      onCreate={handleCreateFolder}
+                      onRename={handleRenameFolder}
+                      onDelete={handleDeleteFolder}
                     />
                   </div>
 

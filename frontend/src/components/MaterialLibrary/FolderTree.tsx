@@ -1,17 +1,15 @@
 /**
  * FolderTree - 文件夹树形组件
- * 支持创建/删除/重命名文件夹
+ * 支持创建/删除/重命名文件夹，通过 API 持久化
  */
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Tree, Input, Dropdown, Modal, message } from 'antd'
 import {
   FolderOutlined,
   FolderOpenOutlined,
-  FileOutlined,
   PlusOutlined,
   DeleteOutlined,
   EditOutlined,
-  MoreOutlined
 } from '@ant-design/icons'
 import type { TreeDataNode, TreeProps } from 'antd'
 import { colors } from '../../styles/design-tokens'
@@ -26,20 +24,26 @@ interface FolderTreeProps {
   folders: FolderNode[]
   selectedFolder: string | null
   onSelect: (folderKey: string) => void
-  onUpdate: (folders: FolderNode[]) => void
+  onCreate: (name: string, parentId?: number | null) => Promise<void>
+  onRename: (folderId: number, name: string) => Promise<void>
+  onDelete: (folderId: number) => Promise<void>
 }
+
+const API_BASE = 'http://localhost:8000/api/creation'
 
 const FolderTree: React.FC<FolderTreeProps> = ({
   folders,
   selectedFolder,
   onSelect,
-  onUpdate
+  onCreate,
+  onRename,
+  onDelete,
 }) => {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [contextMenuNode, setContextMenuNode] = useState<FolderNode | null>(null)
 
-  // 转换为 Ant Design Tree 格式
+  // Convert to Ant Design Tree format
   const convertToTreeData = (nodes: FolderNode[]): TreeDataNode[] => {
     return nodes.map(node => ({
       key: node.key,
@@ -69,109 +73,56 @@ const FolderTree: React.FC<FolderTreeProps> = ({
     }))
   }
 
-  // 生成唯一 key
-  const generateKey = () => `folder_${Date.now()}`
-
-  // 添加文件夹
-  const handleAddFolder = (parentKey?: string) => {
-    const newFolder: FolderNode = {
-      key: generateKey(),
-      title: '新建文件夹',
-      children: []
+  // Add folder — creates on server then refreshes
+  const handleAddFolder = async (parentKey?: string) => {
+    try {
+      const parentId = parentKey ? Number(parentKey) : null
+      await onCreate('新建文件夹', parentId)
+      message.success('文件夹已创建')
+    } catch {
+      message.error('创建文件夹失败')
     }
-
-    let newFolders: FolderNode[]
-    if (parentKey) {
-      // 添加到指定父文件夹
-      newFolders = addToFolder(folders, parentKey, newFolder)
-    } else {
-      // 添加到根级别
-      newFolders = [...folders, newFolder]
-    }
-
-    onUpdate(newFolders)
-    setEditingKey(newFolder.key)
-    setEditingTitle(newFolder.title)
-    message.success('文件夹已创建')
   }
 
-  // 递归添加到指定文件夹
-  const addToFolder = (
-    nodes: FolderNode[],
-    parentKey: string,
-    newFolder: FolderNode
-  ): FolderNode[] => {
-    return nodes.map(node => {
-      if (node.key === parentKey) {
-        return {
-          ...node,
-          children: [...(node.children || []), newFolder]
-        }
-      }
-      if (node.children) {
-        return {
-          ...node,
-          children: addToFolder(node.children, parentKey, newFolder)
-        }
-      }
-      return node
-    })
-  }
-
-  // 重命名文件夹
-  const handleRenameSubmit = (key: string) => {
+  // Rename folder
+  const handleRenameSubmit = async (key: string) => {
     if (!editingTitle.trim()) {
-      message.error('文件夹名称不能为空')
+      setEditingKey(null)
       return
     }
 
-    const updateFolder = (nodes: FolderNode[]): FolderNode[] => {
-      return nodes.map(node => {
-        if (node.key === key) {
-          return { ...node, title: editingTitle }
-        }
-        if (node.children) {
-          return { ...node, children: updateFolder(node.children) }
-        }
-        return node
-      })
+    try {
+      await onRename(Number(key), editingTitle.trim())
+      setEditingKey(null)
+      setEditingTitle('')
+      message.success('重命名成功')
+    } catch {
+      message.error('重命名失败')
     }
-
-    onUpdate(updateFolder(folders))
-    setEditingKey(null)
-    setEditingTitle('')
-    message.success('重命名成功')
   }
 
-  // 删除文件夹
+  // Delete folder
   const handleDeleteFolder = (key: string) => {
     Modal.confirm({
       title: '确认删除',
       content: '确定要删除这个文件夹吗？文件夹内的文件不会被删除，将移动到根目录。',
       okText: '删除',
       cancelText: '取消',
-      onOk: () => {
-        const removeFolder = (nodes: FolderNode[]): FolderNode[] => {
-          return nodes
-            .filter(node => node.key !== key)
-            .map(node => {
-              if (node.children) {
-                return { ...node, children: removeFolder(node.children) }
-              }
-              return node
-            })
+      onOk: async () => {
+        try {
+          await onDelete(Number(key))
+          if (selectedFolder === key) {
+            onSelect('root')
+          }
+          message.success('文件夹已删除')
+        } catch {
+          message.error('删除文件夹失败')
         }
-
-        onUpdate(removeFolder(folders))
-        if (selectedFolder === key) {
-          onSelect('root')
-        }
-        message.success('文件夹已删除')
       }
     })
   }
 
-  // 右键菜单
+  // Context menu
   const menuItems = contextMenuNode ? [
     {
       key: 'add',
@@ -192,9 +143,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
         setContextMenuNode(null)
       }
     },
-    {
-      type: 'divider' as const
-    },
+    { type: 'divider' as const },
     {
       key: 'delete',
       icon: <DeleteOutlined />,

@@ -21,26 +21,30 @@ router = APIRouter()
 
 def detect_mode(user_input: str) -> str:
     """检测用户意图模式
-    
+
     Returns:
         'qa' - 问答模式（询问信息）
-        'write' - 写作模式（生成内容）
+        'write' - 写作模式（生成/修改/细化内容）
     """
     qa_keywords = ['多少', '是什么', '有没有', '在哪个', '哪些', '怎么', '为什么', '是否', '吗', '什么', '如何']
-    write_keywords = ['写', '生成', '创建', '帮我', '修改', '优化', '完善', '帮我写', '生成一个']
-    
+    write_keywords = [
+        '写', '生成', '创建', '帮我', '修改', '优化', '完善', '帮我写', '生成一个',
+        '细化', '展开', '补充', '扩展', '详细', '丰富', '润色', '重写', '改写',
+        '续写', '续', ' elaborate', '细化一下', '展开写', '详细写',
+    ]
+
     input_lower = user_input.lower()
-    
+
     # 优先检测问答模式
     for keyword in qa_keywords:
         if keyword in input_lower:
             return 'qa'
-    
+
     # 检测写作模式
     for keyword in write_keywords:
         if keyword in input_lower:
             return 'write'
-    
+
     # 默认：短句（<20字）为问答，长句为写作
     return 'qa' if len(user_input) < 20 else 'write'
 
@@ -71,15 +75,61 @@ def get_system_prompt(mode: str) -> str:
     else:
         return """你是一位专业的工艺文件编辑助手。
 
+## 核心工作方式：先理解再动笔
+
+在生成内容之前，你必须先判断用户意图是否清晰。如果意图模糊（比如"细化"、"展开"、"补充"等），**必须先提问确认方向，再生成内容**。
+
+### 需要提问的情况
+- 用户说"细化XX"但没说细化成什么形式（段落？表格？操作步骤？）
+- 用户说"展开XX"但没说展开哪些方面
+- 用户说"补充XX"但没说补充什么内容
+- 用户说"写一个XX"但关键信息缺失（适用对象、场景、格式要求等）
+
+### 提问方式
+用 2-3 个简短选项帮助用户快速选择，例如：
+> 您希望细化成哪种形式？
+> 1. 写成完整的工艺操作段落（含目的、步骤、注意事项）
+> 2. 补充具体的检测标准和判定依据
+> 3. 扩展为操作人员可执行的步骤说明
+
+### 意图清晰时直接生成
+如果用户已经明确说了要写什么、写给谁、什么格式，则直接生成，不要多余提问。
+
 ## 写作原则
 - **专业规范**：使用标准的工艺术语和格式
 - **结构清晰**：合理分段，使用标题和列表
-- **基于文档**：参考已有文档的风格和内容
+- **基于文档**：参考已有文档的风格和内容，充分利用检索到的上下文
 - **可编辑性**：生成的内容应便于后续修改
+- **言之有物**：每个段落都要有实际内容，不要空话套话
 
-## 输出格式
-- 生成完整的工艺文件内容
-- 可以包含占位符供用户填写（如 [待补充]）
+## 输出格式（重要！）
+
+你的回复可能包含两部分：**对话说明**和**编辑器内容**。必须用分割线严格区分：
+
+1. 如果只是提问或纯对话（不需要写入编辑器），正常输出文字即可，不要加分割线。
+2. 如果需要生成写入编辑器的工艺文件内容，必须用以下格式：
+
+```
+（可选：对生成内容的简要说明，如"已为您生成目视检测操作规范："）
+
+---EDITOR---
+（这里是需要写入编辑器的正式工艺文件内容）
+```
+
+### 示例 1：需要提问时（无分割线，不进编辑器）
+> 您希望细化成哪种形式？
+> 1. 写成完整的工艺操作段落
+> 2. 补充检测标准和判定依据
+> 3. 扩展为操作步骤说明
+
+### 示例 2：直接生成时（有分割线，EDITOR 之后的内容进编辑器）
+> 根据文档要求，已为您生成目视检测操作规范：
+>
+> ---EDITOR---
+> ## 目视检测操作要求
+>
+> 1. 检测前准备：确保工作区域照明充足...
+> 2. 检测时间：单发检视时间不小于60s...
 """
 
 # ==================== 请求/响应模型 ====================
@@ -803,6 +853,16 @@ async def generate_stream(request: GenerateStreamRequest):
             content = result.get("content", "")
             logger.info(f"[AI助手] LLM响应成功: 长度={len(content)}")
 
+            # Parse EDITOR separator: split chat content from editor content
+            EDITOR_MARKER = "---EDITOR---"
+            chat_content = content
+            editor_content = ""
+
+            if EDITOR_MARKER in content:
+                parts = content.split(EDITOR_MARKER, 1)
+                chat_content = parts[0].strip()
+                editor_content = parts[1].strip() if len(parts) > 1 else ""
+
             # Async save conversation memory (fire-and-forget)
             try:
                 from app.services.hierarchical_context import hierarchical_context
@@ -812,8 +872,13 @@ async def generate_stream(request: GenerateStreamRequest):
             except Exception as mem_err:
                 logger.warning(f"[AI助手] 记忆保存跳过: {mem_err}")
 
-            # 发送最终结果（前端期望 type: 'result'）
-            yield f"data: {json.dumps({'type': 'result', 'content': content})}\n\n"
+            # 发送最终结果
+            if editor_content:
+                # Has editor content: send chat part and editor part separately
+                yield f"data: {json.dumps({'type': 'result', 'content': chat_content, 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
+            else:
+                # Pure chat response (no editor content)
+                yield f"data: {json.dumps({'type': 'result', 'content': chat_content, 'has_editor': False}, ensure_ascii=False)}\n\n"
 
             logger.info(f"[AI助手] 流式输出完成")
 

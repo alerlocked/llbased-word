@@ -13,7 +13,7 @@ import json
 from PIL import Image
 
 from app.database import get_db
-from app.models.database import Material, CreationProject, EditorVersion, SearchResult, Figure, MaterialPage, WebImage, UploadedImage
+from app.models.database import Material, MaterialFolder, CreationProject, EditorVersion, SearchResult, Figure, MaterialPage, WebImage, UploadedImage
 from app.services.llm_service import llm_service
 from app.services.document_processor import document_processor
 from app.services.vl_service import vl_service
@@ -370,8 +370,8 @@ async def get_project_materials(
 
                 if material.material_type in ["pdf", "document"]:
                     # Check parse status via output file existence
-                    doc_html = Path(settings.DATA_DIR) / "documents" / str(material.id) / "document.html"
-                    content_html = Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html"
+                    doc_dir = Path(settings.DATA_DIR) / "documents" / str(material.id)
+                    resolved_html = settings.resolve_doc_content_html(doc_dir)
                     # Also check materials directory
                     materials_dir = Path(settings.DATA_DIR) / "materials"
                     material_parsed = False
@@ -381,7 +381,7 @@ async def get_project_materials(
                                 if (d / "full.html").exists() or (d / "summary.json").exists():
                                     material_parsed = True
                                     break
-                    if doc_html.exists() or content_html.exists() or material_parsed:
+                    if resolved_html.exists() or material_parsed:
                         parse_status = "completed"
                     else:
                         # Try matching PDF queue task by scanning all upload dirs
@@ -408,6 +408,7 @@ async def get_project_materials(
                     "id": material.id,
                     "name": material.name,
                     "type": material.material_type,
+                    "folderId": material.folder_id,
                     "parse_status": parse_status,
                     "parse_progress": parse_progress,
                     "parse_error": parse_error,
@@ -464,8 +465,9 @@ async def get_material_content(
         material = get_or_404(db, Material, Material.id == material_id, "素材不存在")
         
         # 读取内容文件 - 优先 content.json (完整内容)
-        content_json_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.json"
-        content_html_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
+        doc_dir = Path(settings.DATA_DIR) / "documents" / str(material_id)
+        content_json_path = doc_dir / settings.DOC_CONTENT_JSON_FILE
+        content_html_path = settings.resolve_doc_content_html(doc_dir)
 
         if content_json_path.exists():
             import json
@@ -616,8 +618,9 @@ async def get_material_detail(
     try:
         material = get_or_404(db, Material, Material.id == material_id, "素材不存在")
 
-        content_json_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.json"
-        content_html_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
+        doc_dir = Path(settings.DATA_DIR) / "documents" / str(material_id)
+        content_json_path = doc_dir / settings.DOC_CONTENT_JSON_FILE
+        content_html_path = settings.resolve_doc_content_html(doc_dir)
 
         if content_json_path.exists():
             import json
@@ -720,8 +723,8 @@ async def get_material_parse_status(
             return {"status": "completed", "progress": 100, "error_message": None}
 
         # Check file existence first
-        doc_html = Path(settings.DATA_DIR) / "documents" / str(material_id) / "document.html"
-        content_html = Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
+        doc_dir = Path(settings.DATA_DIR) / "documents" / str(material_id)
+        resolved_html = settings.resolve_doc_content_html(doc_dir)
         # Also check materials directory (for pre-parsed files)
         materials_dir = Path(settings.DATA_DIR) / "materials"
         material_parsed = False
@@ -738,7 +741,7 @@ async def get_material_parse_status(
                     if (d / "summary.json").exists() and (d / "original.pdf").exists():
                         material_parsed = True
                         break
-        if doc_html.exists() or content_html.exists() or material_parsed:
+        if resolved_html.exists() or material_parsed:
             return {"status": "completed", "progress": 100, "error_message": None}
 
         # Check queue task
@@ -2201,3 +2204,162 @@ async def batch_upload_materials(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"批量上传失败: {str(e)}"
         )
+
+
+# ==================== 素材文件夹 API ====================
+
+class CreateFolderRequest(BaseModel):
+    name: str
+    parent_id: Optional[int] = None
+
+
+class RenameFolderRequest(BaseModel):
+    name: str
+
+
+class MoveMaterialRequest(BaseModel):
+    folder_id: Optional[int] = None
+
+
+def _build_folder_tree(folders: list[MaterialFolder]) -> list[dict]:
+    """Build nested tree from flat folder list."""
+    folder_map: dict[int, dict] = {}
+    for f in folders:
+        folder_map[f.id] = {
+            "id": f.id,
+            "name": f.name,
+            "parentId": f.parent_id,
+            "sortOrder": f.sort_order,
+            "children": [],
+        }
+    roots: list[dict] = []
+    for f in folders:
+        node = folder_map[f.id]
+        if f.parent_id and f.parent_id in folder_map:
+            folder_map[f.parent_id]["children"].append(node)
+        else:
+            roots.append(node)
+    # sort by sort_order
+    def _sort(items: list[dict]) -> list[dict]:
+        items.sort(key=lambda x: x.get("sortOrder", 0))
+        for item in items:
+            _sort(item.get("children", []))
+        return items
+    return _sort(roots)
+
+
+@router.get("/material-folders")
+async def list_folders(db: Session = Depends(get_db)):
+    """Get all folders as a tree."""
+    folders = db.query(MaterialFolder).order_by(MaterialFolder.sort_order).all()
+    return _build_folder_tree(folders)
+
+
+@router.post("/material-folders")
+async def create_folder(
+    request: CreateFolderRequest,
+    db: Session = Depends(get_db)
+):
+    """Create a new folder."""
+    if not request.name.strip():
+        raise HTTPException(status_code=400, detail="文件夹名称不能为空")
+
+    # Validate parent exists
+    if request.parent_id:
+        parent = db.query(MaterialFolder).filter(MaterialFolder.id == request.parent_id).first()
+        if not parent:
+            raise HTTPException(status_code=404, detail="父文件夹不存在")
+
+    # Get max sort_order at same level
+    max_order = db.query(MaterialFolder).filter(
+        MaterialFolder.parent_id == request.parent_id if request.parent_id else MaterialFolder.parent_id.is_(None)
+    ).count()
+
+    folder = MaterialFolder(
+        name=request.name.strip(),
+        parent_id=request.parent_id,
+        sort_order=max_order,
+    )
+    db.add(folder)
+    db.commit()
+    db.refresh(folder)
+
+    return {
+        "id": folder.id,
+        "name": folder.name,
+        "parentId": folder.parent_id,
+        "sortOrder": folder.sort_order,
+    }
+
+
+@router.put("/material-folders/{folder_id}")
+async def rename_folder(
+    folder_id: int,
+    request: RenameFolderRequest,
+    db: Session = Depends(get_db)
+):
+    """Rename a folder."""
+    folder = db.query(MaterialFolder).filter(MaterialFolder.id == folder_id).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="文件夹不存在")
+
+    if not request.name.strip():
+        raise HTTPException(status_code=400, detail="文件夹名称不能为空")
+
+    folder.name = request.name.strip()
+    db.commit()
+
+    return {"id": folder.id, "name": folder.name}
+
+
+@router.delete("/material-folders/{folder_id}")
+async def delete_folder(
+    folder_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete a folder. Materials inside move to root (folder_id=NULL)."""
+    folder = db.query(MaterialFolder).filter(MaterialFolder.id == folder_id).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="文件夹不存在")
+
+    # Recursively collect all descendant folder ids
+    def _collect_descendants(parent_id: int) -> list[int]:
+        ids = []
+        children = db.query(MaterialFolder).filter(MaterialFolder.parent_id == parent_id).all()
+        for child in children:
+            ids.append(child.id)
+            ids.extend(_collect_descendants(child.id))
+        return ids
+
+    all_folder_ids = [folder_id] + _collect_descendants(folder_id)
+
+    # Move materials in these folders to root
+    db.query(Material).filter(Material.folder_id.in_(all_folder_ids)).update(
+        {Material.folder_id: None}, synchronize_session=False
+    )
+
+    # Delete folders (descendants first due to FK)
+    db.query(MaterialFolder).filter(MaterialFolder.id.in_(all_folder_ids)).delete(synchronize_session=False)
+    db.commit()
+
+    return {"message": "删除成功"}
+
+
+@router.put("/materials/{material_id}/move")
+async def move_material(
+    material_id: int,
+    request: MoveMaterialRequest,
+    db: Session = Depends(get_db)
+):
+    """Move a material to a folder (or root if folder_id is null)."""
+    material = get_or_404(db, Material, Material.id == material_id, "素材不存在")
+
+    if request.folder_id is not None:
+        folder = db.query(MaterialFolder).filter(MaterialFolder.id == request.folder_id).first()
+        if not folder:
+            raise HTTPException(status_code=404, detail="目标文件夹不存在")
+
+    material.folder_id = request.folder_id
+    db.commit()
+
+    return {"message": "移动成功", "folderId": request.folder_id}

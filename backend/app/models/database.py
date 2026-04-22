@@ -32,6 +32,21 @@ class KnowledgeCard(Base):
     sources = Column(JSON, default=[], comment="来源列表")
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
 
+class MaterialFolder(Base):
+    """素材文件夹表 - 树形结构"""
+    __tablename__ = "material_folders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, comment="文件夹名称")
+    parent_id = Column(Integer, ForeignKey("material_folders.id"), nullable=True, comment="父文件夹ID（NULL=根目录）")
+    sort_order = Column(Integer, default=0, comment="排序")
+    created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
+
+    # self-referential relationship
+    children = relationship("MaterialFolder", backref="parent", remote_side=[id])
+    materials = relationship("Material", back_populates="folder")
+
+
 class Material(Base):
     """素材表 - 只存储元数据，内容存储在文件系统"""
     __tablename__ = "materials"
@@ -39,12 +54,14 @@ class Material(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, comment="素材名称")
     material_type = Column(String(20), nullable=False, comment="素材类型: pdf/docx/txt/search")
+    folder_id = Column(Integer, ForeignKey("material_folders.id"), nullable=True, comment="所属文件夹ID（NULL=根目录）")
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
 
     # 关系
     figures = relationship("Figure", back_populates="material", cascade="all, delete-orphan")
     pages = relationship("MaterialPage", back_populates="material", cascade="all, delete-orphan")
+    folder = relationship("MaterialFolder", back_populates="materials")
 
 class MaterialPage(Base):
     """素材页表 - 只存储元数据（页码和图片路径）"""

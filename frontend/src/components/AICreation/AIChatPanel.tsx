@@ -67,6 +67,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   const [originalInput, setOriginalInput] = useState<string>('')
   // 当前模式（qa 或 write）- 使用 useRef 避免异步更新问题
   const currentModeRef = useRef<'qa' | 'write'>('write')
+  // Editor content from AI response (content after ---EDITOR--- marker)
+  const editorContentRef = useRef<string>('')
   
   // 计划选项相关状态
   const [planOptions, setPlanOptions] = useState<PlanOption[]>([])
@@ -240,6 +242,12 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 }
               } else if (data.type === 'result') {
                 contentAccumulator = data.content
+                // Extract editor content if present (from ---EDITOR--- separator)
+                if (data.has_editor && data.editor_content) {
+                  editorContentRef.current = data.editor_content
+                } else {
+                  editorContentRef.current = ''
+                }
                 stepsAccumulator[3].status = 'finish'
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
@@ -400,6 +408,12 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 }
               } else if (data.type === 'result') {
                 contentAccumulator = data.content
+                // Extract editor content if present (from ---EDITOR--- separator)
+                if (data.has_editor && data.editor_content) {
+                  editorContentRef.current = data.editor_content
+                } else {
+                  editorContentRef.current = ''
+                }
                 stepsAccumulator[3].status = 'finish'
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
@@ -502,6 +516,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
     setStreamController(controller)
 
     let contentAccumulator = ''
+    editorContentRef.current = ''  // Reset editor content for new request
     let stepsAccumulator = [...assistantMsg.steps!]
 
     try {
@@ -697,6 +712,12 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 }
               } else if (data.type === 'result') {
                 contentAccumulator = data.content
+                // Extract editor content if present (from ---EDITOR--- separator)
+                if (data.has_editor && data.editor_content) {
+                  editorContentRef.current = data.editor_content
+                } else {
+                  editorContentRef.current = ''
+                }
                 stepsAccumulator[3].status = 'finish'
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
@@ -730,10 +751,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
         throw readError
       }
 
-      // 生成完成后，根据模式决定是否触发预览
-      // 只有写作模式才触发预览，问答模式直接显示结果
-      if (contentAccumulator && onPreviewContent && currentModeRef.current === 'write') {
-        onPreviewContent(contentAccumulator)
+      // 生成完成后，根据是否有编辑器内容决定是否触发预览
+      // Only send to editor when AI explicitly produced editor content (---EDITOR--- marker)
+      if (editorContentRef.current && onPreviewContent) {
+        onPreviewContent(editorContentRef.current)
         message.success('生成完成，请在编辑器中预览并确认')
       }
     } catch (error) {
