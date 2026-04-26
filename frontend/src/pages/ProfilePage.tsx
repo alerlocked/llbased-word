@@ -5,10 +5,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Card, Form, Select, Switch, Slider, Button, Space, message, Row, Col, Typography, Divider, Tag
+  Card, Form, Select, Switch, Slider, Button, Space, message, Row, Col, Typography, Divider, Tag, Empty, Table, Tooltip
 } from 'antd'
 import {
-  ArrowLeftOutlined, EditOutlined, SaveOutlined, CheckCircleOutlined, UserOutlined
+  ArrowLeftOutlined, EditOutlined, SaveOutlined, CheckCircleOutlined, UserOutlined, BookOutlined, ExperimentOutlined, FileTextOutlined
 } from '@ant-design/icons'
 import apiClient from '../services/apiClient'
 import { colors, radius, shadows, spacing, typography, animation } from '../styles/design-tokens'
@@ -30,12 +30,29 @@ interface ReviewConfig {
   allowed_deviation: number
 }
 
+interface WritingPreferences {
+  preferred_sentence_length: string
+  use_passive_voice: boolean
+  include_examples: boolean
+  include_caution_notes: boolean
+  custom_vocabulary: Record<string, string>
+  avoid_phrases: string[]
+  confidence: number
+  sample_count: number
+  last_updated: string
+}
+
 interface Profile {
   id: string
   user_id: string
   domain: string
   writing: WritingConfig
   review: ReviewConfig
+  preferences: WritingPreferences
+  triples: Array<{ s: string; r: string; o: string }>
+  frequent_terms: Record<string, number>
+  ai_generated_summary: string
+  source_document_ids: string[]
 }
 
 interface PresetTemplate {
@@ -128,13 +145,11 @@ const ProfilePage: React.FC = () => {
   })
 
   // Load profile
-  const fetchProfile = useCallback(async (domain: string = 'assembly') => {
+  const fetchProfile = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await apiClient.get('/api/context/profile', {
-        params: { user_id: 'default', domain }
-      })
-      const data = response.data
+      const response = await apiClient.get('/api/profile/default')
+      const data = response.data.profile
       setProfile(data)
       setFormValues({
         writing: data.writing,
@@ -199,8 +214,7 @@ const ProfilePage: React.FC = () => {
     try {
       const values = await form.validateFields()
       setSaving(true)
-      
-      const domain = profile?.domain || 'assembly'
+
       const writing: WritingConfig = {
         tone: values.tone,
         terminology: values.terminology,
@@ -212,9 +226,7 @@ const ProfilePage: React.FC = () => {
         allowed_deviation: values.allowed_deviation / 100
       }
 
-      await apiClient.put('/api/context/profile', { writing, review }, {
-        params: { user_id: 'default', domain }
-      })
+      await apiClient.put('/api/profile/default', { writing, review })
 
       message.success('画像已保存')
       setEditing(false)
@@ -454,7 +466,7 @@ const ProfilePage: React.FC = () => {
               <span>效果预览</span>
             </Space>
           }
-          style={{ borderRadius: radius.md }}
+          style={{ borderRadius: radius.md, marginBottom: 24 }}
         >
           <div style={{
             background: colors.bgTertiary,
@@ -473,13 +485,134 @@ const ProfilePage: React.FC = () => {
                   fontSize: typography.fontSize.base,
                   color: colors.textPrimary
                 }}>
-                  <span style={{ color: colors.primary }}>•</span>
+                  <span style={{ color: colors.primary }}>&#8226;</span>
                   <span>{item}</span>
                 </div>
               ))}
             </div>
           </div>
         </Card>
+
+        {/* Learned Knowledge Section */}
+        {profile && (profile.triples.length > 0 || Object.keys(profile.frequent_terms).length > 0 || profile.ai_generated_summary) && (
+          <Card
+            title={
+              <Space>
+                <BookOutlined />
+                <span>学习成果</span>
+                <Tag color="green">{profile.source_document_ids.length} 篇文档</Tag>
+              </Space>
+            }
+            style={{ borderRadius: radius.md, marginBottom: 24 }}
+          >
+            {/* AI Summary */}
+            {profile.ai_generated_summary && (
+              <div style={{ marginBottom: 20 }}>
+                <Text strong style={{ fontSize: typography.fontSize.md, color: colors.textPrimary, display: 'block', marginBottom: 8 }}>
+                  <ExperimentOutlined /> 画像摘要
+                </Text>
+                <div style={{
+                  background: colors.bgTertiary,
+                  borderRadius: radius.sm,
+                  padding: 16,
+                  fontSize: typography.fontSize.base,
+                  lineHeight: 1.8,
+                  color: colors.textSecondary,
+                }}>
+                  {profile.ai_generated_summary}
+                </div>
+              </div>
+            )}
+
+            {/* Knowledge Triples */}
+            {profile.triples.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <Text strong style={{ fontSize: typography.fontSize.md, color: colors.textPrimary, display: 'block', marginBottom: 8 }}>
+                  <FileTextOutlined /> 领域知识（{profile.triples.length} 条）
+                </Text>
+                <Table
+                  size="small"
+                  pagination={{ pageSize: 10, size: 'small' }}
+                  style={{ fontSize: typography.fontSize.sm }}
+                  dataSource={profile.triples.map((t, i) => ({ key: i, ...t }))}
+                  columns={[
+                    { title: '主体', dataIndex: 's', key: 's', width: '35%', ellipsis: true },
+                    { title: '关系', dataIndex: 'r', key: 'r', width: '20%', ellipsis: true,
+                      render: (v: string) => <Tag color="blue">{v}</Tag>
+                    },
+                    { title: '客体', dataIndex: 'o', key: 'o', width: '35%', ellipsis: true },
+                  ]}
+                />
+              </div>
+            )}
+
+            {/* Frequent Terms */}
+            {Object.keys(profile.frequent_terms).length > 0 && (
+              <div>
+                <Text strong style={{ fontSize: typography.fontSize.md, color: colors.textPrimary, display: 'block', marginBottom: 8 }}>
+                  高频术语（{Object.keys(profile.frequent_terms).length} 个）
+                </Text>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {Object.entries(profile.frequent_terms)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 50)
+                    .map(([term, count]) => (
+                      <Tooltip key={term} title={`出现 ${count} 次`}>
+                        <Tag
+                          color={count >= 10 ? 'red' : count >= 5 ? 'orange' : 'default'}
+                          style={{ fontSize: typography.fontSize.sm }}
+                        >
+                          {term} ({count})
+                        </Tag>
+                      </Tooltip>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Writing Style Preferences */}
+            {profile.preferences && profile.preferences.sample_count > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <Divider />
+                <Text strong style={{ fontSize: typography.fontSize.md, color: colors.textPrimary, display: 'block', marginBottom: 8 }}>
+                  写作风格偏好
+                </Text>
+                <Row gutter={[16, 8]}>
+                  <Col span={8}>
+                    <Text type="secondary">句长偏好</Text>
+                    <div><Tag>{profile.preferences.preferred_sentence_length}</Tag></div>
+                  </Col>
+                  <Col span={8}>
+                    <Text type="secondary">被动语态</Text>
+                    <div><Tag color={profile.preferences.use_passive_voice ? 'green' : 'default'}>{profile.preferences.use_passive_voice ? '使用' : '不使用'}</Tag></div>
+                  </Col>
+                  <Col span={8}>
+                    <Text type="secondary">注意事项</Text>
+                    <div><Tag color={profile.preferences.include_caution_notes ? 'green' : 'default'}>{profile.preferences.include_caution_notes ? '包含' : '不包含'}</Tag></div>
+                  </Col>
+                </Row>
+                <div style={{ marginTop: 8 }}>
+                  <Text type="secondary" style={{ fontSize: typography.fontSize.xs }}>
+                    置信度 {Math.round(profile.preferences.confidence * 100)}% | 基于 {profile.preferences.sample_count} 次学习
+                  </Text>
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* Empty state when no learned data */}
+        {profile && profile.triples.length === 0 && Object.keys(profile.frequent_terms).length === 0 && (
+          <Card style={{ borderRadius: radius.md }}>
+            <Empty
+              description={
+                <span>
+                  尚无学习数据。在素材库中选择文档点击「学习为画像」，AI 会自动提取领域知识。
+                </span>
+              }
+            />
+          </Card>
+        )}
       </div>
     </div>
   )

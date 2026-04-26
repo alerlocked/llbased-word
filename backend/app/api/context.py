@@ -1,16 +1,16 @@
 """
 Context API - 上下文服务 API 端点
 
-提供 ContextService 的 HTTP 接口
+提供 ContextService 的 HTTP 接口（模板、示例、上下文构建）
+用户画像管理已迁移到 /api/profile
 """
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import logging
 
 from app.services.context_service import ContextService
-from app.models.profile import Profile
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +42,6 @@ class BuildContextRequest(BaseModel):
     doc_type: str
 
 
-class ProfileResponse(BaseModel):
-    """画像响应"""
-    id: str
-    user_id: str
-    domain: str
-    writing: Dict[str, Any]
-    review: Dict[str, Any]
-
-
 class TemplateResponse(BaseModel):
     """模板响应"""
     id: str
@@ -76,49 +67,9 @@ class ExamplesResponse(BaseModel):
     count: int
 
 
-class UpdateProfileRequest(BaseModel):
-    """更新画像请求"""
-    feedback: Dict[str, Any]
-
-
-class SaveProfileRequest(BaseModel):
-    """直接保存画像请求"""
-    writing: Dict[str, Any]
-    review: Dict[str, Any]
-
-
 # ========================================
 # API Endpoints
 # ========================================
-
-@router.get("/profile")
-async def get_profile(
-    user_id: str = Query(..., description="用户ID"),
-    domain: str = Query(..., description="领域")
-):
-    """
-    获取用户画像
-    
-    返回用户的写作配置和审查配置
-    如果用户没有自定义画像，返回领域默认画像
-    """
-    try:
-        service = get_context_service()
-        profile = service.load_profile(user_id, domain)
-        
-        logger.info("get_profile_success", user_id=user_id, domain=domain)
-        
-        return ProfileResponse(
-            id=profile.id,
-            user_id=profile.user_id,
-            domain=profile.domain,
-            writing=profile.writing.to_dict(),
-            review=profile.review.to_dict()
-        )
-    except Exception as e:
-        logger.error("get_profile_failed", error=str(e), user_id=user_id, domain=domain)
-        raise HTTPException(status_code=500, detail=f"加载画像失败: {str(e)}")
-
 
 @router.get("/template")
 async def get_template(
@@ -127,15 +78,15 @@ async def get_template(
 ):
     """
     获取文档模板
-    
+
     返回文档的结构、必填字段和样式指南
     """
     try:
         service = get_context_service()
         template = service.load_template(domain, doc_type)
-        
+
         logger.info("get_template_success", domain=domain, doc_type=doc_type)
-        
+
         return TemplateResponse(
             id=template.id,
             domain=template.domain,
@@ -156,15 +107,15 @@ async def get_examples(
 ):
     """
     获取示例文档
-    
+
     返回指定领域的示例文档列表
     """
     try:
         service = get_context_service()
         examples = service.load_examples(domain, limit)
-        
+
         logger.info("get_examples_success", domain=domain, count=len(examples))
-        
+
         return ExamplesResponse(
             examples=[e.__dict__ for e in examples],
             domain=domain,
@@ -179,7 +130,7 @@ async def get_examples(
 async def build_context(request: BuildContextRequest):
     """
     构建完整上下文
-    
+
     整合模板、画像、示例，生成完整的上下文字符串
     供 Writing Agent 使用
     """
@@ -190,7 +141,7 @@ async def build_context(request: BuildContextRequest):
             domain=request.domain,
             doc_type=request.doc_type
         )
-        
+
         logger.info(
             "build_context_success",
             user_id=request.user_id,
@@ -198,7 +149,7 @@ async def build_context(request: BuildContextRequest):
             doc_type=request.doc_type,
             context_length=len(context)
         )
-        
+
         return BuildContextResponse(
             context=context,
             user_id=request.user_id,
@@ -213,85 +164,3 @@ async def build_context(request: BuildContextRequest):
             domain=request.domain
         )
         raise HTTPException(status_code=500, detail=f"构建上下文失败: {str(e)}")
-
-
-@router.put("/profile")
-async def save_profile(
-    user_id: str = Query("default", description="用户ID"),
-    domain: str = Query("assembly", description="领域"),
-    request: SaveProfileRequest = ...
-):
-    """
-    直接保存用户画像（手动编辑）
-    
-    接收用户编辑的写作配置和审查配置，保存到 YAML 文件
-    """
-    try:
-        service = get_context_service()
-        
-        # 构造 Profile 对象
-        from app.models.profile import WritingConfig, ReviewConfig
-        profile = Profile(
-            id=f"{user_id}_{domain}",
-            user_id=user_id,
-            domain=domain,
-            writing=WritingConfig.from_dict(request.writing),
-            review=ReviewConfig.from_dict(request.review)
-        )
-        
-        # 保存到 YAML
-        profile_path = service.profiles_dir / f"{user_id}_{domain}.yaml"
-        profile.to_yaml(profile_path)
-        
-        # 清除缓存
-        cache_key = f"{user_id}_{domain}"
-        if cache_key in service._profile_cache:
-            del service._profile_cache[cache_key]
-        
-        logger.info("save_profile_success", user_id=user_id, domain=domain, path=str(profile_path))
-        
-        return {"status": "ok", "message": "画像已保存"}
-    except Exception as e:
-        logger.error("save_profile_failed", error=str(e), user_id=user_id, domain=domain)
-        raise HTTPException(status_code=500, detail=f"保存画像失败: {str(e)}")
-
-
-@router.post("/profile/update")
-async def update_profile(
-    user_id: str = Query(..., description="用户ID"),
-    domain: str = Query(..., description="领域"),
-    request: UpdateProfileRequest = ...
-):
-    """
-    从反馈更新用户画像（预留接口）
-    
-    接收反馈数据，更新用户画像
-    目前为预留接口，仅记录日志
-    """
-    try:
-        service = get_context_service()
-        success = service.update_profile_from_feedback(
-            user_id=user_id,
-            domain=domain,
-            feedback=request.feedback
-        )
-        
-        logger.info(
-            "update_profile_feedback",
-            user_id=user_id,
-            domain=domain,
-            success=success
-        )
-        
-        return {
-            "success": success,
-            "message": "画像更新请求已记录（预留接口）"
-        }
-    except Exception as e:
-        logger.error(
-            "update_profile_failed",
-            error=str(e),
-            user_id=user_id,
-            domain=domain
-        )
-        raise HTTPException(status_code=500, detail=f"更新画像失败: {str(e)}")
