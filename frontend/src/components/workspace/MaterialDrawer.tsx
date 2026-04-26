@@ -620,14 +620,6 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
                         {selectedFolder === 'root' ? '全部文件' :
                           folders.find(f => f.key === selectedFolder)?.title || '文件'}
                       </span>
-                      <Button
-                        type="primary"
-                        icon={<CloudUploadOutlined />}
-                        size="small"
-                        onClick={() => setActiveTab('upload')}
-                      >
-                        上传
-                      </Button>
                     </div>
 
                     {/* file list */}
