@@ -153,6 +153,7 @@ const ProfilePage: React.FC = () => {
   const [editing, setEditing] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [selectedDomain, setSelectedDomain] = useState<string>('assembly')
+  const [defaultDomain, setDefaultDomain] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<'knowledge' | 'principles' | 'preferences'>('knowledge')
 
   // Add knowledge modal
@@ -311,7 +312,7 @@ const ProfilePage: React.FC = () => {
           <Row gutter={[16, 16]}>
             {PRESET_TEMPLATES.map(t => (
               <Col key={t.domain} xs={12} sm={12} md={6}>
-                <Card hoverable size="small" style={{ borderRadius: radius.md, border: profile?.domain === t.domain && !editing ? `2px solid ${colors.primary}` : `1px solid ${colors.borderLight}` }} styles={{ body: { padding: 16, textAlign: 'center' } }}>
+                <Card hoverable size="small" style={{ borderRadius: radius.md, border: defaultDomain === t.domain ? `2px solid ${colors.primary}` : profile?.domain === t.domain && !editing ? `2px solid ${colors.primary}` : `1px solid ${colors.borderLight}`, background: defaultDomain === t.domain ? `${colors.primary}08` : undefined }} styles={{ body: { padding: 16, textAlign: 'center' } }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>{t.icon}</div>
                   <div style={{ fontWeight: typography.fontWeight.semibold, fontSize: typography.fontSize.base, color: colors.textPrimary, marginBottom: 4 }}>{t.name}</div>
                   <div style={{ fontSize: typography.fontSize.xs, color: colors.textTertiary, marginBottom: 12 }}>{t.description}</div>
@@ -320,8 +321,8 @@ const ProfilePage: React.FC = () => {
                       setSelectedDomain(t.domain)
                       message.info(`切换到「${t.name}」画像`)
                     }}>应用</Button>
-                    <Button size="small" disabled={!inProject} onClick={() => {
-                      // TODO: bind domain to project as default profile
+                    <Button size="small" type={defaultDomain === t.domain ? 'primary' : 'default'} disabled={!inProject} onClick={() => {
+                      setDefaultDomain(t.domain)
                       message.success(`已将「${t.name}」设为项目默认画像`)
                     }}>默认</Button>
                   </Space>
@@ -367,11 +368,16 @@ const ProfilePage: React.FC = () => {
                   {s === 'knowledge' ? `知识 (${profile?.knowledge?.length ?? 0})` : s === 'principles' ? `原则 (${profile?.principles?.length ?? 0})` : `偏好 (${profile?.preferences_list?.length ?? 0})`}
                 </Button>
               ))}
-              {activeSection === 'knowledge' && <Button size="small" icon={<PlusOutlined />} onClick={() => setAddKnowledgeVisible(true)}>添加</Button>}
-              {activeSection === 'principles' && <Button size="small" icon={<PlusOutlined />} onClick={() => setAddPrincipleVisible(true)}>添加</Button>}
             </Space>
           }
         >
+          {/* Add button in content area, below tabs */}
+          {activeSection === 'knowledge' && (
+            <div style={{ marginBottom: 12 }}><Button size="small" icon={<PlusOutlined />} onClick={() => setAddKnowledgeVisible(true)}>添加知识</Button></div>
+          )}
+          {activeSection === 'principles' && (
+            <div style={{ marginBottom: 12 }}><Button size="small" icon={<PlusOutlined />} onClick={() => setAddPrincipleVisible(true)}>添加原则</Button></div>
+          )}
           {/* Knowledge Section */}
           {activeSection === 'knowledge' && (
             (profile?.knowledge?.length ?? 0) > 0 ? (
