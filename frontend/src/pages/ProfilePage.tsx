@@ -152,8 +152,35 @@ const ProfilePage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [selectedDomain, setSelectedDomain] = useState<string>('assembly')
-  const [defaultDomain, setDefaultDomain] = useState<string | null>(null)
+
+  // Persist default domain per project in localStorage
+  const storageKey = projectId ? `profile_default_${projectId}` : null
+  const [defaultDomain, setDefaultDomain] = useState<string | null>(() => {
+    if (storageKey) {
+      return localStorage.getItem(storageKey)
+    }
+    return null
+  })
+
+  const handleSetDefault = (domain: string) => {
+    setDefaultDomain(domain)
+    if (storageKey) {
+      localStorage.setItem(storageKey, domain)
+    }
+    // Also switch to this domain's profile
+    setSelectedDomain(domain)
+    message.success(`已将「${DOMAIN_LABELS[domain]}」设为项目默认画像`)
+  }
+
+  const [selectedDomain, setSelectedDomain] = useState<string>(() => {
+    // On initial load, prefer the saved default domain
+    if (storageKey) {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) return saved
+    }
+    return 'assembly'
+  })
+
   const [activeSection, setActiveSection] = useState<'knowledge' | 'principles' | 'preferences'>('knowledge')
 
   // Add knowledge modal
@@ -342,10 +369,7 @@ const ProfilePage: React.FC = () => {
                       setSelectedDomain(t.domain)
                       message.info(`切换到「${t.name}」画像`)
                     }}>应用</Button>
-                    <Button size="small" type={defaultDomain === t.domain ? 'primary' : 'default'} disabled={!inProject} onClick={() => {
-                      setDefaultDomain(t.domain)
-                      message.success(`已将「${t.name}」设为项目默认画像`)
-                    }}>默认</Button>
+                    <Button size="small" type={defaultDomain === t.domain ? 'primary' : 'default'} disabled={!inProject} onClick={() => handleSetDefault(t.domain)}>默认</Button>
                   </Space>
                 </Card>
               </Col>
