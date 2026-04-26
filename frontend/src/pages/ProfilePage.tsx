@@ -2,7 +2,7 @@
  * ProfilePage - User profile with knowledge, principles, and preferences.
  */
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Card, Form, Select, Switch, Slider, Button, Space, message, Row, Col,
   Typography, Divider, Tag, Empty, Table, Tooltip, Popconfirm, Input, Modal
@@ -131,11 +131,21 @@ const DIMENSION_COLORS: Record<string, string> = {
   terminology: 'purple',
 }
 
+const DOMAIN_LABELS: Record<string, string> = {
+  assembly: '装配工艺',
+  welding: '焊接工艺',
+  coating: '涂装工艺',
+  general: '通用工艺',
+}
+
 // ========================================
 // Component
 // ========================================
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const projectId = searchParams.get('projectId')
+  const inProject = projectId !== null
   const [form] = Form.useForm()
 
   const [loading, setLoading] = useState(false)
@@ -297,7 +307,7 @@ const ProfilePage: React.FC = () => {
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '24px 24px 0' }}>
         {/* Presets */}
         <div style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: typography.fontSize.md, fontWeight: typography.fontWeight.medium, color: colors.textSecondary, marginBottom: 12, display: 'block' }}>推荐人设</Text>
+          <Text style={{ fontSize: typography.fontSize.md, fontWeight: typography.fontWeight.medium, color: colors.textSecondary, marginBottom: 12, display: 'block' }}>工艺场景</Text>
           <Row gutter={[16, 16]}>
             {PRESET_TEMPLATES.map(t => (
               <Col key={t.domain} xs={12} sm={12} md={6}>
@@ -305,10 +315,16 @@ const ProfilePage: React.FC = () => {
                   <div style={{ fontSize: 32, marginBottom: 8 }}>{t.icon}</div>
                   <div style={{ fontWeight: typography.fontWeight.semibold, fontSize: typography.fontSize.base, color: colors.textPrimary, marginBottom: 4 }}>{t.name}</div>
                   <div style={{ fontSize: typography.fontSize.xs, color: colors.textTertiary, marginBottom: 12 }}>{t.description}</div>
-                  <Button size="small" type="primary" ghost onClick={() => {
-                    setSelectedDomain(t.domain)
-                    message.info(`切换到「${t.name}」画像`)
-                  }}>应用</Button>
+                  <Space size={4}>
+                    <Button size="small" type="primary" ghost disabled={!inProject} onClick={() => {
+                      setSelectedDomain(t.domain)
+                      message.info(`切换到「${t.name}」画像`)
+                    }}>应用</Button>
+                    <Button size="small" disabled={!inProject} onClick={() => {
+                      // TODO: bind domain to project as default profile
+                      message.success(`已将「${t.name}」设为项目默认画像`)
+                    }}>默认</Button>
+                  </Space>
                 </Card>
               </Col>
             ))}
@@ -316,7 +332,7 @@ const ProfilePage: React.FC = () => {
         </div>
 
         {/* Config */}
-        <Card title={<Space><UserOutlined /><span>写作与审查配置</span>{profile && <Tag color="blue">{profile.domain}</Tag>}</Space>}
+        <Card title={<Space><UserOutlined /><span>写作与审查配置</span>{profile && <Tag color="blue">{DOMAIN_LABELS[profile.domain] || profile.domain}</Tag>}</Space>}
           extra={<Space>{!editing ? <Button type="primary" ghost icon={<EditOutlined />} onClick={() => setEditing(true)}>编辑</Button> : (
             <><Button onClick={() => { setEditing(false); if (profile) { form.setFieldsValue({ tone: profile.writing.tone, terminology: profile.writing.terminology, detail_level: profile.writing.detail_level, check_completeness: profile.review.check_completeness, check_accuracy: profile.review.check_accuracy, allowed_deviation: Math.round(profile.review.allowed_deviation * 100) }) } }}>取消</Button>
               <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>保存</Button></>

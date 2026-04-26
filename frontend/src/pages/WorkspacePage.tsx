@@ -549,7 +549,7 @@ const WorkspacePage: React.FC = () => {
             <Button
               type="text"
               icon={<UserOutlined />}
-              onClick={() => navigate('/profile')}
+              onClick={() => navigate(currentProjectId ? `/profile?projectId=${currentProjectId}` : '/profile')}
               style={{ color: colors.textSecondary }}
             />
           </Tooltip>
