@@ -81,19 +81,18 @@ class ConditionGroup:
 @dataclass
 class Principle:
     """
-    A hard compliance rule. Violations require correction.
+    A hard compliance rule. All principles are mandatory — no severity levels.
 
     Dimensions:
     - text_compliance: Format, mandatory sections, numbering
-    - data_validity: Parameter values within acceptable ranges
+    - data_validity: Data must be traceable to known standards
     - terminology: Consistent term usage, no semantic ambiguity
     """
     id: str = ""
     dimension: str = ""  # text_compliance | data_validity | terminology
-    name: str = ""       # Short name, e.g. "螺栓力矩范围校验"
+    name: str = ""       # Short name, e.g. "章节完整性"
     description: str = ""  # What this rule checks
     check_expression: str = ""  # How to check (natural language for LLM, or structured query)
-    severity: str = "error"  # error | warning
     enabled: bool = True
     source: str = ""  # standard document ID
 
@@ -112,7 +111,6 @@ class Principle:
             name=data.get("name", ""),
             description=data.get("description", ""),
             check_expression=data.get("check_expression", ""),
-            severity=data.get("severity", "error"),
             enabled=data.get("enabled", True),
             source=data.get("source", ""),
         )
@@ -396,7 +394,7 @@ class Profile:
         # Render enabled principles
         enabled = [p for p in self.principles if p.get("enabled", True)]
         if enabled:
-            principle_lines = [f"- [{p['severity']}] {p['name']}: {p['description']}" for p in enabled[:20]]
+            principle_lines = [f"- {p['name']}: {p['description']}" for p in enabled[:20]]
             parts.append("审查原则:\n" + "\n".join(principle_lines))
 
         return "\n".join(parts)
@@ -443,23 +441,20 @@ def get_default_assembly_profile() -> Profile:
             Principle(
                 dimension="text_compliance",
                 name="章节完整性",
-                description="工艺文件必须包含: 适用范围、引用文件、要求、质量保证、交付准备",
+                description="工艺文件必须包含完整章节结构",
                 check_expression="检查文档是否包含所有必填章节",
-                severity="error",
             ).to_dict(),
             Principle(
                 dimension="data_validity",
-                name="力矩值校验",
-                description="螺栓力矩值必须在标准规定范围内，需对照材质+牌号+规格的条件组",
-                check_expression="查找文档中所有力矩值，验证是否与知识库中对应条件组的数据一致",
-                severity="error",
+                name="数据可验证性",
+                description="文档中的数据必须有可追溯来源，数值须与知识库条件组一致",
+                check_expression="查找文档中的数值数据，验证是否与知识库中对应条件组的数据一致",
             ).to_dict(),
             Principle(
                 dimension="terminology",
                 name="术语一致性",
                 description="同一文档中对同一事物必须使用统一的术语，不得混用",
                 check_expression="检查文档中是否有同一概念使用不同术语的情况",
-                severity="warning",
             ).to_dict(),
         ],
     )
@@ -476,14 +471,12 @@ def get_default_welding_profile() -> Profile:
             Principle(
                 dimension="text_compliance",
                 name="章节完整性",
-                description="焊接工艺文件必须包含: 焊接方法、材料、参数、检验要求",
-                severity="error",
+                description="焊接工艺文件必须包含完整章节结构",
             ).to_dict(),
             Principle(
                 dimension="data_validity",
-                name="焊接参数校验",
-                description="电流、电压、焊接速度等参数必须在材料对应的规范范围内",
-                severity="error",
+                name="数据可验证性",
+                description="焊接参数必须有可追溯来源，数值须与知识库条件组一致",
             ).to_dict(),
         ],
     )

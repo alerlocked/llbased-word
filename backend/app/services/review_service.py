@@ -159,7 +159,6 @@ class ReviewService:
         """Check text compliance (format, mandatory sections)."""
         name = principle.get("name", "")
         description = principle.get("description", "")
-        severity = principle.get("severity", "error")
         pid = principle.get("id", "")
 
         if "章节完整性" in name or "完整性" in name:
@@ -167,7 +166,7 @@ class ReviewService:
             for r in required:
                 if r not in content:
                     result.add_issue(Issue(
-                        severity=severity,
+                        severity=Severity.ERROR.value,
                         type="missing_field",
                         field=r,
                         message=f"缺少必填字段: {r}",
@@ -193,11 +192,6 @@ class ReviewService:
 
     def _check_data_validity(self, content: str, principle: Dict, result: ReviewResult):
         """Check data validity against knowledge base condition groups."""
-        # This is a placeholder for LLM-driven validation.
-        # In production, the LLM will extract data points from content
-        # and validate them against profile.knowledge condition groups.
-        # For now, we do basic pattern matching.
-        severity = principle.get("severity", "error")
         pid = principle.get("id", "")
 
         # Check for torque values without units
@@ -205,8 +199,7 @@ class ReviewService:
         # This regex is too aggressive for now, skip until we have LLM integration
 
     def _check_terminology(self, content: str, principle: Dict, result: ReviewResult):
-        """Check terminology consistency."""
-        severity = principle.get("severity", "warning")
+        """Check terminology consistency. All principles are hard rules."""
         pid = principle.get("id", "")
         name = principle.get("name", "")
 
@@ -220,7 +213,7 @@ class ReviewService:
             for w1, w2 in synonym_pairs:
                 if w1 in content and w2 in content:
                     result.add_issue(Issue(
-                        severity=severity,
+                        severity=Severity.ERROR.value,
                         type="terminology_inconsistency",
                         field=None,
                         message=f"术语不一致: 同时使用了「{w1}」和「{w2}」",
