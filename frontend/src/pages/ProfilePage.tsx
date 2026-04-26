@@ -164,6 +164,10 @@ const ProfilePage: React.FC = () => {
   const [addPrincipleVisible, setAddPrincipleVisible] = useState(false)
   const [newPrinciple, setNewPrinciple] = useState({ dimension: 'text_compliance', name: '', description: '' })
 
+  // Add preference modal
+  const [addPreferenceVisible, setAddPreferenceVisible] = useState(false)
+  const [newPreference, setNewPreference] = useState({ dimension: 'style', category: '', description: '', positive_examples: '', negative_examples: '' })
+
   const [formValues, setFormValues] = useState<{
     writing: WritingConfig
     review: ReviewConfig
@@ -281,6 +285,23 @@ const ProfilePage: React.FC = () => {
     } catch { message.error('删除失败') }
   }
 
+  const handleAddPreference = async () => {
+    try {
+      await apiClient.post(`${profileApiBase}/preferences`, {
+        dimension: newPreference.dimension,
+        category: newPreference.category,
+        description: newPreference.description,
+        positive_examples: newPreference.positive_examples.split(',').map(s => s.trim()).filter(Boolean),
+        negative_examples: newPreference.negative_examples.split(',').map(s => s.trim()).filter(Boolean),
+        learned_from: 'manual',
+      })
+      message.success('偏好已添加')
+      setAddPreferenceVisible(false)
+      setNewPreference({ dimension: 'style', category: '', description: '', positive_examples: '', negative_examples: '' })
+      fetchProfile()
+    } catch { message.error('添加失败') }
+  }
+
   const deviationPercent = Math.round(formValues.review.allowed_deviation * 100)
 
   const hasData = profile && (
@@ -377,6 +398,9 @@ const ProfilePage: React.FC = () => {
           )}
           {activeSection === 'principles' && (
             <div style={{ marginBottom: 12 }}><Button size="small" icon={<PlusOutlined />} onClick={() => setAddPrincipleVisible(true)}>添加原则</Button></div>
+          )}
+          {activeSection === 'preferences' && (
+            <div style={{ marginBottom: 12 }}><Button size="small" icon={<PlusOutlined />} onClick={() => setAddPreferenceVisible(true)}>添加偏好</Button></div>
           )}
           {/* Knowledge Section */}
           {activeSection === 'knowledge' && (
@@ -521,6 +545,19 @@ const ProfilePage: React.FC = () => {
           ]} /></div>
           <div><Text strong>名称</Text><Input placeholder="如：数据可验证性" value={newPrinciple.name} onChange={e => setNewPrinciple({ ...newPrinciple, name: e.target.value })} /></div>
           <div><Text strong>描述</Text><Input.TextArea rows={3} placeholder="这条规则检查什么" value={newPrinciple.description} onChange={e => setNewPrinciple({ ...newPrinciple, description: e.target.value })} /></div>
+        </div>
+      </Modal>
+
+      {/* Add Preference Modal */}
+      <Modal title="添加偏好" open={addPreferenceVisible} onOk={handleAddPreference} onCancel={() => setAddPreferenceVisible(false)} okText="添加" width={600}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div><Text strong>维度</Text><Select value={newPreference.dimension} onChange={v => setNewPreference({ ...newPreference, dimension: v })} options={[
+            { label: '可读性', value: 'readability' }, { label: '可执行性', value: 'executability' }, { label: '风格', value: 'style' },
+          ]} /></div>
+          <div><Text strong>类别</Text><Input placeholder="如：sentence_structure" value={newPreference.category} onChange={e => setNewPreference({ ...newPreference, category: e.target.value })} /></div>
+          <div><Text strong>描述</Text><Input.TextArea rows={2} placeholder="这个偏好的具体内容" value={newPreference.description} onChange={e => setNewPreference({ ...newPreference, description: e.target.value })} /></div>
+          <div><Text strong>正向示例（逗号分隔）</Text><Input placeholder="如：使用扭矩扳手紧固, 按对角线顺序拧紧" value={newPreference.positive_examples} onChange={e => setNewPreference({ ...newPreference, positive_examples: e.target.value })} /></div>
+          <div><Text strong>负向示例（逗号分隔）</Text><Input placeholder="如：适当拧紧, 差不多就行" value={newPreference.negative_examples} onChange={e => setNewPreference({ ...newPreference, negative_examples: e.target.value })} /></div>
         </div>
       </Modal>
     </div>
