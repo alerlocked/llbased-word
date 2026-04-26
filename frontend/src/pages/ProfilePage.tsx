@@ -148,7 +148,7 @@ const ProfilePage: React.FC = () => {
   const fetchProfile = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await apiClient.get('/api/profile/default')
+      const response = await apiClient.get('/profile/default')
       const data = response.data.profile
       setProfile(data)
       setFormValues({
@@ -226,7 +226,7 @@ const ProfilePage: React.FC = () => {
         allowed_deviation: values.allowed_deviation / 100
       }
 
-      await apiClient.put('/api/profile/default', { writing, review })
+      await apiClient.put('/profile/default', { writing, review })
 
       message.success('画像已保存')
       setEditing(false)
