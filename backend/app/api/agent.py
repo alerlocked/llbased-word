@@ -259,6 +259,7 @@ class GenerateStreamRequest(BaseModel):
     user_input: Optional[str] = Field(None, description="用户输入（兼容旧版）")
     user_id: Optional[int] = Field(None, description="用户ID")
     project_id: Optional[int] = Field(None, description="项目ID")
+    domain: Optional[str] = Field(None, description="工艺类型 (assembly/welding/coating/general)")
     reference_materials: Optional[List[dict]] = Field(None, description="用户选中的参考素材")
     chat_history: Optional[List[dict]] = Field(None, description="最近对话历史 [{role, content}]")
 
@@ -852,11 +853,26 @@ async def generate_stream(request: GenerateStreamRequest):
                     )
 
                 logger.info(f"[AI助手] 上下文注入成功: 长度={len(doc_context)}, has_materials={material_status.get('has_documents')}")
-                
+
             except Exception as e:
                 logger.warning(f"[AI助手] 上下文注入失败（将继续无上下文生成）: {e}")
                 # 上下文注入失败不影响主流程，继续生成
                 doc_context = ""
+
+            # Load domain profile and inject into context
+            profile_context = ""
+            try:
+                domain = request.domain or "assembly"
+                from app.models.profile import Profile
+                from pathlib import Path
+                profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
+                if profile_path.exists():
+                    profile = Profile.from_json(profile_path)
+                    profile_context = profile.to_context_text()
+                    logger.info(f"[AI助手] 画像注入成功: domain={domain}, 长度={len(profile_context)}")
+            except Exception as e:
+                logger.warning(f"[AI助手] 画像加载失败: {e}")
+                profile_context = ""
 
             # 构建完整提示词
             # 构建用户选中的素材上下文
@@ -879,10 +895,12 @@ async def generate_stream(request: GenerateStreamRequest):
 
             messages: List[Dict[str, str]] = []
 
-            # 1. System message: behavior rules
+            # 1. System message: behavior rules + profile
             system_parts = [system_prompt]
             if material_section:
                 system_parts.append(material_section)
+            if profile_context:
+                system_parts.append(f"\n## 当前用户画像\n{profile_context}")
             messages.append({"role": "system", "content": "\n".join(system_parts)})
 
             # 2. Chat history (prior turns from current session)

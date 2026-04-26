@@ -541,6 +541,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
           user_input: userInput,
           user_id: 1,
           project_id: projectId,
+          domain: (() => {
+            // Read default domain from localStorage for this project
+            if (projectId) {
+              return localStorage.getItem(`profile_default_${projectId}`) || undefined
+            }
+            return undefined
+          })(),
           session_id: sessionId,  // 传递保存的 session_id，保持会话上下文
           reference_materials: selectedMaterials.length > 0 ? selectedMaterials.map(m => ({
             name: m.name,

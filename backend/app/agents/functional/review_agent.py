@@ -161,6 +161,7 @@ class ReviewAgent(BaseAgent):
             content = task.get("content", "")
             check_type = task.get("check_type", "all")
             standards = task.get("standards", self.default_standards)
+            profile_data = task.get("profile")
 
             if not content:
                 return {
@@ -169,6 +170,25 @@ class ReviewAgent(BaseAgent):
                     "error_code": "EMPTY_CONTENT"
                 }
 
+            # If profile is available, use ReviewService for principle-based checks
+            if profile_data:
+                try:
+                    from app.services.review_service import ReviewService
+                    from app.models.profile import Profile
+                    profile = Profile.from_dict(profile_data)
+                    review_svc = ReviewService()
+                    review_result = review_svc.review(content, profile)
+                    return {
+                        "success": True,
+                        "results": {"principles": review_result.to_dict()},
+                        "passed": review_result.passed,
+                        "warnings": [i.message for i in review_result.issues if i.severity == "warning"],
+                        "recommendations": [s.get("message", "") for s in review_result.suggestions],
+                    }
+                except Exception as e:
+                    logger.warning(f"profile_review_failed, fallback to default: {e}")
+
+            # Fallback: original compliance check flow
             results = {}
             all_passed = True
             all_warnings = []

@@ -613,6 +613,19 @@ class ProcessOrchestrator:
                     **task.get("params", {})
                 }
 
+                # Load domain profile for review-related tasks
+                if agent_name in ("review", "proofread"):
+                    domain = task.get("domain", "assembly")
+                    try:
+                        from app.models.profile import Profile
+                        from app.config import settings
+                        from pathlib import Path
+                        profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
+                        if profile_path.exists():
+                            agent_task["profile"] = Profile.from_json(profile_path).to_dict()
+                    except Exception as e:
+                        logger.warning(f"profile_load_failed for domain={domain}: {e}")
+
                 # 调用Agent处理
                 result = await agent.process(agent_task)
 
