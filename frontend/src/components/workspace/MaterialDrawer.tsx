@@ -411,12 +411,12 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
 
       const textContent = content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 
-      const resp = await fetch('http://localhost:8000/api/profile/default/learn', {
+      const resp = await fetch(`http://localhost:8000/api/profile/${file.domain || 'assembly'}/learn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: textContent,
-          domain: 'assembly',
+          domain: file.domain || 'assembly',
           document_id: String(file.id),
         }),
       })

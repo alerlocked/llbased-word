@@ -197,39 +197,45 @@ async def get_page_content(material_id: int, page_num: int):
 
 
 @router.get("/materials")
-async def list_materials():
+async def list_materials(domain: Optional[str] = None):
     """
-    列出所有素材
+    列出所有素材，可按 domain 过滤
 
     从 data/materials/index.json 读取素材列表
+
+    Args:
+        domain: 可选，按工艺类型过滤 (assembly, welding, coating, general)
 
     Returns:
         素材列表
     """
-    logger.info("📖 获取素材列表")
+    logger.info(f"获取素材列表, domain={domain}")
 
     try:
         index_path = get_materials_dir() / "index.json"
         if not index_path.exists():
-            logger.warning("⚠️ 素材索引不存在")
+            logger.warning("素材索引不存在")
             return {"materials": []}
 
         with open(index_path, 'r', encoding='utf-8') as f:
             index_data = json.load(f)
 
         materials = index_data.get("materials", [])
-        logger.info(f"✅ 获取素材列表: {len(materials)} 个")
+        if domain:
+            materials = [m for m in materials if m.get("domain") == domain]
+
+        logger.info(f"获取素材列表: {len(materials)} 个 (domain={domain})")
 
         return {"materials": materials}
 
     except json.JSONDecodeError as e:
-        logger.error(f"❌ 素材索引格式错误: {str(e)}")
+        logger.error(f"素材索引格式错误: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"素材索引格式错误"
         )
     except Exception as e:
-        logger.error(f"❌ 获取素材列表失败: {str(e)}")
+        logger.error(f"获取素材列表失败: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取素材列表失败: {str(e)}"

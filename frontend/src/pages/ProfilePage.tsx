@@ -48,7 +48,6 @@ interface Principle {
   name: string
   description: string
   check_expression: string
-  severity: string
   enabled: boolean
   source: string
 }
@@ -126,7 +125,11 @@ const DIMENSION_LABELS: Record<string, string> = {
   style: '风格',
 }
 
-const SEVERITY_COLORS: Record<string, string> = { error: 'red', warning: 'orange' }
+const DIMENSION_COLORS: Record<string, string> = {
+  text_compliance: 'blue',
+  data_validity: 'green',
+  terminology: 'purple',
+}
 
 // ========================================
 // Component
@@ -139,6 +142,7 @@ const ProfilePage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [selectedDomain, setSelectedDomain] = useState<string>('assembly')
   const [activeSection, setActiveSection] = useState<'knowledge' | 'principles' | 'preferences'>('knowledge')
 
   // Add knowledge modal
@@ -147,7 +151,7 @@ const ProfilePage: React.FC = () => {
 
   // Add principle modal
   const [addPrincipleVisible, setAddPrincipleVisible] = useState(false)
-  const [newPrinciple, setNewPrinciple] = useState({ dimension: 'text_compliance', name: '', description: '', severity: 'error' })
+  const [newPrinciple, setNewPrinciple] = useState({ dimension: 'text_compliance', name: '', description: '' })
 
   const [formValues, setFormValues] = useState<{
     writing: WritingConfig
@@ -157,11 +161,13 @@ const ProfilePage: React.FC = () => {
     review: { check_completeness: true, check_accuracy: true, allowed_deviation: 0.1 },
   })
 
-  // Load profile
+  // Load profile for the selected domain
+  const profileApiBase = `/profile/${selectedDomain}`
+
   const fetchProfile = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await apiClient.get('/profile/default')
+      const response = await apiClient.get(profileApiBase)
       const data = response.data.profile
       setProfile(data)
       setFormValues({ writing: data.writing, review: data.review })
@@ -178,7 +184,7 @@ const ProfilePage: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [form])
+  }, [form, selectedDomain])
 
   useEffect(() => { fetchProfile() }, [fetchProfile])
 
@@ -189,7 +195,7 @@ const ProfilePage: React.FC = () => {
       setSaving(true)
       const writing = { tone: values.tone, terminology: values.terminology, detail_level: values.detail_level }
       const review = { check_completeness: values.check_completeness, check_accuracy: values.check_accuracy, allowed_deviation: values.allowed_deviation / 100 }
-      await apiClient.put('/profile/default', { writing, review })
+      await apiClient.put(profileApiBase, { writing, review })
       message.success('画像已保存')
       setEditing(false)
       setFormValues({ writing, review })
@@ -214,7 +220,7 @@ const ProfilePage: React.FC = () => {
         const [k, v] = pair.split('=').map(s => s.trim())
         if (k && v) attributes[k] = v
       })
-      await apiClient.post('/profile/default/knowledge', {
+      await apiClient.post(`${profileApiBase}/knowledge`, {
         entity: newKnowledge.entity,
         conditions,
         attributes,
@@ -231,7 +237,7 @@ const ProfilePage: React.FC = () => {
 
   const handleDeleteKnowledge = async (id: string) => {
     try {
-      await apiClient.delete(`/profile/default/knowledge/${id}`)
+      await apiClient.delete(`${profileApiBase}/knowledge/${id}`)
       message.success('已删除')
       fetchProfile()
     } catch { message.error('删除失败') }
@@ -240,17 +246,17 @@ const ProfilePage: React.FC = () => {
   // Principle CRUD
   const handleAddPrinciple = async () => {
     try {
-      await apiClient.post('/profile/default/principles', newPrinciple)
+      await apiClient.post(`${profileApiBase}/principles`, newPrinciple)
       message.success('原则已添加')
       setAddPrincipleVisible(false)
-      setNewPrinciple({ dimension: 'text_compliance', name: '', description: '', severity: 'error' })
+      setNewPrinciple({ dimension: 'text_compliance', name: '', description: '' })
       fetchProfile()
     } catch { message.error('添加失败') }
   }
 
   const handleDeletePrinciple = async (id: string) => {
     try {
-      await apiClient.delete(`/profile/default/principles/${id}`)
+      await apiClient.delete(`${profileApiBase}/principles/${id}`)
       message.success('已删除')
       fetchProfile()
     } catch { message.error('删除失败') }
@@ -258,7 +264,7 @@ const ProfilePage: React.FC = () => {
 
   const handleDeletePreference = async (id: string) => {
     try {
-      await apiClient.delete(`/profile/default/preferences/${id}`)
+      await apiClient.delete(`${profileApiBase}/preferences/${id}`)
       message.success('已删除')
       fetchProfile()
     } catch { message.error('删除失败') }
@@ -300,9 +306,8 @@ const ProfilePage: React.FC = () => {
                   <div style={{ fontWeight: typography.fontWeight.semibold, fontSize: typography.fontSize.base, color: colors.textPrimary, marginBottom: 4 }}>{t.name}</div>
                   <div style={{ fontSize: typography.fontSize.xs, color: colors.textTertiary, marginBottom: 12 }}>{t.description}</div>
                   <Button size="small" type="primary" ghost onClick={() => {
-                    form.setFieldsValue({ tone: t.writing.tone, terminology: t.writing.terminology, detail_level: t.writing.detail_level, check_completeness: t.review.check_completeness, check_accuracy: t.review.check_accuracy, allowed_deviation: Math.round(t.review.allowed_deviation * 100) })
-                    setEditing(true)
-                    message.info(`已应用「${t.name}」模板`)
+                    setSelectedDomain(t.domain)
+                    message.info(`切换到「${t.name}」画像`)
                   }}>应用</Button>
                 </Card>
               </Col>
@@ -386,11 +391,8 @@ const ProfilePage: React.FC = () => {
               <Table size="small" pagination={{ pageSize: 10, size: 'small' }}
                 dataSource={(profile?.principles ?? []).map(p => ({ key: p.id, ...p }))}
                 columns={[
-                  { title: '级别', dataIndex: 'severity', key: 'severity', width: 70,
-                    render: (v: string) => <Tag color={SEVERITY_COLORS[v] || 'default'}>{v === 'error' ? '必须' : '警告'}</Tag>
-                  },
                   { title: '维度', dataIndex: 'dimension', key: 'dimension', width: 100,
-                    render: (v: string) => <Tag>{DIMENSION_LABELS[v] || v}</Tag>
+                    render: (v: string) => <Tag color={DIMENSION_COLORS[v] || 'default'}>{DIMENSION_LABELS[v] || v}</Tag>
                   },
                   { title: '名称', dataIndex: 'name', key: 'name', width: 150 },
                   { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
@@ -495,11 +497,8 @@ const ProfilePage: React.FC = () => {
           <div><Text strong>维度</Text><Select value={newPrinciple.dimension} onChange={v => setNewPrinciple({ ...newPrinciple, dimension: v })} options={[
             { label: '文本合规性', value: 'text_compliance' }, { label: '数据合理性', value: 'data_validity' }, { label: '术语一致性', value: 'terminology' },
           ]} /></div>
-          <div><Text strong>名称</Text><Input placeholder="如：螺栓力矩范围校验" value={newPrinciple.name} onChange={e => setNewPrinciple({ ...newPrinciple, name: e.target.value })} /></div>
+          <div><Text strong>名称</Text><Input placeholder="如：数据可验证性" value={newPrinciple.name} onChange={e => setNewPrinciple({ ...newPrinciple, name: e.target.value })} /></div>
           <div><Text strong>描述</Text><Input.TextArea rows={3} placeholder="这条规则检查什么" value={newPrinciple.description} onChange={e => setNewPrinciple({ ...newPrinciple, description: e.target.value })} /></div>
-          <div><Text strong>严重级别</Text><Select value={newPrinciple.severity} onChange={v => setNewPrinciple({ ...newPrinciple, severity: v })} options={[
-            { label: '错误（必须修改）', value: 'error' }, { label: '警告（建议修改）', value: 'warning' },
-          ]} /></div>
         </div>
       </Modal>
     </div>

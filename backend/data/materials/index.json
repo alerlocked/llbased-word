@@ -1,12 +1,13 @@
 {
-  "version": "1.0",
-  "generated_at": "2026-04-22T17:05:00.000000",
+  "version": "2.0",
+  "generated_at": "2026-04-26T19:00:00.000000",
   "materials": [
     {
       "id": 1,
       "name": "全单电缆装配规程",
       "path": "1_全单电缆装配规程",
-      "page_count": 44
+      "page_count": 44,
+      "domain": "assembly"
     }
   ]
 }

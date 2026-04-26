@@ -33,6 +33,7 @@ export interface MaterialFile {
   folderId?: string
   created_at: string
   content?: string
+  domain?: string  // Process type: assembly, welding, coating, general
   parse_status?: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'unknown'
   parse_progress?: number  // 0-100
   parse_error?: string

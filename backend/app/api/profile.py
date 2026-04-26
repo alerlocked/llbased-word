@@ -1,26 +1,29 @@
 """
-Profile API - User profile management with condition-grouped knowledge, principles, and preferences.
+Profile API - Domain-based profile management with condition-grouped knowledge, principles, and preferences.
+
+Each domain (assembly, welding, coating, general) has its own profile file.
+Endpoints use domain as the key instead of user_id.
 
 Endpoints:
-- GET    /api/profile/{user_id}                    — Get current profile
-- PUT    /api/profile/{user_id}                    — Update writing/review config
-- DELETE /api/profile/{user_id}                    — Reset to default
-- POST   /api/profile/{user_id}/learn              — Learn from document content
-- POST   /api/profile/{user_id}/learn-file         — Learn from file
+- GET    /api/profile/{domain}                    — Get profile for domain
+- PUT    /api/profile/{domain}                    — Update writing/review config
+- DELETE /api/profile/{domain}                    — Reset to default
+- POST   /api/profile/{domain}/learn              — Learn from document content
+- POST   /api/profile/{domain}/learn-file         — Learn from file
 
 Knowledge CRUD:
-- POST   /api/profile/{user_id}/knowledge          — Add condition-grouped entry
-- DELETE /api/profile/{user_id}/knowledge/{id}     — Remove entry
-- POST   /api/profile/{user_id}/knowledge/merge    — Batch merge entries
-- GET    /api/profile/{user_id}/knowledge/search   — Search by entity/conditions
+- POST   /api/profile/{domain}/knowledge          — Add condition-grouped entry
+- DELETE /api/profile/{domain}/knowledge/{id}     — Remove entry
+- POST   /api/profile/{domain}/knowledge/merge    — Batch merge entries
+- POST   /api/profile/{domain}/knowledge/search   — Search by entity/conditions
 
 Principle CRUD:
-- POST   /api/profile/{user_id}/principles         — Add principle
-- DELETE /api/profile/{user_id}/principles/{id}    — Remove principle
+- POST   /api/profile/{domain}/principles         — Add principle
+- DELETE /api/profile/{domain}/principles/{id}    — Remove principle
 
 Preference CRUD:
-- POST   /api/profile/{user_id}/preferences        — Add preference
-- DELETE /api/profile/{user_id}/preferences/{id}   — Remove preference
+- POST   /api/profile/{domain}/preferences        — Add preference
+- DELETE /api/profile/{domain}/preferences/{id}   — Remove preference
 """
 from typing import Any, Dict, List, Optional
 from pathlib import Path
@@ -31,7 +34,8 @@ from pydantic import BaseModel, Field
 from app.shared.logging import get_logger
 from app.models.profile import (
     Profile, ConditionGroup, Principle, Preference,
-    WritingConfig, ReviewConfig, get_default_assembly_profile,
+    WritingConfig, ReviewConfig,
+    get_default_assembly_profile, get_default_welding_profile,
 )
 from app.services.document_profile_learner import DocumentProfileLearner
 from app.config import settings
@@ -41,6 +45,27 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 PROFILES_DIR = Path(settings.DATA_DIR) / "profiles"
+
+VALID_DOMAINS = {"assembly", "welding", "coating", "general"}
+
+
+def _get_default_profile(domain: str) -> Profile:
+    """Get the default profile for a given domain."""
+    defaults = {
+        "assembly": get_default_assembly_profile,
+        "welding": get_default_welding_profile,
+    }
+    factory = defaults.get(domain)
+    if factory:
+        return factory()
+    # Generic default for unknown domains
+    return Profile(
+        id=f"default_{domain}",
+        user_id="default",
+        domain=domain,
+        writing=WritingConfig(),
+        review=ReviewConfig(),
+    )
 
 
 # ========================================
@@ -85,7 +110,6 @@ class PrincipleRequest(BaseModel):
     name: str = Field(..., min_length=1)
     description: str = ""
     check_expression: str = ""
-    severity: str = Field(default="error", pattern=r"^(error|warning)$")
     source: str = ""
 
 
@@ -103,35 +127,35 @@ class PreferenceRequest(BaseModel):
 # Helpers
 # ========================================
 
-def _profile_path(user_id: str) -> Path:
-    return PROFILES_DIR / f"{user_id}.json"
+def _profile_path(domain: str) -> Path:
+    return PROFILES_DIR / f"{domain}.json"
 
 
-def _load_profile(user_id: str) -> Profile:
-    path = _profile_path(user_id)
+def _load_profile(domain: str) -> Profile:
+    path = _profile_path(domain)
     if path.exists():
         return Profile.from_json(path)
-    return get_default_assembly_profile()
+    return _get_default_profile(domain)
 
 
 def _save_profile(profile: Profile) -> None:
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    profile.to_json(_profile_path(profile.user_id))
+    profile.to_json(_profile_path(profile.domain))
 
 
 # ========================================
 # Core Profile Endpoints
 # ========================================
 
-@router.get("/{user_id}")
-def get_profile(user_id: str) -> Dict[str, Any]:
-    profile = _load_profile(user_id)
+@router.get("/{domain}")
+def get_profile(domain: str) -> Dict[str, Any]:
+    profile = _load_profile(domain)
     return {"status": "ok", "profile": profile.to_dict()}
 
 
-@router.put("/{user_id}")
-def update_profile(user_id: str, req: ProfileUpdateRequest) -> Dict[str, Any]:
-    profile = _load_profile(user_id)
+@router.put("/{domain}")
+def update_profile(domain: str, req: ProfileUpdateRequest) -> Dict[str, Any]:
+    profile = _load_profile(domain)
     pd = profile.to_dict()
 
     if req.writing:
@@ -144,17 +168,17 @@ def update_profile(user_id: str, req: ProfileUpdateRequest) -> Dict[str, Any]:
     return {"status": "ok", "profile": updated.to_dict()}
 
 
-@router.delete("/{user_id}")
-def reset_profile(user_id: str) -> Dict[str, Any]:
-    path = _profile_path(user_id)
+@router.delete("/{domain}")
+def reset_profile(domain: str) -> Dict[str, Any]:
+    path = _profile_path(domain)
     if path.exists():
         path.unlink()
-    default = get_default_assembly_profile()
+    default = _get_default_profile(domain)
     return {"status": "ok", "message": "Profile reset to default", "profile": default.to_dict()}
 
 
-@router.post("/{user_id}/learn")
-def learn_from_content(user_id: str, req: LearnRequest) -> Dict[str, Any]:
+@router.post("/{domain}/learn")
+def learn_from_content(domain: str, req: LearnRequest) -> Dict[str, Any]:
     """Learn profile features from document text content."""
     learner = DocumentProfileLearner()
     features = learner.learn_from_content(
@@ -163,7 +187,7 @@ def learn_from_content(user_id: str, req: LearnRequest) -> Dict[str, Any]:
         document_id=req.document_id,
     )
 
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     profile_dict = profile.to_dict()
     merged = learner.merge_features_to_profile(profile_dict, features)
 
@@ -181,8 +205,8 @@ def learn_from_content(user_id: str, req: LearnRequest) -> Dict[str, Any]:
     }
 
 
-@router.post("/{user_id}/learn-file")
-def learn_from_file(user_id: str, req: LearnFileRequest) -> Dict[str, Any]:
+@router.post("/{domain}/learn-file")
+def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
     """Learn from a parsed document file."""
     file_path = Path(req.file_path)
     if not file_path.exists():
@@ -217,7 +241,7 @@ def learn_from_file(user_id: str, req: LearnFileRequest) -> Dict[str, Any]:
     learner = DocumentProfileLearner()
     features = learner.learn_from_content(content=content, domain=req.domain, document_id=doc_id)
 
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     profile_dict = profile.to_dict()
     merged = learner.merge_features_to_profile(profile_dict, features)
     updated = Profile.from_dict(merged)
@@ -234,10 +258,10 @@ def learn_from_file(user_id: str, req: LearnFileRequest) -> Dict[str, Any]:
 # Knowledge CRUD
 # ========================================
 
-@router.post("/{user_id}/knowledge")
-def add_knowledge(user_id: str, req: KnowledgeEntryRequest) -> Dict[str, Any]:
+@router.post("/{domain}/knowledge")
+def add_knowledge(domain: str, req: KnowledgeEntryRequest) -> Dict[str, Any]:
     """Add a condition-grouped knowledge entry. Auto-deduplicates by entity+conditions."""
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     entry = ConditionGroup(
         entity=req.entity,
         conditions=req.conditions,
@@ -249,20 +273,20 @@ def add_knowledge(user_id: str, req: KnowledgeEntryRequest) -> Dict[str, Any]:
     return {"status": "ok", "id": entry_id, "profile": profile.to_dict()}
 
 
-@router.delete("/{user_id}/knowledge/{entry_id}")
-def remove_knowledge(user_id: str, entry_id: str) -> Dict[str, Any]:
+@router.delete("/{domain}/knowledge/{entry_id}")
+def remove_knowledge(domain: str, entry_id: str) -> Dict[str, Any]:
     """Remove a knowledge entry by ID."""
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     if not profile.remove_knowledge(entry_id):
         raise HTTPException(status_code=404, detail=f"Knowledge entry {entry_id} not found")
     _save_profile(profile)
     return {"status": "ok", "profile": profile.to_dict()}
 
 
-@router.post("/{user_id}/knowledge/merge")
-def merge_knowledge(user_id: str, req: KnowledgeMergeRequest) -> Dict[str, Any]:
+@router.post("/{domain}/knowledge/merge")
+def merge_knowledge(domain: str, req: KnowledgeMergeRequest) -> Dict[str, Any]:
     """Batch merge multiple knowledge entries. Returns count of new entries added."""
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     entries = [
         ConditionGroup(entity=e.entity, conditions=e.conditions, attributes=e.attributes, source=e.source)
         for e in req.entries
@@ -272,10 +296,10 @@ def merge_knowledge(user_id: str, req: KnowledgeMergeRequest) -> Dict[str, Any]:
     return {"status": "ok", "added": added, "total": len(profile.knowledge), "profile": profile.to_dict()}
 
 
-@router.post("/{user_id}/knowledge/search")
-def search_knowledge(user_id: str, req: KnowledgeSearchRequest) -> Dict[str, Any]:
+@router.post("/{domain}/knowledge/search")
+def search_knowledge(domain: str, req: KnowledgeSearchRequest) -> Dict[str, Any]:
     """Search knowledge entries by entity and optional conditions."""
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     results = profile.find_knowledge(req.entity, req.conditions)
     return {"status": "ok", "results": results, "count": len(results)}
 
@@ -284,16 +308,15 @@ def search_knowledge(user_id: str, req: KnowledgeSearchRequest) -> Dict[str, Any
 # Principle CRUD
 # ========================================
 
-@router.post("/{user_id}/principles")
-def add_principle(user_id: str, req: PrincipleRequest) -> Dict[str, Any]:
+@router.post("/{domain}/principles")
+def add_principle(domain: str, req: PrincipleRequest) -> Dict[str, Any]:
     """Add a compliance principle. Auto-deduplicates by name+dimension."""
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     principle = Principle(
         dimension=req.dimension,
         name=req.name,
         description=req.description,
         check_expression=req.check_expression,
-        severity=req.severity,
         source=req.source,
     )
     pid = profile.add_principle(principle)
@@ -301,10 +324,10 @@ def add_principle(user_id: str, req: PrincipleRequest) -> Dict[str, Any]:
     return {"status": "ok", "id": pid, "profile": profile.to_dict()}
 
 
-@router.delete("/{user_id}/principles/{principle_id}")
-def remove_principle(user_id: str, principle_id: str) -> Dict[str, Any]:
+@router.delete("/{domain}/principles/{principle_id}")
+def remove_principle(domain: str, principle_id: str) -> Dict[str, Any]:
     """Remove a principle by ID."""
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     if not profile.remove_principle(principle_id):
         raise HTTPException(status_code=404, detail=f"Principle {principle_id} not found")
     _save_profile(profile)
@@ -315,10 +338,10 @@ def remove_principle(user_id: str, principle_id: str) -> Dict[str, Any]:
 # Preference CRUD
 # ========================================
 
-@router.post("/{user_id}/preferences")
-def add_preference(user_id: str, req: PreferenceRequest) -> Dict[str, Any]:
+@router.post("/{domain}/preferences")
+def add_preference(domain: str, req: PreferenceRequest) -> Dict[str, Any]:
     """Add a learned preference. Auto-deduplicates by category+dimension."""
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     pref = Preference(
         dimension=req.dimension,
         category=req.category,
@@ -333,10 +356,10 @@ def add_preference(user_id: str, req: PreferenceRequest) -> Dict[str, Any]:
     return {"status": "ok", "id": pid, "profile": profile.to_dict()}
 
 
-@router.delete("/{user_id}/preferences/{pref_id}")
-def remove_preference(user_id: str, pref_id: str) -> Dict[str, Any]:
+@router.delete("/{domain}/preferences/{pref_id}")
+def remove_preference(domain: str, pref_id: str) -> Dict[str, Any]:
     """Remove a preference by ID."""
-    profile = _load_profile(user_id)
+    profile = _load_profile(domain)
     if not profile.remove_preference(pref_id):
         raise HTTPException(status_code=404, detail=f"Preference {pref_id} not found")
     _save_profile(profile)
