@@ -93,6 +93,26 @@ backend/data/process_docs/*.pdf
 backend/data/extracted/
 backend/data/pdf_queue_state.json
 
+# Database files (contains user data)
+backend/data/database/
+*.db
+*.sqlite
+*.sqlite3
+
+# User uploads (contains business data)
+backend/data/uploads/
+
+# Parsed documents (contains business content)
+backend/data/documents/*/
+!backend/data/documents/.gitkeep
+backend/data/parsed_pdfs/
+backend/data/materials/*/
+!backend/data/materials/.gitkeep
+backend/data/standards_parsed/
+
+# Demo/output files
+demo_output/
+
 # Claude Code
 .claude/settings.local.json
 

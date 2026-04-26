@@ -48,15 +48,13 @@ async def lifespan(app: FastAPI):
         queue_manager = get_pdf_queue_manager()
         processor = DocumentProcessor()
 
-        def parse_wrapper(task: PDFTask):
-            """包装异步调用为同步"""
+        async def parse_wrapper(task: PDFTask):
+            """Async parser for PDF queue"""
             db = SessionLocal()
             try:
-                import asyncio
-                loop = asyncio.get_event_loop()
-                return loop.run_until_complete(
-                    processor.process_document_from_task(task, db)
-                )
+                def on_progress(pct: int):
+                    queue_manager.update_progress(task.task_id, pct)
+                return await processor.process_document_from_task(task, db, progress_callback=on_progress)
             except Exception as e:
                 logger.error(f"队列任务执行失败: {str(e)}")
                 return {"error": str(e)}
@@ -75,6 +73,17 @@ async def lifespan(app: FastAPI):
     logger.info("✅ 应用启动完成")
     logger.info("📝 请求日志中间件已启用，所有HTTP请求将被记录")
 
+    # Startup summary
+    print("\n" + "=" * 50)
+    print(f"  {settings.APP_NAME} v{settings.VERSION}")
+    print(f"  http://{settings.HOST}:{settings.PORT}")
+    print("=" * 50)
+    print(f"  Database  : {settings.DB_DIR / 'craftdoc.db'}")
+    print(f"  Data dir  : {settings.DATA_DIR}")
+    print(f"  Debug     : {settings.DEBUG}")
+    print(f"  PDF Queue : {'OK' if queue_manager else 'FAILED'}")
+    print("=" * 50 + "\n")
+
     yield  # 应用运行中
 
     # === Shutdown ===
@@ -82,7 +91,6 @@ async def lifespan(app: FastAPI):
 
     # 停止PDF解析队列管理器
     try:
-        from app.services.pdf_queue_manager import get_pdf_queue_manager
         from app.services.pdf_watcher_service import get_pdf_watcher_service
 
         # 停止监听服务
@@ -91,7 +99,7 @@ async def lifespan(app: FastAPI):
             await watcher.stop()
             logger.info("✅ PDF监听服务已停止")
 
-        # 停止队列管理器
+        # 停止队列管理器（使用顶层已导入的 get_pdf_queue_manager）
         queue_manager = get_pdf_queue_manager()
         await queue_manager.stop()
         logger.info("✅ PDF队列管理器已停止")

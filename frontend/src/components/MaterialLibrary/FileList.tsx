@@ -32,9 +32,10 @@ export interface MaterialFile {
   type: string
   folderId?: string
   created_at: string
-  content?: string  // 文件内容，用于预览
+  content?: string
   parse_status?: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'unknown'
-  parse_error?: string  // 解析失败时的错误信息
+  parse_progress?: number  // 0-100
+  parse_error?: string
 }
 
 interface FileListProps {
@@ -78,11 +79,11 @@ const getFileTypeTag = (type: string) => {
 }
 
 // 获取解析状态标签
-const getParseStatusTag = (status?: string, error?: string) => {
+const getParseStatusTag = (status?: string, error?: string, progress?: number) => {
   if (!status || status === 'unknown') {
     return null
   }
-  
+
   switch (status) {
     case 'pending':
     case 'queued':
@@ -94,7 +95,7 @@ const getParseStatusTag = (status?: string, error?: string) => {
     case 'processing':
       return (
         <Tag color="processing" icon={<SyncOutlined spin />}>
-          解析中...
+          解析中 {progress != null && progress > 0 ? `${progress}%` : ''}
         </Tag>
       )
     case 'completed':
@@ -322,7 +323,7 @@ const FileList: React.FC<FileListProps> = ({
               description={
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                   {getFileTypeTag(item.type)}
-                  {getParseStatusTag(item.parse_status, item.parse_error)}
+                  {getParseStatusTag(item.parse_status, item.parse_error, item.parse_progress)}
                   <span style={{ fontSize: 12, color: colors.textTertiary }}>
                     {new Date(item.created_at).toLocaleDateString()}
                   </span>

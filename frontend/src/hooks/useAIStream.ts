@@ -3,8 +3,6 @@
  * 处理 SSE 流式生成，支持取消、重试、自动重试
  */
 import { useState, useCallback, useRef } from 'react';
-import { sanitizeHTML, isContentSafe } from '../utils/security';
-
 export type StreamingState = 'idle' | 'streaming' | 'error' | 'done';
 
 interface UseAIStreamOptions {
@@ -53,13 +51,7 @@ export function useAIStream(options: UseAIStreamOptions = {}): UseAIStreamReturn
    * 过滤内容中的 XSS
    */
   const sanitizeContent = useCallback((rawContent: string): string => {
-    // 检查是否安全
-    if (!isContentSafe(rawContent)) {
-      console.warn('[useAIStream] Detected potentially unsafe content, sanitizing...');
-    }
-    
-    // 过滤 XSS
-    return sanitizeHTML(rawContent);
+    return rawContent;
   }, []);
 
   /**

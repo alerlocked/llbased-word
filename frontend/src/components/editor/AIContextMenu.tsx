@@ -18,7 +18,6 @@ import {
 } from 'react-icons/ri';
 import { useAIStream } from '../../hooks/useAIStream';
 import type { SelectionInfo, Position } from '../../hooks/useSelection';
-import { replaceWithFormatPreservation } from '../../utils/formatPreservation';
 import styles from './AIContextMenu.module.css';
 
 type AIAction = 'rewrite' | 'expand' | 'polish' | 'translate' | 'summarize' | 'extract' | 'illustrate';
@@ -187,13 +186,12 @@ const AIContextMenu: React.FC<AIContextMenuProps> = ({
   const handleAccept = useCallback(() => {
     if (!editor || !selection || !previewContent) return;
 
-    // 使用格式保留替换
-    replaceWithFormatPreservation(
-      editor,
-      selection.from,
-      selection.to,
-      previewContent
-    );
+    // Replace selection with AI-generated content
+    editor.chain()
+      .focus()
+      .setTextSelection({ from: selection.from, to: selection.to })
+      .insertContent(previewContent)
+      .run();
 
     onClose();
   }, [editor, selection, previewContent, onClose]);

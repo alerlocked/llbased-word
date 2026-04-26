@@ -1,10 +1,10 @@
 /**
  * UploadDrawer - 上传素材抽屉
- * 支持文件上传进度和处理进度显示
+ * 支持文件上传进度和真实解析进度轮询
  */
-import { useState, useEffect, useRef } from 'react'
-import { Drawer, Upload, Button, message, Space, Progress, Alert } from 'antd'
-import { InboxOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Drawer, Upload, Button, message, Progress, Alert } from 'antd'
+import { InboxOutlined, LoadingOutlined } from '@ant-design/icons'
 import { colors } from '../../styles/design-tokens'
 
 const { Dragger } = Upload
@@ -31,6 +31,8 @@ const formatRemainingTime = (seconds: number): string => {
   return mins > 0 ? `${hours}小时${mins}分` : `${hours}小时`
 }
 
+const POLL_INTERVAL = 2000
+
 const UploadDrawer: React.FC<UploadDrawerProps> = ({
   visible,
   onClose,
@@ -41,36 +43,94 @@ const UploadDrawer: React.FC<UploadDrawerProps> = ({
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [processing, setProcessing] = useState(false)
-  const [processingProgress, setProcessingProgress] = useState(0) // 处理进度百分比
-  const [remainingTime, setRemainingTime] = useState<number | null>(null) // 预计剩余时间(秒)
+  const [processingProgress, setProcessingProgress] = useState(0)
+  const [remainingTime, setRemainingTime] = useState<number | null>(null)
   const [currentFile, setCurrentFile] = useState<string>('')
+  const [pollingMaterialId, setPollingMaterialId] = useState<number | null>(null)
 
-  // 用于计算剩余时间的计时器
   const processingStartTimeRef = useRef<number | null>(null)
-  const processingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (processingTimerRef.current) {
-        clearInterval(processingTimerRef.current)
-        processingTimerRef.current = null
+  // Poll parse status
+  const pollParseStatus = useCallback(async (materialId: number) => {
+    try {
+      const resp = await fetch(`http://localhost:8000/api/creation/materials/${materialId}/parse-status`)
+      if (!resp.ok) return
+      const data = await resp.json()
+
+      setProcessingProgress(data.progress || 0)
+
+      // Estimate remaining time
+      if (processingStartTimeRef.current && (data.progress || 0) > 5) {
+        const elapsed = (Date.now() - processingStartTimeRef.current) / 1000
+        const ratio = (data.progress || 0) / 100
+        const totalEstimated = elapsed / ratio
+        setRemainingTime(Math.max(0, totalEstimated - elapsed))
       }
+
+      if (data.status === 'completed') {
+        stopPolling()
+        setProcessingProgress(100)
+        setRemainingTime(0)
+        setTimeout(() => {
+          setProcessing(false)
+          message.destroy('processing')
+          message.success(`${currentFile} 解析完成`)
+          onUploadComplete?.()
+        }, 300)
+      } else if (data.status === 'failed') {
+        stopPolling()
+        setProcessing(false)
+        message.destroy('processing')
+        message.error(`${currentFile} 解析失败: ${data.error_message || '未知错误'}`)
+        onUploadComplete?.()
+      }
+    } catch {
+      // Network error, keep polling
+    }
+  }, [currentFile, onUploadComplete])
+
+  const startPolling = useCallback((materialId: number) => {
+    stopPolling()
+    pollTimerRef.current = setInterval(() => {
+      pollParseStatus(materialId)
+    }, POLL_INTERVAL)
+  }, [pollParseStatus])
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current)
+      pollTimerRef.current = null
     }
   }, [])
 
-  // 重置状态当抽屉关闭时
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopPolling()
+    }
+  }, [stopPolling])
+
+  // Reset on drawer close
   useEffect(() => {
     if (!visible) {
       setUploadProgress(0)
       setProcessingProgress(0)
       setRemainingTime(null)
-      if (processingTimerRef.current) {
-        clearInterval(processingTimerRef.current)
-        processingTimerRef.current = null
-      }
+      setPollingMaterialId(null)
+      stopPolling()
     }
-  }, [visible])
+  }, [visible, stopPolling])
+
+  // Start polling when materialId is set
+  useEffect(() => {
+    if (pollingMaterialId !== null && processing) {
+      startPolling(pollingMaterialId)
+      // Fire first poll immediately
+      pollParseStatus(pollingMaterialId)
+    }
+    return () => stopPolling()
+  }, [pollingMaterialId])
 
   const uploadProps = {
     name: 'file',
@@ -79,59 +139,30 @@ const UploadDrawer: React.FC<UploadDrawerProps> = ({
     showUploadList: false,
     onChange(info: any) {
       setCurrentFile(info.file.name)
-      
+
       if (info.file.status === 'uploading') {
         setUploading(true)
         setUploadProgress(info.file.percent || 0)
       }
-      
+
       if (info.file.status === 'done') {
         setUploading(false)
         setProcessing(true)
         setProcessingProgress(0)
         setRemainingTime(null)
         processingStartTimeRef.current = Date.now()
-        message.loading({ content: '正在处理文档，请稍候...', key: 'processing', duration: 0 })
+        message.loading({ content: '正在解析文档，请稍候...', key: 'processing', duration: 0 })
 
-        // 模拟处理进度（实际应该轮询后端API获取真实进度）
-        // 这里模拟一个渐进式的处理过程
-        let currentProgress = 0
-        const totalSteps = 10
-        const stepInterval = 300 // 每步300ms
+        // Extract material_id from response and start polling
+        const materialId = info.file.response?.material_id
+        if (materialId) {
+          setPollingMaterialId(materialId)
+        } else {
+          // Fallback: no material_id returned, show generic progress
+          setProcessingProgress(10)
+        }
+      }
 
-        processingTimerRef.current = setInterval(() => {
-          currentProgress += 100 / totalSteps
-
-          if (currentProgress >= 100) {
-            // 处理完成
-            clearInterval(processingTimerRef.current!)
-            processingTimerRef.current = null
-            setProcessingProgress(100)
-            setRemainingTime(0)
-
-            setTimeout(() => {
-              setProcessing(false)
-              message.destroy('processing')
-              message.success(`${info.file.name} 处理完成`)
-              onUploadComplete?.()
-            }, 300)
-          } else {
-            setProcessingProgress(Math.min(100, Math.round(currentProgress)))
-
-            // 计算预计剩余时间
-            if (processingStartTimeRef.current) {
-              const elapsed = (Date.now() - processingStartTimeRef.current) / 1000 // 秒
-              const progressRatio = currentProgress / 100
-              if (progressRatio > 0.05) { // 至少处理了5%才估算
-                const totalEstimatedTime = elapsed / progressRatio
-                const remaining = totalEstimatedTime - elapsed
-                setRemainingTime(Math.max(0, remaining))
-              }
-            }
-          }
-        }, stepInterval)
-      } 
-      
       if (info.file.status === 'error') {
         setUploading(false)
         setProcessing(false)
@@ -139,7 +170,7 @@ const UploadDrawer: React.FC<UploadDrawerProps> = ({
       }
     },
     onDrop(e: DragEvent) {
-      // 处理拖放
+      // handle drop
     }
   }
 
