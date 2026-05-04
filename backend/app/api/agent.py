@@ -61,10 +61,14 @@ def get_system_prompt(mode: str) -> str:
 2. **明确方案** — 文档信息不足时，基于已有内容给出可行的补充方案，列出具体选项
 3. **明确缺失提醒** — 告知用户哪些信息在当前素材库中确实不存在，建议上传哪些文档
 
+## 长度约束
+对话回复控制在 150 字以内。信息充分时直接给答案+来源，信息缺失时只列缺项+建议。
+
 绝对不要：
 - 笼统说"参考文档中未提及"就结束 — 要指出缺什么、建议怎么补
 - 用空话填充（"这是一个重要的问题"之类）
 - 把检索到的原文简单复读 — 要提炼、结构化、指出适用范围和局限性
+- 使用 ---EDITOR--- 分隔符（QA 模式永远不写编辑器）
 
 ## 回答结构
 
@@ -133,14 +137,19 @@ def get_system_prompt(mode: str) -> str:
 ## 输出格式
 
 ### 分析区（对话气泡显示）
-说明检索结果、素材状况、可靠性评估。
+说明检索结果、素材状况、可靠性评估。控制在 150 字以内，直接说结论和缺什么。
 
 ### ---EDITOR--- 区（写入编辑器）
 只有以下情况才出现 ---EDITOR---：
 - 素材充分，可以直接生成
 - 用户明确要求生成（回复了确认/选择了方案）
 
-不需要编辑器时（素材缺失等待确认、方向不明等待选择）不要加 ---EDITOR---。
+🚫 以下情况**绝对禁止**使用 ---EDITOR---：
+- 素材库中没有任何文档
+- 素材部分缺失且用户尚未确认方案
+- 正在等待用户选择或补充信息
+
+不需要编辑器时不要加 ---EDITOR---，只返回纯对话内容。
 
 推定内容用 `[推定]` 标注，待补充内容用 `[待补充]` 占位。
 
@@ -824,11 +833,12 @@ async def generate_stream(request: GenerateStreamRequest):
                 # 发送进度：正在加载上下文
                 yield f"data: {json.dumps({'type': 'progress', 'node': 'context_loader', 'message': '正在加载工艺文档上下文...'})}\n\n"
                 
-                # 构建分层上下文（包含元信息查询优化）
+                # Build layered context with mode-aware loading strategy
                 doc_context = hierarchical_context.build_context(
                     query=user_input,
                     session_id=current_session_id,
-                    max_tokens=15000
+                    max_tokens=15000,
+                    mode=mode,  # qa=light, write=full, review=structure-only
                 )
                 
                 # 尝试元信息快速查询
@@ -888,6 +898,15 @@ async def generate_stream(request: GenerateStreamRequest):
             material_instruction = locals().get('material_instruction', '')
             material_section = f"\n{material_instruction}\n" if material_instruction else ""
 
+            # Determine conversation phase for context injection
+            if not material_status.get("has_documents"):
+                conversation_phase = "【当前阶段：信息收集】素材库为空，你必须只做纯对话回复，绝对禁止使用 ---EDITOR---。告诉用户需要上传什么文档。"
+            elif material_status.get("missing_topics") and len(material_status.get("missing_topics", [])) >= 2:
+                conversation_phase = "【当前阶段：素材评估】部分素材缺失。先在对话中告知用户缺什么，等用户确认后再使用 ---EDITOR---。"
+            else:
+                conversation_phase = "【当前阶段：内容生成】素材充足，可以基于参考文档直接生成内容。"
+            material_section += f"\n{conversation_phase}\n"
+
             # Build structured message array (OpenAI/Claude standard format)
             # instead of flattening everything into one string.
             # This lets the model natively distinguish system rules, prior turns,
@@ -936,12 +955,14 @@ async def generate_stream(request: GenerateStreamRequest):
             # 发送进度：正在生成
             yield f"data: {json.dumps({'type': 'progress', 'node': 'writer', 'message': '正在生成回复...', 'data': {'content_preview': ''}})}\n\n"
 
-            # 调用LLM生成内容 — 使用消息数组格式
-            logger.info(f"[AI助手] 开始调用LLM API (messages={len(messages)})...")
+            # Route to model tier by mode: QA→simple(fast), write→complex(capable)
+            model_tier = "simple" if mode == "qa" else "complex"
+            logger.info(f"[AI助手] 调用LLM: tier={model_tier}, messages={len(messages)}")
             result = await llm_service.generate_with_messages(
                 messages=messages,
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=2000,
+                tier=model_tier,
             )
 
             if result.get("status") == "error":

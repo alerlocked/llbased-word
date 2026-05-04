@@ -273,24 +273,31 @@ class QwenLLMService:
         self,
         prompt: str,
         temperature: float = 0.7,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        tier: Literal["simple", "complex"] = "complex",
     ) -> Dict:
         """
         通用文本生成方法
-        
+
         Args:
             prompt: 提示词
             temperature: 温度参数
             max_tokens: 最大token数
-        
+            tier: "simple" for QA/lookup, "complex" for generation/review
+
         Returns:
             包含status和content的字典
         """
         start_time = time.time()
-        
+
+        model = (
+            settings.MODEL_TIER_SIMPLE if tier == "simple"
+            else settings.MODEL_TIER_COMPLEX
+        )
+
         try:
             response = self.client.chat.completions.create(
-                model=self.model,
+                model=model,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
@@ -323,28 +330,32 @@ class QwenLLMService:
         self,
         messages: List[Dict[str, str]],
         temperature: float = 0.7,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        tier: Literal["simple", "complex"] = "complex",
     ) -> Dict:
         """
         Chat completion with native message array (OpenAI-compatible format).
-
-        This is the preferred way to call the LLM — it preserves conversation
-        structure so the model can distinguish system instructions, prior turns,
-        and the current user input.
 
         Args:
             messages: [{"role": "system"|"user"|"assistant", "content": "..."}]
             temperature: sampling temperature
             max_tokens: max tokens to generate
+            tier: "simple" for QA/lookup (fast, cheap), "complex" for generation/review
 
         Returns:
             {"status": "success"|"error", "content": str}
         """
         start_time = time.time()
 
+        # Select model by tier
+        model = (
+            settings.MODEL_TIER_SIMPLE if tier == "simple"
+            else settings.MODEL_TIER_COMPLEX
+        )
+
         try:
             response = self.client.chat.completions.create(
-                model=self.model,
+                model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens

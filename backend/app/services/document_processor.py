@@ -144,16 +144,17 @@ class DocumentProcessor:
         file_path: Path,
         material_id: int,
         db: Session,
-        progress_callback: Optional[Callable[[int], None]] = None
+        progress_callback: Optional[Callable[[int, str], None]] = None
     ) -> Dict:
         """
         处理文档：转图片 -> OCR提取文字 -> 保存 -> 生成HTML
-        
+
         Args:
             file_path: 文档文件路径
             material_id: 素材ID
             db: 数据库会话
-            
+            progress_callback: optional callback(pct: int, message: str)
+
         Returns:
             处理结果字典
         """
@@ -164,7 +165,7 @@ class DocumentProcessor:
             image_paths = await self._convert_to_images(file_path, material_id)
 
             if progress_callback:
-                progress_callback(5)
+                progress_callback(5, f"已转换为 {len(image_paths)} 页图片，开始解析...")
             
             total_pages = len(image_paths)
             all_markdown_parts = []
@@ -234,7 +235,7 @@ class DocumentProcessor:
                 # Update progress after each page
                 if progress_callback:
                     pct = 10 + int(page_num / total_pages * 80)
-                    progress_callback(min(pct, 90))
+                    progress_callback(min(pct, 90), f"正在解析第 {page_num}/{total_pages} 页")
             
             # 提交数据库变更
             db.commit()
@@ -312,7 +313,7 @@ class DocumentProcessor:
                 logger.error(traceback.format_exc())
 
             if progress_callback:
-                progress_callback(95)
+                progress_callback(95, "正在生成结构化文档...")
             
             return {
                 "content": final_content,
@@ -329,7 +330,7 @@ class DocumentProcessor:
         self,
         task: PDFTask,
         db: Session,
-        progress_callback: Optional[Callable[[int], None]] = None
+        progress_callback: Optional[Callable[[int, str], None]] = None
     ) -> Dict[str, Any]:
         """
         从队列任务处理文档
@@ -337,6 +338,7 @@ class DocumentProcessor:
         Args:
             task: PDF 队列任务
             db: 数据库会话
+            progress_callback: optional callback(pct: int, message: str)
 
         Returns:
             处理结果

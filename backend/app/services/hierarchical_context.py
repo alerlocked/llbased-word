@@ -461,29 +461,30 @@ class HierarchicalContext:
         return int(chinese_chars * 1.5 + other_chars * 0.25)
     
     def build_context(
-        self, 
-        query: str, 
-        session_id: str, 
-        max_tokens: int = 15000
+        self,
+        query: str,
+        session_id: str,
+        max_tokens: int = 15000,
+        mode: str = "write",
     ) -> str:
         """构建分层上下文
-        
-        流程：
-        1. 加载 Layer 0（元信息）- 会话级加载一次
-        2. 加载 Layer 1（表格索引）- 会话级加载一次
-        3. 根据查询匹配相关表格（Layer 2）
-        4. 如果有参数关键词，进行精确检索（Layer 3）
-        
+
         Args:
             query: 用户查询
             session_id: 会话 ID
             max_tokens: 最大 token 数量（优先使用 set_max_tokens 设置的值）
-            
+            mode: context loading strategy
+                - "qa": L0 + L3 + L4 (fast search, ~5000 tokens)
+                - "write": L0-L4 full load (~15000 tokens)
+                - "review": L0 + L1 + L3 (structure-aware, no heavy tables)
+
         Returns:
             构建的上下文字符串
         """
-        # 使用 set_max_tokens 设置的值，如果未设置则使用参数
-        effective_max_tokens = min(max_tokens, self._max_rag_tokens)
+        # Adjust token budget by mode
+        mode_budgets = {"qa": 5000, "write": 15000, "review": 10000}
+        mode_budget = mode_budgets.get(mode, 15000)
+        effective_max_tokens = min(max_tokens, self._max_rag_tokens, mode_budget)
         
         context_parts = []
         used_tokens = 0
@@ -504,9 +505,9 @@ class HierarchicalContext:
             self._loaded_sessions.add(layer0_key)
             logger.info(f"[上下文] Layer 0 已加载: {used_tokens} tokens")
         
-        # Layer 1: 表格索引（会话级加载一次）
+        # Layer 1: 表格索引（write and review modes only）
         layer1_key = f"{session_id}_layer1"
-        if layer1_key not in self._loaded_sessions:
+        if mode in ("write", "review") and layer1_key not in self._loaded_sessions:
             table_index = self.load_table_index()
             table_index_tokens = self._estimate_tokens(table_index)
             context_parts.append(table_index)
@@ -515,38 +516,41 @@ class HierarchicalContext:
             self._loaded_sessions.add(layer1_key)
             logger.info(f"[上下文] Layer 1 已加载: 总计 {used_tokens} tokens")
         
-        # Layer 2: 按需加载相关表格
-        matched_tables = self.search_tables(query, top_k=3)
+        # Layer 2: On-demand table loading (write mode only — heavy)
         layer2_tokens = 0
-        
-        for table in matched_tables:
-            # 获取文档目录名
-            documents = self._get_all_documents()
-            doc_dir_name = None
-            for doc in documents:
-                if doc.get("name") == table.doc_name:
-                    doc_dir_name = doc.get("_doc_dir")
+        if mode != "write":
+            logger.info(f"[上下文] Layer 2 跳过 (mode={mode})")
+        else:
+            matched_tables = self.search_tables(query, top_k=3)
+
+            for table in matched_tables:
+                # 获取文档目录名
+                documents = self._get_all_documents()
+                doc_dir_name = None
+                for doc in documents:
+                    if doc.get("name") == table.doc_name:
+                        doc_dir_name = doc.get("_doc_dir")
+                        break
+
+                if not doc_dir_name:
+                    continue
+
+                # 提取表格 HTML
+                table_html = self.extract_table_html(doc_dir_name, table.table_id)
+                table_tokens = self._estimate_tokens(table_html)
+
+                # 检查是否超过 token 限制
+                if used_tokens + table_tokens > effective_max_tokens:
+                    logger.warning(f"[上下文] 达到 token 限制，跳过表格 {table.table_id}")
                     break
-            
-            if not doc_dir_name:
-                continue
-            
-            # 提取表格 HTML
-            table_html = self.extract_table_html(doc_dir_name, table.table_id)
-            table_tokens = self._estimate_tokens(table_html)
-            
-            # 检查是否超过 token 限制
-            if used_tokens + table_tokens > effective_max_tokens:
-                logger.warning(f"[上下文] 达到 token 限制，跳过表格 {table.table_id}")
-                break
-            
-            # 添加表格上下文
-            table_context = f"\n## 表格 {table.table_id} (第{table.page}页)\n\n{table_html}\n"
-            context_parts.append(table_context)
-            used_tokens += table_tokens
-            layer2_tokens += table_tokens
-            logger.info(f"[上下文] Layer 2 加载表格 {table.table_id}: {table_tokens} tokens, 总计 {used_tokens} tokens")
-        
+
+                # 添加表格上下文
+                table_context = f"\n## 表格 {table.table_id} (第{table.page}页)\n\n{table_html}\n"
+                context_parts.append(table_context)
+                used_tokens += table_tokens
+                layer2_tokens += table_tokens
+                logger.info(f"[上下文] Layer 2 加载表格 {table.table_id}: {table_tokens} tokens, 总计 {used_tokens} tokens")
+
         self._layer_tokens["layer2"] = layer2_tokens
 
         # Layer 3: 全局关键词搜索

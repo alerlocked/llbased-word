@@ -49,8 +49,14 @@ class Settings(BaseSettings):
     DASHSCOPE_API_KEY: str = ""
     DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # 文本API
     DASHSCOPE_HTTP_API_URL: str = "https://dashscope.aliyuncs.com/api/v1"  # DashScope HTTP API
-    QWEN_TEXT_MODEL: str = "qwen-plus"  # 文本生成模型
+    QWEN_TEXT_MODEL: str = "qwen-plus"  # 文本生成模型（默认，complex tier）
     QWEN_VL_MODEL: str = "qwen-vl-max"  # 视觉语言模型（用于OCR和图片理解）
+
+    # Model tier routing
+    # simple:  QA queries, term lookup, format checks (fast, cheap)
+    # complex: document generation, compliance review, deep analysis
+    MODEL_TIER_SIMPLE: str = "qwen-turbo"   # fast model for simple tasks
+    MODEL_TIER_COMPLEX: str = "qwen-plus"   # capable model for complex tasks
 
     # 阿里云检索服务配置
     ALIYUN_ACCESS_KEY_ID: str = ""

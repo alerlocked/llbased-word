@@ -57,6 +57,7 @@ class PDFTaskResponse(BaseModel):
     completed_at: Optional[str] = None
     error_message: Optional[str] = None
     progress: int
+    progress_message: Optional[str] = None
     result: Optional[dict] = None
 
 

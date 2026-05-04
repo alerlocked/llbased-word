@@ -808,8 +808,8 @@ async def generate_draft(
 
 请直接输出文章内容,不要包含其他说明文字。"""
 
-        # 调用LLM生成
-        response = await llm_service.generate_text(prompt)
+        # Content generation → complex tier
+        response = await llm_service.generate_text(prompt, tier="complex")
         
         if response.get("status") == "success":
             content = response.get("content", "")
@@ -891,7 +891,8 @@ async def comprehensive_search(
         # 如果包含本地搜索，执行本地搜索
         if "local" in request.search_types:
             try:
-                analysis_response = await llm_service.generate_text(analysis_prompt)
+                # Keyword extraction → simple tier
+                analysis_response = await llm_service.generate_text(analysis_prompt, tier="simple")
                 keywords = analysis_response.get("content", request.query_text).split(",")[:5]
                 
                 # 本地搜索逻辑（可以从数据库查询）
@@ -944,7 +945,8 @@ async def ask_question(
 
 请提供准确、详细的回答。如果涉及事实,请注明信息来源。"""
 
-        response = await llm_service.generate_text(prompt)
+        # Research QA → simple tier
+        response = await llm_service.generate_text(prompt, tier="simple")
         
         if response.get("status") == "success":
             answer = response.get("content", "")
@@ -1000,7 +1002,8 @@ async def text_operation(
 
 请直接输出{operation_name}后的文本,不要包含其他说明。"""
 
-        response = await llm_service.generate_text(prompt)
+        # Text rewrite operation → complex tier
+        response = await llm_service.generate_text(prompt, tier="complex")
         
         if response.get("status") == "success":
             result = response.get("content", "")

@@ -134,6 +134,7 @@ class MemoryService:
                             prompt=prompt,
                             temperature=0.3,
                             max_tokens=settings.MEMORY_SUMMARY_MAX_TOKENS,
+                            tier="simple",  # Summarization → lightweight model
                         )
                     )
                 finally:

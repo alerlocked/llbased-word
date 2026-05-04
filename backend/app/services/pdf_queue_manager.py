@@ -55,6 +55,7 @@ class PDFTask:
     completed_at: Optional[str] = None
     error_message: Optional[str] = None
     progress: int = 0  # 0-100
+    progress_message: Optional[str] = None  # e.g. "正在解析第3页/共10页"
     result: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -72,6 +73,7 @@ class PDFTask:
             "completed_at": self.completed_at,
             "error_message": self.error_message,
             "progress": self.progress,
+            "progress_message": self.progress_message,
             "result": self.result
         }
 
@@ -385,11 +387,13 @@ class PDFQueueManager:
         self._save_state()
         return True
 
-    def update_progress(self, task_id: str, progress: int):
-        """Update task progress (0-100)."""
+    def update_progress(self, task_id: str, progress: int, message: str = ""):
+        """Update task progress (0-100) with optional message."""
         task = self._tasks.get(task_id)
         if task:
             task.progress = max(0, min(100, progress))
+            if message:
+                task.progress_message = message
 
     def get_task(self, task_id: str) -> Optional[PDFTask]:
         """获取任务信息"""

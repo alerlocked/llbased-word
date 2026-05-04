@@ -122,8 +122,8 @@ async def recognize_intent(request: IntentRequest):
 
 只输出JSON，不要包含其他内容。"""
 
-        # 调用LLM
-        result = await llm_service.generate_text(prompt, temperature=0.3, max_tokens=500)
+        # Intent detection → simple tier
+        result = await llm_service.generate_text(prompt, temperature=0.3, max_tokens=500, tier="simple")
 
         if result["status"] == "error":
             raise HTTPException(status_code=500, detail=result.get("error", "LLM调用失败"))
@@ -274,11 +274,12 @@ async def generate_content(request: GenerateRequest):
             if request.style in style_guide:
                 full_prompt = f"{style_guide[request.style]}。\n\n{full_prompt}"
 
-        # 调用LLM
+        # Style transfer / text rewrite → complex tier
         result = await llm_service.generate_text(
             full_prompt,
             temperature=request.temperature,
-            max_tokens=request.max_length * 2  # 预留token余量
+            max_tokens=request.max_length * 2,  # 预留token余量
+            tier="complex",
         )
 
         if result["status"] == "error":
@@ -387,11 +388,12 @@ async def contextual_ask(request: ContextualAskRequest):
     try:
         from app.services.hierarchical_context import hierarchical_context
         
-        # 使用全局单例（复用 Layer 0/1 缓存）
+        # Use global singleton (reuses Layer 0/1 cache), QA mode for fast search
         context = hierarchical_context.build_context(
             query=request.question,
             session_id="api-contextual-ask",
-            max_tokens=request.max_tokens
+            max_tokens=request.max_tokens,
+            mode="qa",
         )
         
         if not context or "暂无" in context:
@@ -413,8 +415,8 @@ async def contextual_ask(request: ContextualAskRequest):
 【回答】
 请提供准确、详细的回答，并在适当位置标注信息来源（如"根据第 X 页..."）。"""
 
-        # 3. 调用 LLM
-        response = await llm_service.generate_text(prompt)
+        # 3. Contextual QA → simple tier
+        response = await llm_service.generate_text(prompt, tier="simple")
         
         if response.get("status") == "success":
             answer = response.get("content", "")
@@ -565,11 +567,12 @@ async def execute_quick_action(request: QuickActionRequest):
             context_section=context_section
         )
         
-        # 调用 LLM
+        # Text generation → complex tier
         result = await llm_service.generate_text(
             prompt,
             temperature=0.7,
-            max_tokens=2000
+            max_tokens=2000,
+            tier="complex",
         )
         
         if result["status"] == "error":

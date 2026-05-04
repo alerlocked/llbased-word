@@ -52,8 +52,8 @@ async def lifespan(app: FastAPI):
             """Async parser for PDF queue"""
             db = SessionLocal()
             try:
-                def on_progress(pct: int):
-                    queue_manager.update_progress(task.task_id, pct)
+                def on_progress(pct: int, msg: str = ""):
+                    queue_manager.update_progress(task.task_id, pct, message=msg)
                 return await processor.process_document_from_task(task, db, progress_callback=on_progress)
             except Exception as e:
                 logger.error(f"队列任务执行失败: {str(e)}")
