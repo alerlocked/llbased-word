@@ -156,20 +156,26 @@ class Settings(BaseSettings):
     MINERU_FALLBACK_TO_PDFPLUMBER: bool = False  # VLM模式下不回退
     MINERU_ENABLED: bool = True
 
-    # ============ VLService 配置 (多后端 + 并行处理) ============
-    # 后端选择: mineru / qwen / qwen_local
-    #   mineru:     MinerU VLM (本地, 需要 mineru[all])
-    #   qwen:       Qwen-VL DashScope API (云端)
-    #   qwen_local: Qwen2.5-VL on MindIE (300I Duo NPU, OpenAI-compatible)
+    # ============ VLService PDF解析后端 ============
+    # 后端选择:
+    #   mineru:     MinerU pipeline (本地CPU, 精度高, ~1.3页/分钟)
+    #   qwen:       Qwen-VL-Plus DashScope API (云端, 速度快, 需联网)
+    #   qwen_local: Qwen2.5-VL on MindIE (300I Duo NPU, 需服务器)
     VL_SERVICE_BACKEND: str = "mineru"
     # 并行处理数（避免内存溢出，默认4）
     VL_SERVICE_MAX_WORKERS: int = 4
-    # MinerU失败时是否回退到Qwen
+    # MinerU失败时是否回退到Qwen云端
     VL_SERVICE_FALLBACK_TO_QWEN: bool = True
+
+    # Qwen-VL 云端配置 (DashScope)
+    QWEN_VL_MODEL: str = "qwen-vl-max"
 
     # Local VLM (MindIE on 300I Duo) config
     VL_LOCAL_BASE_URL: str = "http://localhost:1040/v1"
     VL_LOCAL_MODEL: str = "qwen2.5-vl-7b"
+
+    # MinerU on CPU config
+    MINERU_HF_ENDPOINT: str = ""  # e.g. https://hf-mirror.com for China
 
     # Document file name conventions (single source of truth)
     DOC_INDEX_FILE: str = "index.json"           # metadata per document dir
