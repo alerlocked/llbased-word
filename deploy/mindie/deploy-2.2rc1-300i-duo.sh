@@ -1,23 +1,24 @@
 #!/bin/bash
 # ============================================================================
-# MindIE 2.2 RC1 Deployment Script for 300I Duo Server
-# Three-model architecture:
-#   VLM     = Qwen2.5-VL-7B  (chips 0-1, port 1040)  — PDF parsing
-#   Complex = Qwen3-14B      (chips 2-3, port 1025)   — generation/review
-#   Simple  = Qwen3-30B-A3B  (chips 4-7, port 1028)   — QA/lookup
+# MindIE 2.2 RC1 Deployment Script for 300I Duo Server (96GB/card)
+# Two-model text serving + MinerU on CPU for PDF parsing
+#
+#   Complex = Qwen3-14B     (chips 0-3, port 1025)  — generation/review
+#   Simple  = Qwen3-30B-A3B (chips 4-7, port 1028)  — QA/lookup
+#   PDF     = MinerU on CPU (no NPU needed)
 #
 # Image: mindie:2.2.RC1-300I-Duo-py311-openeuler24.03-lts
 #
 # Prerequisites:
-#   - 4x Atlas 300I Duo cards (8 chips, IDs 0-7)
+#   - 4x Atlas 300I Duo cards (96GB, 8 chips, IDs 0-7)
 #   - Docker installed and running
-#   - Model files at /root/Models/{Qwen2.5-VL-7B-Instruct,Qwen3-14B,Qwen3-30B-A3B}
+#   - Model files at /root/Models/{Qwen3-14B,Qwen3-30B-A3B}
 #   - MindIE image tar at ~/mindie-image.tar (or already loaded)
 #   - NPU driver/firmware installed on host
 #
 # Usage:
 #   chmod +x deploy-2.2rc1-300i-duo.sh
-#   ./deploy-2.2rc1-300i-duo.sh [load|vlm|14b|30b|all|test|stop|status|manual]
+#   ./deploy-2.2rc1-300i-duo.sh [load|14b|30b|both|test|stop|status|manual]
 # ============================================================================
 
 set -e
@@ -124,10 +125,9 @@ container_args() {
 
 # ---------------------------------------------------------------------------
 # Build the start command that runs INSIDE the container
-# This is the correct way for MindIE 2.x: source envs, then run daemon
 # ---------------------------------------------------------------------------
 start_cmd() {
-    local chips="$1"  # e.g. "0,1"
+    local chips="$1"  # e.g. "0,1,2,3"
 
     cat << 'INNEREOF'
 # --- Source MindIE environment (REQUIRED before starting daemon) ---
@@ -147,42 +147,16 @@ INNEREOF
 }
 
 # ---------------------------------------------------------------------------
-# Start Qwen2.5-VL-7B container (VLM for PDF parsing)
-# ---------------------------------------------------------------------------
-start_vlm() {
-    info "=== Deploying Qwen2.5-VL-7B (chips 0-1, port 1040) ==="
-
-    docker rm -f mindie-qwen2.5-vl-7b 2>/dev/null || true
-    fix_dtype "$MODEL_DIR/Qwen2.5-VL-7B-Instruct"
-
-    # Start container
-    eval docker run -it -d $(container_args mindie-qwen2.5-vl-7b 0 1) \
-        "$IMAGE_NAME" bash
-    info "Container mindie-qwen2.5-vl-7b started"
-
-    # Write config.json inside container
-    docker exec mindie-qwen2.5-vl-7b bash -c "cat > ${CONFIG_PATH} << 'CONFIGEOF'
-$(cat "$SCRIPT_DIR/config-2.2rc1-qwen2.5-vl-7b.json")
-CONFIGEOF"
-    info "Config written to container"
-
-    # Start daemon inside container
-    docker exec mindie-qwen2.5-vl-7b bash -c "$(start_cmd "0,1")" &
-    info "Daemon starting... wait for 'Daemon start success!'"
-    info "Check: docker exec mindie-qwen2.5-vl-7b ps aux | grep mindieservice"
-}
-
-# ---------------------------------------------------------------------------
 # Start Qwen3-14B container (complex tier)
 # ---------------------------------------------------------------------------
 start_14b() {
-    info "=== Deploying Qwen3-14B (chips 2-3, port 1025) ==="
+    info "=== Deploying Qwen3-14B (chips 0-3, port 1025) ==="
 
     docker rm -f mindie-qwen3-14b 2>/dev/null || true
     fix_dtype "$MODEL_DIR/Qwen3-14B"
 
     # Start container
-    eval docker run -it -d $(container_args mindie-qwen3-14b 2 3) \
+    eval docker run -it -d $(container_args mindie-qwen3-14b 0 1 2 3) \
         "$IMAGE_NAME" bash
     info "Container mindie-qwen3-14b started"
 
@@ -193,7 +167,7 @@ CONFIGEOF"
     info "Config written to container"
 
     # Start daemon inside container
-    docker exec mindie-qwen3-14b bash -c "$(start_cmd "2,3")" &
+    docker exec mindie-qwen3-14b bash -c "$(start_cmd "0,1,2,3")" &
     info "Daemon starting... wait for 'Daemon start success!'"
     info "Check: docker exec mindie-qwen3-14b ps aux | grep mindieservice"
 }
@@ -228,15 +202,6 @@ CONFIGEOF"
 # Test endpoints
 # ---------------------------------------------------------------------------
 test_models() {
-    echo ""
-    info "=== Testing Qwen2.5-VL-7B (port 1040) ==="
-    if curl -s --max-time 5 http://localhost:1040/v1/models 2>/dev/null; then
-        echo ""
-        info "Qwen2.5-VL-7B: OK"
-    else
-        warn "Qwen2.5-VL-7B: not responding (may still be loading weights)"
-    fi
-
     echo ""
     info "=== Testing Qwen3-14B (port 1025) ==="
     if curl -s --max-time 5 http://localhost:1025/v1/models 2>/dev/null; then
@@ -276,17 +241,6 @@ test_models() {
             "max_tokens": 64,
             "stream": false
         }' 2>/dev/null || warn "Inference test failed or still loading"
-
-    echo ""
-    info "=== Inference test (Qwen2.5-VL-7B) ==="
-    curl -s --max-time 120 -X POST http://localhost:1040/v1/chat/completions \
-        -H "Content-Type: application/json" \
-        -d '{
-            "model": "qwen2.5-vl-7b",
-            "messages": [{"role": "user", "content": "描述这张图片的内容"}],
-            "max_tokens": 64,
-            "stream": false
-        }' 2>/dev/null || warn "VLM inference test failed or still loading"
 }
 
 # ---------------------------------------------------------------------------
@@ -294,7 +248,6 @@ test_models() {
 # ---------------------------------------------------------------------------
 stop_all() {
     info "Stopping containers..."
-    docker rm -f mindie-qwen2.5-vl-7b 2>/dev/null || true
     docker rm -f mindie-qwen3-14b 2>/dev/null || true
     docker rm -f mindie-qwen3-30b-a3b 2>/dev/null || true
     info "All containers stopped and removed"
@@ -314,77 +267,13 @@ show_status() {
 
     echo ""
     info "=== Port Check ==="
-    echo "  VLM     (1040):"
-    if curl -s --max-time 2 http://localhost:1040/v1/models >/dev/null 2>&1; then
-        info "  Port 1040: ACTIVE"
-    else
-        warn "  Port 1040: not responding"
-    fi
-    echo "  Complex (1025):"
-    if curl -s --max-time 2 http://localhost:1025/v1/models >/dev/null 2>&1; then
-        info "  Port 1025: ACTIVE"
-    else
-        warn "  Port 1025: not responding"
-    fi
-    echo "  Simple  (1028):"
-    if curl -s --max-time 2 http://localhost:1028/v1/models >/dev/null 2>&1; then
-        info "  Port 1028: ACTIVE"
-    else
-        warn "  Port 1028: not responding"
-    fi
-}
-
-# ---------------------------------------------------------------------------
-# Show manual steps (for debugging / interactive use)
-# ---------------------------------------------------------------------------
-show_manual() {
-    echo ""
-    echo "================================================================"
-    echo "  MindIE 2.2 RC1 - Three-Model Manual Deployment"
-    echo "================================================================"
-    echo ""
-    echo "Chip allocation on 300I Duo (8 chips, IDs 0-7):"
-    echo "  VLM     = Qwen2.5-VL-7B  (chips 0-1, port 1040)"
-    echo "  Complex = Qwen3-14B      (chips 2-3, port 1025)"
-    echo "  Simple  = Qwen3-30B-A3B  (chips 4-7, port 1028)"
-    echo ""
-    echo "--- For each model, repeat these steps ---"
-    echo ""
-    echo "1. Start container (example for VLM):"
-    echo "   docker run -itd --privileged --net=host --shm-size 500g \\"
-    echo "     --name mindie-qwen2.5-vl-7b \\"
-    echo "     --device /dev/davinci0 --device /dev/davinci1 \\"
-    echo "     --device /dev/davinci_manager --device /dev/devmm_svm \\"
-    echo "     --device /dev/hisi_hdc \\"
-    echo "     -v /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro \\"
-    echo "     -v /usr/local/Ascend/add-ons:/usr/local/Ascend/add-ons:ro \\"
-    echo "     -v /usr/local/sbin:/usr/local/sbin:ro \\"
-    echo "     -v /root/Models:/model \\"
-    echo "     $IMAGE_NAME bash"
-    echo ""
-    echo "2. Enter container:"
-    echo "   docker exec -it mindie-qwen2.5-vl-7b bash"
-    echo ""
-    echo "3. Source environment (MUST DO):"
-    echo "   source /usr/local/Ascend/ascend-toolkit/set_env.sh"
-    echo "   source /usr/local/Ascend/nnal/atb/set_env.sh"
-    echo "   source /usr/local/Ascend/atb-models/set_env.sh"
-    echo "   source /usr/local/Ascend/mindie/set_env.sh"
-    echo "   export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True"
-    echo ""
-    echo "4. Write config:"
-    echo "   vi /usr/local/Ascend/mindie/latest/mindie-service/conf/config.json"
-    echo ""
-    echo "5. Start daemon (set chips for THIS model):"
-    echo "   export ASCEND_RT_VISIBLE_DEVICES=0,1  # adjust per model"
-    echo "   export OMP_NUM_THREADS=1"
-    echo "   export NPU_MEMORY_FRACTION=0.95"
-    echo "   cd /usr/local/Ascend/mindie/latest/mindie-service"
-    echo "   ./bin/mindieservice_daemon"
-    echo ""
-    echo "6. Wait for: Daemon start success!"
-    echo ""
-    echo "================================================================"
+    for port in 1025 1028; do
+        if curl -s --max-time 2 http://localhost:$port/v1/models >/dev/null 2>&1; then
+            info "Port $port: ACTIVE"
+        else
+            warn "Port $port: not responding"
+        fi
+    done
 }
 
 # ---------------------------------------------------------------------------
@@ -394,10 +283,6 @@ case "${1:-help}" in
     load)
         load_image
         ;;
-    vlm)
-        load_image
-        start_vlm
-        ;;
     14b)
         load_image
         start_14b
@@ -406,9 +291,8 @@ case "${1:-help}" in
         load_image
         start_30b
         ;;
-    all)
+    both)
         load_image
-        start_vlm
         start_14b
         start_30b
         ;;
@@ -422,24 +306,22 @@ case "${1:-help}" in
         show_status
         ;;
     manual)
-        show_manual
+        echo "Manual steps: see deploy-2.2rc1-300i-duo.sh source code"
         ;;
     help|*)
-        echo "Usage: $0 {load|vlm|14b|30b|all|test|stop|status|manual}"
+        echo "Usage: $0 {load|14b|30b|both|test|stop|status}"
         echo ""
         echo "  load    - Load MindIE Docker image from tar"
-        echo "  vlm     - Deploy Qwen2.5-VL-7B (chips 0-1, port 1040)"
-        echo "  14b     - Deploy Qwen3-14B (chips 2-3, port 1025)"
+        echo "  14b     - Deploy Qwen3-14B (chips 0-3, port 1025)"
         echo "  30b     - Deploy Qwen3-30B-A3B (chips 4-7, port 1028)"
-        echo "  all     - Deploy all three models"
-        echo "  test    - Test all model endpoints with inference"
+        echo "  both    - Deploy both models"
+        echo "  test    - Test both model endpoints"
         echo "  stop    - Stop and remove all MindIE containers"
         echo "  status  - Show container, NPU, and port status"
-        echo "  manual  - Print step-by-step manual instructions"
         echo ""
-        echo "Chip allocation (8 chips on 4x Atlas 300I Duo):"
-        echo "  VLM     (chips 0-1) port 1040"
-        echo "  Complex (chips 2-3) port 1025"
-        echo "  Simple  (chips 4-7) port 1028"
+        echo "Chip allocation (96GB/card, 48GB/chip):"
+        echo "  Complex (chips 0-3) port 1025  → Qwen3-14B"
+        echo "  Simple  (chips 4-7) port 1028  → Qwen3-30B-A3B"
+        echo "  PDF parsing: MinerU on CPU (no NPU)"
         ;;
 esac

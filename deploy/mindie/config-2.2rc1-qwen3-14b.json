@@ -9,17 +9,17 @@
     "openAiSupport": "vllm"
   },
   "BackendConfig": {
-    "npuDeviceIds": [[2,3]],
+    "npuDeviceIds": [[0,1,2,3]],
     "ModelDeployConfig": {
-      "maxSeqLen": 4096,
-      "maxInputTokenLen": 3072,
+      "maxSeqLen": 8192,
+      "maxInputTokenLen": 6144,
       "truncation": false,
       "ModelConfig": [
         {
           "modelInstanceType": "Standard",
           "modelName": "qwen3-14b",
           "modelWeightPath": "/model/Qwen3-14B",
-          "worldSize": 2,
+          "worldSize": 4,
           "backendType": "atb",
           "trustRemoteCode": false
         }
@@ -29,9 +29,9 @@
       "templateType": "Standard",
       "templateName": "Standard_LLM",
       "cacheBlockSize": 128,
-      "maxPrefillBatchSize": 4,
-      "maxPrefillTokens": 3072,
-      "maxBatchSize": 64,
+      "maxPrefillBatchSize": 8,
+      "maxPrefillTokens": 6144,
+      "maxBatchSize": 200,
       "maxIterTimes": 2048
     }
   }
