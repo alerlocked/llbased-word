@@ -1,58 +1,44 @@
 # ============================================================
-# Local Deployment .env Template
+# 麒麟本地部署配置 (全部本地，不连云端)
 # ============================================================
-# Copy to backend/.env on the target machine:
-#   cp env-local.template ../backend/.env
-#
-# Then fill in the values marked with 请填入
+# cp env-local.template ../backend/.env
+# 填入 300I Duo 服务器 IP
 # ============================================================
 
-# ============ DashScope API Key ============
-# Qwen-VL 云端 PDF 解析需要真实 key
-# 纯本地部署(MinerU + MindIE)可填 not-needed
-DASHSCOPE_API_KEY=请填入你的DashScope API Key
+# ============ LLM (MindIE on 300I Duo) ============
+DASHSCOPE_API_KEY=not-needed
 
-# ============ LLM 端点 (MindIE on 300I Duo) ============
-# 改成实际的 300I Duo 服务器 IP
+# 复杂任务模型 (Qwen3-14B, chips 0-3, port 1025)
 DASHSCOPE_BASE_URL=http://SERVER_IP:1025/v1
 DASHSCOPE_BASE_URL_COMPLEX=http://SERVER_IP:1025/v1
-DASHSCOPE_BASE_URL_SIMPLE=http://SERVER_IP:1028/v1
 MODEL_TIER_COMPLEX=qwen3-14b
+
+# 简单任务模型 (Qwen3-30B-A3B, chips 4-7, port 1028)
+DASHSCOPE_BASE_URL_SIMPLE=http://SERVER_IP:1028/v1
 MODEL_TIER_SIMPLE=qwen3-30b-a3b
+
 QWEN_TEXT_MODEL=qwen3-14b
 DASHSCOPE_HTTP_API_URL=http://SERVER_IP:1025/v1
 
-# ============ PDF 解析后端 ============
-# mineru   - MinerU 本地 CPU (精度高, ~1.3页/分钟, 无需联网)
-# qwen     - Qwen-VL-Plus 云端 API (速度快, 需联网 + API Key)
-# qwen_local - Qwen2.5-VL on MindIE NPU (需 300I Duo 服务器)
+# ============ PDF 解析后端 (二选一) ============
+# mineru     - MinerU 本地 CPU (精度高, ~1.3页/分钟)
+# qwen_local - Qwen2.5-VL on MindIE NPU (port 1040)
 VL_SERVICE_BACKEND=mineru
 
-# MinerU: 国内镜像 (首次运行下载模型必须)
-MINERU_HF_ENDPOINT=https://hf-mirror.com
-
-# Qwen-VL: 云端模型选择
-QWEN_VL_MODEL=qwen-vl-plus
-
-# MinerU 失败时回退到 Qwen 云端
-VL_SERVICE_FALLBACK_TO_QWEN=true
-
-# Local VLM (MindIE NPU)
+# Qwen-VL 本地配置 (VL_SERVICE_BACKEND=qwen_local 时使用)
 VL_LOCAL_BASE_URL=http://SERVER_IP:1040/v1
 VL_LOCAL_MODEL=qwen2.5-vl-7b
 
-# ============ OpenAI / Embedding ============
+# MinerU 配置
+MINERU_HF_ENDPOINT=https://hf-mirror.com
+
+# ============ 其他 ============
 OPENAI_API_KEY=not-needed
 OPENAI_API_BASE=http://SERVER_IP:1025/v1
-EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5
-LOCAL_EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5
-
-# ============ DeepSeek (disabled for local) ============
 DEEPSEEK_API_KEY=not-needed
 DEEPSEEK_BASE_URL=http://SERVER_IP:1028/v1
 DEEPSEEK_MODEL=qwen3-30b-a3b
-
-# ============ 应用配置 ============
+EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5
 HOST=0.0.0.0
 PORT=8000
 DEBUG=true
