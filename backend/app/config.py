@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     MODEL_TIER_SIMPLE: str = "qwen-turbo"   # fast model for simple tasks
     MODEL_TIER_COMPLEX: str = "qwen-plus"   # capable model for complex tasks
 
+    # Tier-specific base URLs (for local deployment with models on different ports)
+    # If empty, falls back to DASHSCOPE_BASE_URL for both tiers
+    DASHSCOPE_BASE_URL_SIMPLE: str = ""  # e.g. http://localhost:1028/v1
+    DASHSCOPE_BASE_URL_COMPLEX: str = ""  # e.g. http://localhost:1025/v1
+
     # 阿里云检索服务配置
     ALIYUN_ACCESS_KEY_ID: str = ""
     ALIYUN_ACCESS_KEY_SECRET: str = ""
@@ -152,12 +157,19 @@ class Settings(BaseSettings):
     MINERU_ENABLED: bool = True
 
     # ============ VLService 配置 (多后端 + 并行处理) ============
-    # 后端选择: mineru / qwen
+    # 后端选择: mineru / qwen / qwen_local
+    #   mineru:     MinerU VLM (本地, 需要 mineru[all])
+    #   qwen:       Qwen-VL DashScope API (云端)
+    #   qwen_local: Qwen2.5-VL on MindIE (300I Duo NPU, OpenAI-compatible)
     VL_SERVICE_BACKEND: str = "mineru"
     # 并行处理数（避免内存溢出，默认4）
     VL_SERVICE_MAX_WORKERS: int = 4
     # MinerU失败时是否回退到Qwen
     VL_SERVICE_FALLBACK_TO_QWEN: bool = True
+
+    # Local VLM (MindIE on 300I Duo) config
+    VL_LOCAL_BASE_URL: str = "http://localhost:1040/v1"
+    VL_LOCAL_MODEL: str = "qwen2.5-vl-7b"
 
     # Document file name conventions (single source of truth)
     DOC_INDEX_FILE: str = "index.json"           # metadata per document dir

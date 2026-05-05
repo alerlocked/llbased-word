@@ -3,6 +3,7 @@
 支持多后端架构：
 - MinerU VLM (本地，5-10秒/页)
 - Qwen-VL-Max (DashScope，云端，20-50秒/页)
+- Qwen2.5-VL Local (MindIE on 300I Duo, OpenAI-compatible, 3-8秒/页)
 """
 import base64
 import time
@@ -15,6 +16,8 @@ from concurrent.futures import ThreadPoolExecutor
 import tempfile
 import os
 import shutil
+
+import httpx
 
 from app.config import settings
 from app.shared.logging import get_logger
@@ -29,6 +32,7 @@ class VLService:
     后端选择：
     - mineru: 使用 MinerU VLM（本地，5-10秒/页）
     - qwen: 使用 Qwen-VL API（云端，20-50秒/页）
+    - qwen_local: 使用 Qwen2.5-VL on MindIE（300I Duo NPU，3-8秒/页）
 
     并行处理：
     - 支持 process_pages_parallel 方法
@@ -43,11 +47,16 @@ class VLService:
             backend: 后端选择
                 - "mineru": 使用 MinerU VLM（本地，5-10秒/页）
                 - "qwen": 使用 Qwen-VL API（云端，20-50秒/页）
+                - "qwen_local": 使用 Qwen2.5-VL on MindIE（300I Duo NPU，3-8秒/页）
                 - None: 使用配置文件中的默认后端
         """
         self.backend = backend or settings.VL_SERVICE_BACKEND
         self.max_workers = settings.VL_SERVICE_MAX_WORKERS
         self.fallback_to_qwen = settings.VL_SERVICE_FALLBACK_TO_QWEN
+
+        # Local VLM config
+        self._vl_local_url = settings.VL_LOCAL_BASE_URL
+        self._vl_local_model = settings.VL_LOCAL_MODEL
 
         # 初始化后端
         self._mineru_extractor = None
@@ -57,6 +66,8 @@ class VLService:
             self._init_mineru_backend()
         elif self.backend == "qwen":
             self._init_qwen_backend()
+        elif self.backend == "qwen_local":
+            self._init_qwen_local_backend()
         else:
             logger.warning(f"vl_service_unknown_backend", backend=self.backend, fallback="qwen")
             self.backend = "qwen"
@@ -110,6 +121,12 @@ class VLService:
             logger.error("dashscope_import_failed")
             raise ImportError("DashScope未安装，请运行: pip install dashscope")
 
+    def _init_qwen_local_backend(self):
+        """初始化 Qwen2.5-VL 本地后端 (MindIE on 300I Duo)"""
+        logger.info("qwen_local_backend_initialized",
+                    url=self._vl_local_url,
+                    model=self._vl_local_model)
+
     # ==================== 公共API ====================
 
     async def ocr_page_to_markdown(
@@ -135,6 +152,8 @@ class VLService:
 
             if use_backend == "mineru":
                 markdown_content, figures = await self._ocr_with_mineru(image_path)
+            elif use_backend == "qwen_local":
+                markdown_content, figures = await self._ocr_with_qwen_local(image_path)
             else:
                 markdown_content, figures = await self._ocr_with_qwen(image_path)
 
@@ -448,6 +467,127 @@ class VLService:
             log_api_call("Qwen-VL", "OCR流程", "error", duration_ms)
             logger.error("qwen_ocr_failed", image=image_path.name, error=str(e))
             raise
+
+    # ==================== Qwen Local (MindIE) Backend ====================
+
+    async def _ocr_with_qwen_local(self, image_path: Path) -> Tuple[str, List[Dict[str, Any]]]:
+        """
+        使用 Qwen2.5-VL on MindIE (300I Duo) 进行 OCR + 图表提取
+        Uses OpenAI-compatible API exposed by MindIE.
+        """
+        start_time = time.time()
+        try:
+            logger.debug("qwen_local_ocr_started", image=image_path.name)
+
+            # Step 1: OCR full page
+            markdown_content = await self._qwen_local_ocr_page(image_path)
+
+            # Step 2: Extract figures
+            figures = await self._extract_figures_with_qwen_local(image_path)
+
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("Qwen-Local-VL", "OCR流程", "success", duration_ms)
+
+            return markdown_content, figures
+
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("Qwen-Local-VL", "OCR流程", "error", duration_ms)
+            logger.error("qwen_local_ocr_failed", image=image_path.name, error=str(e))
+            raise
+
+    async def _qwen_local_call(self, image_base64: str, prompt: str) -> str:
+        """Call Qwen2.5-VL via MindIE OpenAI-compatible API."""
+        url = f"{self._vl_local_url}/chat/completions"
+        payload = {
+            "model": self._vl_local_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
+                        },
+                        {"type": "text", "text": prompt}
+                    ]
+                }
+            ],
+            "max_tokens": 4096,
+            "temperature": 0.1
+        }
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        return data["choices"][0]["message"]["content"]
+
+    async def _qwen_local_ocr_page(self, image_path: Path) -> str:
+        """Qwen2.5-VL page OCR via MindIE"""
+        start_time = time.time()
+        try:
+            image_base64 = self._encode_image(image_path)
+
+            prompt = """请对这张图片进行高精度 OCR 文字识别：
+
+1. 提取所有可见的文字内容
+2. 保持原始的段落结构、标题层级
+3. 如果有表格，转换为 Markdown 表格格式
+4. 保持列表、引用等格式
+5. 直接输出识别的文字，使用标准 Markdown 格式
+
+请完整输出所有识别到的内容："""
+
+            content = await self._qwen_local_call(image_base64, prompt)
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("Qwen-Local-VL", "页面OCR", "success", duration_ms)
+            return content.strip()
+
+        except Exception as e:
+            logger.error("qwen_local_page_ocr_failed", image=image_path.name, error=str(e))
+            raise
+
+    async def _extract_figures_with_qwen_local(self, image_path: Path) -> List[Dict[str, Any]]:
+        """Qwen2.5-VL figure extraction via MindIE"""
+        start_time = time.time()
+        try:
+            image_base64 = self._encode_image(image_path)
+
+            prompt = """请分析这张图片中的视觉元素（图表、插图、截图、照片等）：
+
+1. 识别图片中包含的所有独立视觉元素。
+2. 对每个元素，判断其类型（如：图表、插图、截图、照片）。
+3. 生成简短标题 (caption) 和详细内容描述 (description)。
+4. **请务必只输出合法的 JSON 字符串**，格式如下：
+
+{
+  "figures": [
+    {
+      "type": "chart/diagram/photo/screenshot",
+      "caption": "图表标题",
+      "description": "图表的详细描述，包含关键数据和趋势"
+    }
+  ]
+}
+
+如果图片中没有显著的独立图表或插图（仅为纯文本），请返回：
+{"figures": []}
+
+注意：不要使用 Markdown 代码块包裹 JSON，直接输出 JSON 字符串。"""
+
+            content = await self._qwen_local_call(image_base64, prompt)
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("Qwen-Local-VL", "图表提取", "success", duration_ms)
+
+            figures = self._parse_figures_json(content)
+            logger.debug("qwen_local_figures_extracted", count=len(figures))
+            return figures
+
+        except Exception as e:
+            logger.warning("qwen_local_figure_extraction_failed", error=str(e))
+            return []
 
     def _encode_image(self, image_path: Path) -> str:
         """将图片编码为 base64 字符串"""

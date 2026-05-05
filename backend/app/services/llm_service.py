@@ -13,17 +13,38 @@ from app.shared.logging import log_api_call
 
 class QwenLLMService:
     """通义千问文本生成服务"""
-    
+
     def __init__(self):
         """
         初始化通义千问客户端
         使用OpenAI兼容格式调用
+        Supports tier-specific base URLs for local deployment.
         """
-        self.client = OpenAI(
-            api_key=settings.DASHSCOPE_API_KEY,
-            base_url=settings.DASHSCOPE_BASE_URL
+        self.api_key = settings.DASHSCOPE_API_KEY
+        self._default_base_url = settings.DASHSCOPE_BASE_URL
+
+        # Tier-specific clients (lazy init)
+        self._complex_client = OpenAI(
+            api_key=self.api_key,
+            base_url=settings.DASHSCOPE_BASE_URL_COMPLEX or self._default_base_url
         )
+        self._simple_client = OpenAI(
+            api_key=self.api_key,
+            base_url=settings.DASHSCOPE_BASE_URL_SIMPLE or self._default_base_url
+        )
+
         self.model = settings.QWEN_TEXT_MODEL
+
+    def _get_client(self, tier: str = "complex"):
+        """Get the OpenAI client for the given tier."""
+        return self._simple_client if tier == "simple" else self._complex_client
+
+    def _get_model(self, tier: str = "complex"):
+        """Get the model name for the given tier."""
+        return (
+            settings.MODEL_TIER_SIMPLE if tier == "simple"
+            else settings.MODEL_TIER_COMPLEX
+        )
         
     async def generate_article(
         self,
@@ -93,8 +114,8 @@ class QwenLLMService:
             logger.info(f"📝 开始生成{type_info['name']}稿件...")
             
             # 调用通义千问API
-            response = self.client.chat.completions.create(
-                model=self.model,
+            response = self._get_client("complex").chat.completions.create(
+                model=self._get_model("complex"),
                 messages=[
                     {"role": "system", "content": "你是一位经验丰富的专业新闻记者和编辑，擅长将采访内容整理成高质量的新闻稿件。"},
                     {"role": "user", "content": prompt}
@@ -169,8 +190,8 @@ class QwenLLMService:
 
 请生成摘要："""
             
-            response = self.client.chat.completions.create(
-                model=self.model,
+            response = self._get_client("complex").chat.completions.create(
+                model=self._get_model("complex"),
                 messages=[
                     {"role": "system", "content": "你是一位专业的文本摘要专家。"},
                     {"role": "user", "content": prompt}
@@ -233,8 +254,8 @@ class QwenLLMService:
 
 请提取实体："""
             
-            response = self.client.chat.completions.create(
-                model=self.model,
+            response = self._get_client("complex").chat.completions.create(
+                model=self._get_model("complex"),
                 messages=[
                     {"role": "system", "content": "你是一位专业的信息提取专家，擅长从文本中识别和提取关键实体。"},
                     {"role": "user", "content": prompt}
@@ -296,7 +317,7 @@ class QwenLLMService:
         )
 
         try:
-            response = self.client.chat.completions.create(
+            response = self._get_client(tier).chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "user", "content": prompt}
@@ -354,7 +375,7 @@ class QwenLLMService:
         )
 
         try:
-            response = self.client.chat.completions.create(
+            response = self._get_client(tier).chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
@@ -386,20 +407,32 @@ class QwenLLMService:
 llm_service = QwenLLMService()
 
 
-def get_llm():
+def get_llm(tier: str = "complex"):
     """
     获取LangChain兼容的LLM实例
     用于Agent和风格学习等需要LangChain接口的场景
-    
+
+    Args:
+        tier: "simple" or "complex" (default: complex)
+
     Returns:
         ChatOpenAI实例(兼容通义千问)
     """
     from langchain_openai import ChatOpenAI
-    
+
+    model = (
+        settings.MODEL_TIER_SIMPLE if tier == "simple"
+        else settings.MODEL_TIER_COMPLEX
+    )
+    base_url = (
+        settings.DASHSCOPE_BASE_URL_SIMPLE if tier == "simple"
+        else settings.DASHSCOPE_BASE_URL_COMPLEX
+    ) or settings.DASHSCOPE_BASE_URL
+
     return ChatOpenAI(
-        model=settings.QWEN_TEXT_MODEL,
+        model=model,
         openai_api_key=settings.DASHSCOPE_API_KEY,
-        openai_api_base=settings.DASHSCOPE_BASE_URL,
+        openai_api_base=base_url,
         temperature=0.7,
         max_tokens=2000
     )

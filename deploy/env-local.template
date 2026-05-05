@@ -1,0 +1,71 @@
+# ============ Local Deployment .env Template ============
+# Copy this file to backend/.env on the target machine
+# cp env-local.template ../backend/.env
+#
+# Three-model architecture on 300I Duo (8 NPU chips):
+#   VLM     = Qwen2.5-VL-7B (chips 0-1, port 1040)  — PDF parsing
+#   Complex = Qwen3-14B     (chips 2-3, port 1025)  — generation, review, deep analysis
+#   Simple  = Qwen3-30B-A3B (chips 4-7, port 1028)  — QA, lookup, format checks
+
+# ============ Tier-Specific LLM Endpoints ============
+DASHSCOPE_API_KEY=not-needed
+DASHSCOPE_BASE_URL=http://127.0.0.1:1025/v1
+
+# Complex tier: Qwen3-14B for generation/review/analysis
+DASHSCOPE_BASE_URL_COMPLEX=http://127.0.0.1:1025/v1
+MODEL_TIER_COMPLEX=qwen3-14b
+
+# Simple tier: Qwen3-30B-A3B (MoE) for QA/lookup/format
+DASHSCOPE_BASE_URL_SIMPLE=http://127.0.0.1:1028/v1
+MODEL_TIER_SIMPLE=qwen3-30b-a3b
+
+# Legacy model fields (kept for backward compat)
+QWEN_TEXT_MODEL=qwen3-14b
+QWEN_VL_MODEL=qwen2.5-vl-7b
+DASHSCOPE_HTTP_API_URL=http://127.0.0.1:1025/v1
+
+# ============ VLM (PDF Parsing) on MindIE ============
+# Backend: mineru | qwen | qwen_local
+VL_SERVICE_BACKEND=qwen_local
+VL_LOCAL_BASE_URL=http://127.0.0.1:1040/v1
+VL_LOCAL_MODEL=qwen2.5-vl-7b
+
+# ============ OpenAI Config (reuse MindIE endpoint) ============
+OPENAI_API_KEY=not-needed
+OPENAI_API_BASE=http://127.0.0.1:1025/v1
+
+# ============ Embedding (local BGE model) ============
+EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5
+LOCAL_EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5
+
+# If using SiliconFlow cloud embedding, uncomment:
+# SILICONFLOW_API_KEY=your-key-here
+# SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+# SILICONFLOW_EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5
+
+# ============ DeepSeek (disabled for local) ============
+DEEPSEEK_API_KEY=not-needed
+DEEPSEEK_BASE_URL=http://127.0.0.1:1028/v1
+DEEPSEEK_MODEL=qwen3-30b-a3b
+
+# ============ Aliyun (disabled for local) ============
+# ALIYUN_ACCESS_KEY_ID=
+# ALIYUN_ACCESS_KEY_SECRET=
+
+# ============ LangChain ============
+LANGCHAIN_API_KEY=
+LANGCHAIN_TRACING_V2=false
+LANGCHAIN_PROJECT=craftdoc-agent
+
+# ============ Search Agent ============
+SEARCH_AGENT_CACHE_SIZE=1000
+SEARCH_AGENT_CACHE_TTL=300
+SEARCH_MAX_TOKENS=4000
+SEARCH_FILES_RATIO=0.6
+SEARCH_KNOWLEDGE_RATIO=0.3
+SEARCH_BUFFER_RATIO=0.1
+
+# ============ App Config ============
+HOST=0.0.0.0
+PORT=8000
+DEBUG=true

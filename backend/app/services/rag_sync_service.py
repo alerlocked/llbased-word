@@ -49,7 +49,10 @@ class RAGSyncService:
         try:
             from langchain_community.vectorstores import Chroma
             from langchain_openai import OpenAIEmbeddings
-            from langchain.text_splitter import RecursiveCharacterTextSplitter
+            try:
+                from langchain.text_splitter import RecursiveCharacterTextSplitter
+            except ModuleNotFoundError:
+                from langchain_text_splitters import RecursiveCharacterTextSplitter
             
             logger.info("🔧 初始化RAG同步服务组件...")
             

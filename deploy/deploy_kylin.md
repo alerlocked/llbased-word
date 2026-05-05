@@ -251,7 +251,14 @@ nohup python main.py > /var/log/app.log 2>&1 &
 - MindIE 也只支持到 3.11.4
 - 需要验证所有依赖在 3.11 上的兼容性
 
-### 3. 离线部署
+### 3. KYSEC 安全模块拦截
+- **现象**：Python 调用外部 HTTPS API 间歇性失败，`ssl.do_handshake()` 抛出 `PermissionError: [Errno 13] Permission denied`
+- **原因**：KYSEC 的 fpro（文件保护）和 ppro（进程保护）会拦截 Python SSL 握手
+- **curl 正常但 Python 不行**：KYSEC 对不同程序有不同策略
+- **修复**：编辑 `/etc/kysec/kysec.conf`，将 `kysec_fpro = 1` 和 `kysec_ppro = 1` 改为 `0`，然后 `sudo reboot`
+- **注意**：仅测试环境可关闭，生产环境需联系麒麟安全团队配置白名单
+
+### 4. 离线部署
 - 所有 pip 包需在 aarch64 + 麒麟同环境下载
 - Docker 镜像需提前 load
 - NPU 驱动需提前安装

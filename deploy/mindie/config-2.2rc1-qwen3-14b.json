@@ -1,0 +1,38 @@
+{
+  "ServerConfig": {
+    "ipAddress": "0.0.0.0",
+    "port": 1025,
+    "managementPort": 1026,
+    "metricsPort": 1027,
+    "httpsEnabled": false,
+    "allowAllZeroIpListening": true,
+    "openAiSupport": "vllm"
+  },
+  "BackendConfig": {
+    "npuDeviceIds": [[2,3]],
+    "ModelDeployConfig": {
+      "maxSeqLen": 4096,
+      "maxInputTokenLen": 3072,
+      "truncation": false,
+      "ModelConfig": [
+        {
+          "modelInstanceType": "Standard",
+          "modelName": "qwen3-14b",
+          "modelWeightPath": "/model/Qwen3-14B",
+          "worldSize": 2,
+          "backendType": "atb",
+          "trustRemoteCode": false
+        }
+      ]
+    },
+    "ScheduleConfig": {
+      "templateType": "Standard",
+      "templateName": "Standard_LLM",
+      "cacheBlockSize": 128,
+      "maxPrefillBatchSize": 4,
+      "maxPrefillTokens": 3072,
+      "maxBatchSize": 64,
+      "maxIterTimes": 2048
+    }
+  }
+}
