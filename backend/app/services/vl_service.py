@@ -83,15 +83,24 @@ class VLService:
         try:
             from mineru.backend.vlm.vlm_analyze import ModelSingleton
 
+            # Resolve server_url for http-client backend (NPU VLM)
+            server_url = settings.MINERU_VL_SERVER or None
+            if settings.MINERU_BACKEND == "http-client" and not server_url:
+                raise ValueError(
+                    "MINERU_BACKEND=http-client requires MINERU_VL_SERVER "
+                    "(e.g. http://192.168.13.153:1040/v1)"
+                )
+
             # 获取 MinerU VLM predictor
             self._mineru_predictor = ModelSingleton().get_model(
                 backend=settings.MINERU_BACKEND,
                 model_path=None,
-                server_url=None
+                server_url=server_url
             )
 
             logger.info("mineru_vlm_backend_initialized",
                        backend=settings.MINERU_BACKEND,
+                       server_url=server_url,
                        predictor_type=type(self._mineru_predictor).__name__)
 
         except ImportError as e:

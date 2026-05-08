@@ -1,40 +1,40 @@
 # ============================================================
-# 麒麟本地部署配置 (全部本地，不连云端)
+# 麒麟本地部署配置 (全部本地，无网环境)
 # ============================================================
 # cp env-local.template ../backend/.env
-# 填入 300I Duo 服务器 IP
+# SERVER_IP = 300I Duo 服务器 IP (默认 192.168.13.153)
 # ============================================================
 
-# ============ LLM (MindIE on 300I Duo) ============
+# ============ LLM (Qwen3-30B-A3B, chips 4-7, port 1028) ============
 DASHSCOPE_API_KEY=not-needed
-
-# 复杂任务模型 (Qwen3-14B, chips 0-3, port 1025)
-DASHSCOPE_BASE_URL=http://SERVER_IP:1025/v1
-DASHSCOPE_BASE_URL_COMPLEX=http://SERVER_IP:1025/v1
-MODEL_TIER_COMPLEX=qwen3-14b
-
-# 简单任务模型 (Qwen3-30B-A3B, chips 4-7, port 1028)
+DASHSCOPE_BASE_URL=http://SERVER_IP:1028/v1
+DASHSCOPE_BASE_URL_COMPLEX=http://SERVER_IP:1028/v1
 DASHSCOPE_BASE_URL_SIMPLE=http://SERVER_IP:1028/v1
+MODEL_TIER_COMPLEX=qwen3-30b-a3b
 MODEL_TIER_SIMPLE=qwen3-30b-a3b
+QWEN_TEXT_MODEL=qwen3-30b-a3b
+DASHSCOPE_HTTP_API_URL=http://SERVER_IP:1028/v1
 
-QWEN_TEXT_MODEL=qwen3-14b
-DASHSCOPE_HTTP_API_URL=http://SERVER_IP:1025/v1
-
-# ============ PDF 解析后端 (二选一) ============
-# mineru     - MinerU 本地 CPU (精度高, ~1.3页/分钟)
-# qwen_local - Qwen2.5-VL on MindIE NPU (port 1040)
+# ============ MinerU + NPU VLM (chips 0-1, port 1040) ============
+# PDF 解析使用 MinerU pipeline, VLM 推理走 NPU 服务器
 VL_SERVICE_BACKEND=mineru
+MINERU_BACKEND=http-client
+MINERU_VL_SERVER=http://SERVER_IP:1040/v1
 
-# Qwen-VL 本地配置 (VL_SERVICE_BACKEND=qwen_local 时使用)
-VL_LOCAL_BASE_URL=http://SERVER_IP:1040/v1
-VL_LOCAL_MODEL=qwen2.5-vl-7b
+# VLM 不用时不要回退到云端 (无网环境)
+VL_SERVICE_FALLBACK_TO_QWEN=false
 
-# MinerU 配置
-MINERU_HF_ENDPOINT=https://hf-mirror.com
+# MinerU 解析参数
+MINERU_PARSE_METHOD=auto
+MINERU_TABLE_ENABLE=true
+MINERU_FORMULA_ENABLE=false
+MINERU_LANG=ch
+MINERU_OUTPUT_FORMAT=html
+MINERU_TIMEOUT_SECONDS=600
 
 # ============ 其他 ============
 OPENAI_API_KEY=not-needed
-OPENAI_API_BASE=http://SERVER_IP:1025/v1
+OPENAI_API_BASE=http://SERVER_IP:1028/v1
 DEEPSEEK_API_KEY=not-needed
 DEEPSEEK_BASE_URL=http://SERVER_IP:1028/v1
 DEEPSEEK_MODEL=qwen3-30b-a3b

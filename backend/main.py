@@ -38,7 +38,7 @@ def _check_model_server():
     print("=" * 50)
 
     llm_url = settings.DASHSCOPE_BASE_URL_COMPLEX or settings.DASHSCOPE_BASE_URL
-    vlm_url = getattr(settings, "MINERU_VL_SERVER", "")
+    vlm_url = settings.MINERU_VL_SERVER
 
     # Check LLM
     llm_ok = False
@@ -53,11 +53,11 @@ def _check_model_server():
     except Exception as e:
         print(f"  LLM  ({llm_url}): FAILED - {e}")
 
-    # Check VLM
+    # Check VLM (MinerU http-client or qwen_local)
     vlm_ok = False
     if vlm_url:
         try:
-            req = urllib.request.Request(f"{vlm_url.rstrip('/')}/v1/models", method="GET")
+            req = urllib.request.Request(f"{vlm_url.rstrip('/')}/models", method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 vlm_ok = resp.status == 200
             print(f"  VLM  ({vlm_url}): OK")
@@ -69,9 +69,16 @@ def _check_model_server():
         print("  VLM  : skipped (not configured)")
 
     print("=" * 50)
-    if not llm_ok:
-        print("  WARNING: LLM not reachable. AI features will not work!")
-        print("  Check: network cable, model server power, model container status")
+    if not llm_ok or (vlm_url and not vlm_ok):
+        if not llm_ok:
+            print("  WARNING: LLM not reachable. AI features will not work!")
+        if vlm_url and not vlm_ok:
+            print("  WARNING: VLM not reachable. PDF parsing will fail!")
+        print("  Quick checks:")
+        print("    1. ping model server IP")
+        print("    2. Check firewall on model server:")
+        print("       ssh root@<server> 'systemctl stop firewalld'")
+        print("    3. Check container: ssh root@<server> 'docker ps'")
     print()
     return llm_ok, vlm_ok
 

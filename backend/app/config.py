@@ -174,6 +174,10 @@ class Settings(BaseSettings):
     VL_LOCAL_BASE_URL: str = "http://localhost:1040/v1"
     VL_LOCAL_MODEL: str = "qwen2.5-vl-7b"
 
+    # MinerU remote VLM server (used when MINERU_BACKEND=http-client)
+    # Points to the MindIE service running MinerU VLM on NPU
+    MINERU_VL_SERVER: str = ""  # e.g. http://192.168.13.153:1040/v1
+
     # MinerU on CPU config
     MINERU_HF_ENDPOINT: str = ""  # e.g. https://hf-mirror.com for China
 
