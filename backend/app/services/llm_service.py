@@ -4,6 +4,7 @@
 """
 import time
 from typing import List, Dict, Optional, Literal
+import httpx
 from openai import OpenAI
 
 from app.config import settings
@@ -24,13 +25,20 @@ class QwenLLMService:
         self._default_base_url = settings.DASHSCOPE_BASE_URL
 
         # Tier-specific clients (lazy init)
+        # timeout: 30s connect (model server may be loading), 300s read (inference can be slow)
+        self._timeout = httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
+
         self._complex_client = OpenAI(
             api_key=self.api_key,
-            base_url=settings.DASHSCOPE_BASE_URL_COMPLEX or self._default_base_url
+            base_url=settings.DASHSCOPE_BASE_URL_COMPLEX or self._default_base_url,
+            timeout=self._timeout,
+            max_retries=1,
         )
         self._simple_client = OpenAI(
             api_key=self.api_key,
-            base_url=settings.DASHSCOPE_BASE_URL_SIMPLE or self._default_base_url
+            base_url=settings.DASHSCOPE_BASE_URL_SIMPLE or self._default_base_url,
+            timeout=self._timeout,
+            max_retries=1,
         )
 
         self.model = settings.QWEN_TEXT_MODEL

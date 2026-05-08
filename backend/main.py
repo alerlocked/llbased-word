@@ -27,6 +27,53 @@ logger = get_logger(__name__)
 from app.services.pdf_queue_manager import get_pdf_queue_manager, PDFTask
 from app.services.document_processor import DocumentProcessor
 from app.database import SessionLocal
+import urllib.request
+import urllib.error
+
+
+def _check_model_server():
+    """Test connectivity to model server at startup. Results printed to terminal."""
+    print("=" * 50)
+    print("  Model Server Connectivity Check")
+    print("=" * 50)
+
+    llm_url = settings.DASHSCOPE_BASE_URL_COMPLEX or settings.DASHSCOPE_BASE_URL
+    vlm_url = getattr(settings, "MINERU_VL_SERVER", "")
+
+    # Check LLM
+    llm_ok = False
+    try:
+        req = urllib.request.Request(f"{llm_url.rstrip('/')}/models", method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            llm_ok = resp.status == 200
+            body = resp.read().decode("utf-8")[:200]
+        print(f"  LLM  ({llm_url}): OK - {body[:80]}")
+    except urllib.error.URLError as e:
+        print(f"  LLM  ({llm_url}): FAILED - {e.reason}")
+    except Exception as e:
+        print(f"  LLM  ({llm_url}): FAILED - {e}")
+
+    # Check VLM
+    vlm_ok = False
+    if vlm_url:
+        try:
+            req = urllib.request.Request(f"{vlm_url.rstrip('/')}/v1/models", method="GET")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                vlm_ok = resp.status == 200
+            print(f"  VLM  ({vlm_url}): OK")
+        except urllib.error.URLError as e:
+            print(f"  VLM  ({vlm_url}): FAILED - {e.reason}")
+        except Exception as e:
+            print(f"  VLM  ({vlm_url}): FAILED - {e}")
+    else:
+        print("  VLM  : skipped (not configured)")
+
+    print("=" * 50)
+    if not llm_ok:
+        print("  WARNING: LLM not reachable. AI features will not work!")
+        print("  Check: network cable, model server power, model container status")
+    print()
+    return llm_ok, vlm_ok
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -82,6 +129,15 @@ async def lifespan(app: FastAPI):
     print(f"  Data dir  : {settings.DATA_DIR}")
     print(f"  Debug     : {settings.DEBUG}")
     print(f"  PDF Queue : {'OK' if queue_manager else 'FAILED'}")
+    llm_ok, vlm_ok = _check_model_server()
+    if llm_ok:
+        print("  LLM       : OK")
+    else:
+        print("  LLM       : FAILED")
+    if vlm_ok:
+        print("  VLM       : OK")
+    else:
+        print("  VLM       : FAILED/SKIP")
     print("=" * 50 + "\n")
 
     yield  # 应用运行中
