@@ -249,6 +249,9 @@ class WritingAgent(BaseAgent):
 
         edited_content = result["content"]
 
+        # Post-generation guardrail: run universal checks on output
+        guardrail_warnings = self._quick_check_output(edited_content)
+
         self._save_version(edited_content)
 
         return {
@@ -256,6 +259,7 @@ class WritingAgent(BaseAgent):
             "content": edited_content,
             "target": target,
             "suggestions": ["建议检查术语一致性", "建议添加工艺参数"],
+            "guardrail_warnings": guardrail_warnings,
         }
 
     async def _do_fill(
@@ -450,12 +454,14 @@ class WritingAgent(BaseAgent):
             return {"success": False, "error": result.get("error", "LLM调用失败")}
 
         generated_content = result["content"]
+        guardrail_warnings = self._quick_check_output(generated_content)
         self._save_version(generated_content)
 
         return {
             "success": True,
             "content": generated_content,
             "template": template,
+            "guardrail_warnings": guardrail_warnings,
         }
 
     def load_preferences(self, preferences: "WritingPreferences") -> None:
@@ -778,3 +784,41 @@ class WritingAgent(BaseAgent):
             feedback=feedback
         )
         self._version_history.append(version)
+
+    def _quick_check_output(self, content: str) -> List[str]:
+        """Run lightweight guardrail checks on generated content.
+
+        These are fast, rule-based checks that catch common LLM output
+        problems without requiring a full ReviewService call.
+
+        Returns:
+            List of warning messages (empty if all checks pass).
+        """
+        import re as _re
+        warnings: List[str] = []
+
+        # Check 1: LLM left placeholder markers
+        placeholders = _re.findall(r"\[(?:待补充|此处填写|请填写|TODO|FIXME|XXX)\]", content)
+        if placeholders:
+            warnings.append(f"输出包含占位符标记: {placeholders[:3]}，可能需要人工补充")
+
+        # Check 2: Numeric values without units (common LLM mistake in process docs)
+        bare_numbers = _re.findall(
+            r"(?<![a-zA-Z\d])(\d+(?:\.\d+)?(?:±\d+(?:\.\d+)?)?)(?!\s*(?:°C|MPa|mm|min|N·m|Nm|HRC|rpm|kg|m|cm|s|小时|分钟|秒|度|%))",
+            content,
+        )
+        # Filter obvious non-parameter numbers (line numbers, section numbers)
+        suspicious = [n for n in bare_numbers if "." in n or "±" in n]
+        if len(suspicious) >= 3:
+            warnings.append(f"输出包含 {len(suspicious)} 个疑似无单位的数值参数，请确认单位标注完整")
+
+        # Check 3: Fuzzy/vague language in process instructions
+        vague_patterns = ["适当", "酌情", "视情况", "根据实际情况", "相关要求"]
+        found_vague = [v for v in vague_patterns if v in content]
+        if found_vague:
+            warnings.append(f"输出包含模糊表述: {found_vague}，工艺文件应使用确定性描述")
+
+        if warnings:
+            logger.warning("output_guardrail_triggered", warnings=warnings)
+
+        return warnings

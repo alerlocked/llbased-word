@@ -434,10 +434,18 @@ class ProcessOrchestrator:
                     source_docs=source_docs,
                 )
 
-            # 2. 构建上下文
+            # 2. Auto-recover from ERROR state on new request
+            if self.state_machine.current_state == ProcessState.ERROR:
+                logger.info("auto_recovering_from_error", task_id=self.current_task_id)
+                await self.state_machine.transition_to(
+                    ProcessState.IDLE,
+                    trigger="auto_recovery",
+                )
+
+            # 3. 构建上下文
             full_context = await self._build_context(context)
 
-            # 3. 更新会话状态
+            # 4. 更新会话状态
             await self.state_machine.transition_to(
                 ProcessState.INTENT_RECOGNITION,
                 context_update={"user_input": user_input},
@@ -704,15 +712,19 @@ class ProcessOrchestrator:
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        执行指定工作流
+        Execute specified workflow with rollback on failure.
+
+        If any agent in the pipeline fails, the workflow stops and returns
+        the last successful content + failure details. Content is NOT
+        silently overwritten on failure.
 
         Args:
-            workflow_name: 工作流名称
-            task: 任务描述
-            context: 执行上下文
+            workflow_name: workflow name
+            task: task description
+            context: execution context
 
         Returns:
-            工作流执行结果
+            workflow execution result
         """
         workflow = self.workflows.get(workflow_name)
         if not workflow:
@@ -723,6 +735,8 @@ class ProcessOrchestrator:
 
         results = []
         current_content = task.get("content", "")
+        # Snapshot original content for rollback
+        original_content = current_content
 
         for agent_name in workflow:
             if agent_name not in self._agents:
@@ -731,29 +745,68 @@ class ProcessOrchestrator:
 
             agent = self._agents[agent_name]
 
-            # 构建Agent任务
+            # Build agent task
             agent_task = {
                 "content": current_content,
                 **task
             }
 
-            # 执行Agent
-            result = await agent.process(agent_task, context)
+            # Load domain profile for review-related agents
+            if agent_name in ("review", "proofread"):
+                domain = task.get("domain", "assembly")
+                try:
+                    from app.models.profile import Profile
+                    from app.config import settings
+                    from pathlib import Path
+                    profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
+                    if profile_path.exists():
+                        agent_task["profile"] = Profile.from_json(profile_path).to_dict()
+                except Exception as e:
+                    logger.warning(f"profile_load_failed for domain={domain}: {e}")
+
+            # Execute agent
+            try:
+                result = await agent.process(agent_task, context)
+            except Exception as e:
+                # Agent crashed: stop pipeline, keep last good content
+                logger.error(
+                    "workflow_agent_crashed",
+                    agent=agent_name,
+                    error=str(e),
+                )
+                return {
+                    "success": False,
+                    "workflow": workflow_name,
+                    "failed_at": agent_name,
+                    "error": str(e),
+                    "final_content": current_content,
+                    "results": results,
+                    "rollback": current_content != original_content,
+                }
+
             results.append({
                 "agent": agent_name,
                 "result": result
             })
 
-            # 更新内容（如果Agent修改了内容）
+            # Update content only on success
             if result.get("success") and result.get("result", {}).get("content"):
                 current_content = result["result"]["content"]
 
-            # 如果是审查Agent且未通过，记录问题
+            # Review failure: stop pipeline, do not pass bad content forward
             if agent_name == "review" and not result.get("result", {}).get("passed"):
                 logger.warning(
                     "workflow_review_failed",
                     issues=result.get("result", {}).get("warnings", [])
                 )
+                return {
+                    "success": False,
+                    "workflow": workflow_name,
+                    "failed_at": "review",
+                    "review_issues": result.get("result", {}).get("warnings", []),
+                    "final_content": current_content,
+                    "results": results,
+                }
 
         return {
             "success": True,
@@ -1902,10 +1955,11 @@ class ProcessOrchestrator:
         iteration_result = self._iteration_manager.process_feedback(feedback)
 
         if iteration_result == IterationResult.COMPLETE:
-            # 用户满意，完成任务
+            # User accepted — record iteration trail for learning
             logger.info(
                 "iteration_completed",
-                total_iterations=self._iteration_manager.current_iteration
+                total_iterations=self._iteration_manager.current_iteration,
+                iteration_history=self._iteration_manager.get_history(),
             )
 
             # 获取最后一轮的内容

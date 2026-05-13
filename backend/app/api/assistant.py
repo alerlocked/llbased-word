@@ -567,13 +567,20 @@ async def execute_quick_action(request: QuickActionRequest):
     - extract: 提取关键信息
     """
     logger.info(f"⚡ 快捷操作: {request.action}, 文本长度={len(request.selected_text)}")
-    
+
     try:
-        # 验证操作类型
+        # Validate action type
         if request.action not in ACTION_PROMPTS:
             raise HTTPException(
                 status_code=400,
                 detail=f"不支持的操作类型: {request.action}"
+            )
+
+        # Input guardrail: reject empty or too-short text
+        if not request.selected_text or len(request.selected_text.strip()) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail="选中文本过短，请选择至少2个字符"
             )
         
         # 构建上下文部分
