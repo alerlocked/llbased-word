@@ -463,39 +463,55 @@ class QuickActionResponse(BaseModel):
 
 
 # 操作类型对应的提示词模板
+# All prompts include process document format constraints
+CRAFT_DOC_FORMAT_RULES = """\
+格式规范（必须遵守）：
+- 使用标准工艺术语，不用口语化表达
+- 数值参数必须带单位（如：45±5 N·m, 800-850°C）
+- 工序描述用祈使句（如："将螺栓拧紧至规定力矩"）
+- 引用标准时标注标准号（如：按 QJ 903-10B-2011）
+- 高风险操作后必须附带安全注意事项
+"""
+
 ACTION_PROMPTS = {
-    "rewrite": """请重写以下文本，保持原意但使用不同的表达方式。要求：
+    "rewrite": f"""请重写以下文本，保持原意但使用不同的表达方式。要求：
 1. 保持原文的核心意思不变
 2. 使用不同的词汇和句式
 3. 保持相同的语气和风格
 4. 确保重写后的文本通顺自然
 
+{CRAFT_DOC_FORMAT_RULES}
+
 原文：
-{selected_text}
+{{selected_text}}
 
 请直接输出重写后的文本，不要包含任何解释或标记。""",
 
-    "expand": """请扩展以下文本，添加更多细节和说明。要求：
+    "expand": f"""请扩展以下文本，添加更多细节和说明。要求：
 1. 保持原文的核心意思
 2. 添加相关的细节、例子或说明
 3. 保持相同的语气和风格
 4. 扩展后的内容应该更加丰富完整
 
-原文：
-{selected_text}
+{CRAFT_DOC_FORMAT_RULES}
 
-{context_section}
+原文：
+{{selected_text}}
+
+{{context_section}}
 
 请直接输出扩展后的文本，不要包含任何解释或标记。""",
 
-    "polish": """请润色以下文本，优化语言表达。要求：
+    "polish": f"""请润色以下文本，优化语言表达。要求：
 1. 修正语法和用词问题
 2. 优化句子结构
 3. 提升文本的可读性
 4. 保持原文的核心意思不变
 
+{CRAFT_DOC_FORMAT_RULES}
+
 原文：
-{selected_text}
+{{selected_text}}
 
 请直接输出润色后的文本，不要包含任何解释或标记。""",
 
@@ -509,25 +525,29 @@ ACTION_PROMPTS = {
 
 请直接输出翻译后的英文文本，不要包含任何解释或标记。""",
 
-    "summarize": """请总结以下文本，提炼核心要点。要求：
+    "summarize": f"""请总结以下文本，提炼核心要点。要求：
 1. 提取最重要的信息
 2. 保持简洁明了
 3. 使用列表或段落形式
 4. 保持客观中立的语气
 
+{CRAFT_DOC_FORMAT_RULES}
+
 原文：
-{selected_text}
+{{selected_text}}
 
 请直接输出总结内容，不要包含任何解释或标记。""",
 
-    "extract": """请从以下文本中提取关键信息。要求：
+    "extract": f"""请从以下文本中提取关键信息。要求：
 1. 识别文本中的关键词、数字、日期等重要信息
 2. 使用结构化的方式呈现
 3. 保持信息的准确性
 4. 只提取客观存在的信息
 
+{CRAFT_DOC_FORMAT_RULES}
+
 原文：
-{selected_text}
+{{selected_text}}
 
 请直接输出提取的关键信息，使用列表形式呈现。""",
 }

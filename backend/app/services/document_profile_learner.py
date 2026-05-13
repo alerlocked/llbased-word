@@ -24,6 +24,12 @@ STOP_WORDS = {
     "应按", "一般", "通常", "适当", "相应", "符合", "满足",
 }
 
+# Generic subject values that carry no domain-specific meaning
+GENERIC_SUBJECTS = {"工艺", "工序", "要求", "操作", "步骤", "方法", "过程"}
+
+# Relations that indicate high-value process knowledge
+HIGH_VALUE_RELATIONS = {"温度", "力矩", "压力", "时间", "速度", "公差", "硬度", "标准", "下一步"}
+
 
 class DocumentProfileLearner:
     """Extract profile features and triple-structured knowledge from documents."""
@@ -136,31 +142,93 @@ class DocumentProfileLearner:
         for safety in safety_matches:
             _add(context_section, "禁止", safety.strip())
 
-        return triples[:100]
+        return self._score_and_filter(triples)[:100]
+
+    def _score_and_filter(self, triples: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """Score triples by information value and filter low-value ones."""
+        scored: List[Tuple[int, Dict[str, str]]] = []
+        for t in triples:
+            score = 0
+            s, r, o = t["s"], t["r"], t["o"]
+            # Object contains numeric value or unit → high value
+            if re.search(r"\d", o):
+                score += 2
+            # High-value relation
+            if r in HIGH_VALUE_RELATIONS:
+                score += 2
+            # Non-generic subject → more specific
+            if s not in GENERIC_SUBJECTS:
+                score += 2
+            # Subject mentions a known process type
+            if re.search(r"(?:装配|焊接|涂装|热处理|机加|检验|试验|包装|搬运|存储)", s):
+                score += 1
+            # Object has unit
+            if re.search(r"(?:°C|MPa|mm|min|N·m|HRC|rpm)", o):
+                score += 1
+            # Drop triples with score 0 (no useful signal)
+            if score > 0:
+                scored.append((score, t))
+
+        # Sort by score descending
+        scored.sort(key=lambda x: -x[0])
+        return [t for _, t in scored]
 
     def _guess_current_section(self, content: str) -> str:
-        """Guess the current process section from context."""
-        # Look for the nearest numbered section header
-        sections = re.findall(r"(?:^|\n)\s*\d+(?:\.\d+)*\s+([\u4e00-\u9fff]{2,8})", content)
-        if sections:
-            return sections[-1].strip()
+        """Guess the current process section from context.
+
+        Returns the most specific process-related section header found.
+        Falls back to generic "工艺" only if nothing better is available.
+        """
+        # Collect all section headers with their positions
+        headers: List[Tuple[int, str]] = []
+        for m in re.finditer(r"(?:^|\n)\s*(\d+(?:\.\d+)*)\s+([\u4e00-\u9fff]{2,10})", content):
+            headers.append((m.start(), m.group(2).strip()))
+
+        if not headers:
+            return "工艺"
+
+        # Prefer headers that contain process-related keywords
+        process_keywords = (
+            "装配", "焊接", "涂装", "热处理", "机加", "检验",
+            "试验", "包装", "搬运", "存储", "清洗", "表面处理",
+            "前处理", "喷漆", "铆接", "压接", "胶接", "密封",
+        )
+        for _, title in reversed(headers):
+            for kw in process_keywords:
+                if kw in title:
+                    return title
+
+        # No process keyword found: return last header if specific enough
+        last = headers[-1][1]
+        if last not in GENERIC_SUBJECTS and len(last) >= 2:
+            return last
+
         return "工艺"
 
     def _extract_terms(self, content: str) -> Dict[str, int]:
-        """Extract high-frequency technical terms."""
+        """Extract high-frequency technical terms, filtering generic ones."""
         term_patterns = [
             r"[\u4e00-\u9fff]{2,4}(?:工艺|参数|要求|设备|方法|标准|规范|规程|检验|试验|测量)",
             r"[\u4e00-\u9fff]{2,4}(?:温度|压力|时间|速度|力矩|精度|公差|表面|硬度)",
             r"(?:装配|焊接|涂装|热处理|机加|检验|试验|包装|搬运|存储)[\u4e00-\u9fff]{0,4}",
         ]
 
+        # Generic compound terms that look specific but carry no domain value
+        generic_terms = {
+            "工艺参数", "工艺要求", "工艺方法", "工艺设备", "工艺标准", "工艺规范",
+            "工艺规程", "工艺过程", "操作要求", "操作方法", "操作步骤", "操作规程",
+            "检验要求", "检验方法", "检验标准", "检验设备", "检验过程",
+            "质量要求", "质量标准", "技术要求", "技术标准", "技术参数",
+        }
+
         counter: Counter = Counter()
         for pattern in term_patterns:
             for m in re.findall(pattern, content):
-                if m not in STOP_WORDS and len(m) >= 2:
+                if m not in STOP_WORDS and m not in generic_terms and len(m) >= 2:
                     counter[m] += 1
 
-        return dict(counter.most_common(50))
+        # Only keep terms that appear more than once (reduces noise)
+        return {t: c for t, c in counter.most_common(50) if c >= 2}
 
     def _extract_style(self, content: str) -> Dict[str, Any]:
         """Extract writing style indicators."""

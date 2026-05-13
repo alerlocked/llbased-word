@@ -282,10 +282,18 @@ class ReviewAgent(BaseAgent):
         )
 
         if not compliance_result.get("success"):
+            # Tool unavailable: NEVER default-pass in production
             return {
-                "passed": True,  # Tool 不可用时默认通过
-                "warnings": [],
-                "recommendations": []
+                "passed": False,
+                "warnings": [{
+                    "type": "compliance",
+                    "severity": "warning",
+                    "message": "合规检查工具不可用，无法自动验证，请人工检查",
+                }],
+                "recommendations": [{
+                    "type": "compliance",
+                    "suggestion": "合规检查服务暂不可用，建议人工审核确认文档合规性",
+                }],
             }
 
         # 分析检查结果

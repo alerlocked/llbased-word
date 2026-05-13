@@ -209,7 +209,7 @@ class WritingAgent(BaseAgent):
         content = task.get("content", "")
         requirements = task.get("requirements", "")
 
-        # 整合知识
+        # Build knowledge context from search results
         knowledge_context = ""
         if knowledge and knowledge.get("success"):
             results = knowledge.get("results", [])
@@ -217,21 +217,45 @@ class WritingAgent(BaseAgent):
                 r.get("content", "") for r in results[:3]
             ])
 
-        # 这里应该调用 LLM 进行实际编辑
-        # 目前返回模拟结果
-        edited_content = f"[已编辑] {content}"
+        # Call LLM for actual editing
+        from app.services.llm_service import llm_service
 
+        system_msg = (
+            "你是一位专业的工艺文件编辑助手。请根据用户要求编辑以下工艺内容，"
+            "保持工艺术语的准确性和规范性。直接输出编辑后的内容，不要包含解释。"
+        )
+        if self._writing_preferences:
+            system_msg += self._get_preference_prompt_fragment()
+
+        user_parts = [f"请编辑以下内容"]
+        if requirements:
+            user_parts.append(f"编辑要求：{requirements}")
+        user_parts.append(f"原文：\n{content}")
         if knowledge_context:
-            edited_content += f"\n\n参考依据:\n{knowledge_context[:500]}"
+            user_parts.append(f"参考依据：\n{knowledge_context[:800]}")
 
-        # 保存版本
+        result = await llm_service.generate_with_messages(
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": "\n\n".join(user_parts)},
+            ],
+            temperature=0.5,
+            max_tokens=3000,
+            tier="complex",
+        )
+
+        if result["status"] == "error":
+            return {"success": False, "error": result.get("error", "LLM调用失败")}
+
+        edited_content = result["content"]
+
         self._save_version(edited_content)
 
         return {
             "success": True,
             "content": edited_content,
             "target": target,
-            "suggestions": ["建议检查术语一致性", "建议添加工艺参数"]
+            "suggestions": ["建议检查术语一致性", "建议添加工艺参数"],
         }
 
     async def _do_fill(
@@ -254,23 +278,59 @@ class WritingAgent(BaseAgent):
         target = task.get("target", "")
         fields = task.get("fields", [])
 
-        # 从知识中提取填充数据
-        filled_data = {}
+        # Collect knowledge snippets for LLM context
+        knowledge_context = ""
         if knowledge and knowledge.get("success"):
             results = knowledge.get("results", [])
-            # 简单的字段提取
-            for field in fields:
-                for r in results:
-                    content = r.get("content", "")
-                    if field.lower() in content.lower():
-                        filled_data[field] = f"[从知识库提取] {field}"
-                        break
+            knowledge_context = "\n".join([
+                r.get("content", "") for r in results[:3]
+            ])
+
+        from app.services.llm_service import llm_service
+
+        system_msg = (
+            "你是一位专业的工艺文件编写助手。请根据提供的参考知识，"
+            "为工艺表格中的字段填写准确的工艺参数。"
+            "直接输出 JSON 格式：{\"field1\": \"value1\", \"field2\": \"value2\"}"
+        )
+
+        user_parts = [f"请为以下表格字段填写内容：{', '.join(fields)}"]
+        if target:
+            user_parts.append(f"表格名称：{target}")
+        if knowledge_context:
+            user_parts.append(f"参考知识：\n{knowledge_context[:800]}")
+
+        result = await llm_service.generate_with_messages(
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": "\n\n".join(user_parts)},
+            ],
+            temperature=0.3,
+            max_tokens=1500,
+            tier="complex",
+        )
+
+        filled_data = {}
+        if result["status"] == "success":
+            import json
+            try:
+                text = result["content"].strip()
+                if text.startswith("```"):
+                    text = text.split("```")[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+                filled_data = json.loads(text.strip())
+            except (json.JSONDecodeError, IndexError):
+                # LLM didn't return valid JSON, return empty
+                logger.warning("fill_json_parse_failed", raw=result["content"][:200])
+
+        unfilled = [f for f in fields if f not in filled_data]
 
         return {
             "success": True,
             "content": f"表格 {target} 填充完成",
             "filled_data": filled_data,
-            "unfilled_fields": [f for f in fields if f not in filled_data]
+            "unfilled_fields": unfilled,
         }
 
     async def _do_format(
@@ -291,13 +351,37 @@ class WritingAgent(BaseAgent):
         content = task.get("content", "")
         format_rules = task.get("format_rules", [])
 
-        # 应用格式规则
-        formatted_content = content
+        if not content:
+            return {"success": False, "error": "格式化内容不能为空"}
+
+        from app.services.llm_service import llm_service
+
+        rules_text = "\n".join(f"- {r}" for r in format_rules) if format_rules else "- 统一为标准工艺文件格式"
+
+        system_msg = (
+            "你是一位工艺文件格式化专家。请按照指定的格式规则调整工艺文档内容。"
+            "保持内容不变，只调整格式、标点、编号、缩进等。直接输出格式化后的内容。"
+        )
+        if self._writing_preferences:
+            system_msg += self._get_preference_prompt_fragment()
+
+        result = await llm_service.generate_with_messages(
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": f"格式规则：\n{rules_text}\n\n原文：\n{content}"},
+            ],
+            temperature=0.3,
+            max_tokens=3000,
+            tier="complex",
+        )
+
+        if result["status"] == "error":
+            return {"success": False, "error": result.get("error", "LLM调用失败")}
 
         return {
             "success": True,
-            "content": formatted_content,
-            "applied_rules": format_rules
+            "content": result["content"],
+            "applied_rules": format_rules,
         }
 
     async def _do_generate(
@@ -320,21 +404,58 @@ class WritingAgent(BaseAgent):
         requirements = task.get("requirements", "")
         template = task.get("template", "standard")
 
-        # 基于要求生成内容
-        generated_content = f"根据要求生成的内容: {requirements}"
-
+        knowledge_context = ""
         if knowledge and knowledge.get("success"):
             results = knowledge.get("results", [])
             if results:
-                generated_content += f"\n\n参考:\n{results[0].get('content', '')[:300]}"
+                knowledge_context = "\n".join([
+                    r.get("content", "") for r in results[:3]
+                ])
 
-        # 保存版本
+        from app.services.llm_service import llm_service
+
+        template_guides = {
+            "standard": "使用标准工艺文件格式：标题、适用范围、引用标准、工艺流程、检验要求",
+            "assembly": "使用装配工艺规程格式：标题、范围、引用标准、装配流程表、检验要求",
+            "welding": "使用焊接工艺规程格式：标题、母材信息、焊接参数表、质量检验、安全要求",
+            "inspection": "使用检验工艺规程格式：标题、检验项目表、判定标准、检验设备清单",
+        }
+
+        system_msg = (
+            "你是一位专业的工艺文件编写助手。请根据用户要求生成规范的工艺文件内容。"
+            f"\n\n格式要求：{template_guides.get(template, template_guides['standard'])}"
+        )
+        if self._writing_preferences:
+            system_msg += self._get_preference_prompt_fragment()
+
+        user_parts = [f"请根据以下要求生成工艺文件内容：\n{requirements}"]
+        if knowledge_context:
+            user_parts.append(f"参考知识：\n{knowledge_context[:1000]}")
+        if context:
+            doc_context = context.get("document_context", "")
+            if doc_context:
+                user_parts.append(f"当前文档上下文：\n{doc_context[:500]}")
+
+        result = await llm_service.generate_with_messages(
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": "\n\n".join(user_parts)},
+            ],
+            temperature=0.5,
+            max_tokens=3000,
+            tier="complex",
+        )
+
+        if result["status"] == "error":
+            return {"success": False, "error": result.get("error", "LLM调用失败")}
+
+        generated_content = result["content"]
         self._save_version(generated_content)
 
         return {
             "success": True,
             "content": generated_content,
-            "template": template
+            "template": template,
         }
 
     def load_preferences(self, preferences: "WritingPreferences") -> None:
@@ -546,10 +667,10 @@ class WritingAgent(BaseAgent):
         Returns:
             修改后的内容
         """
-        # 基于用户反馈内容进行修改
         suggestions = []
 
-        # 如果有具体建议，检索相关知识
+        # Search for additional knowledge if suggestions provided
+        knowledge_context = ""
         if feedback.suggestions:
             additional_knowledge = await self._search_knowledge(
                 " ".join(feedback.suggestions),
@@ -557,15 +678,45 @@ class WritingAgent(BaseAgent):
             )
 
             if additional_knowledge.get("success"):
-                for result in additional_knowledge.get("results", [])[:2]:
+                results = additional_knowledge.get("results", [])
+                knowledge_context = "\n".join([
+                    r.get("content", "") for r in results[:2]
+                ])
+                for result in results[:2]:
                     suggestions.append(f"参考: {result.get('content', '')[:200]}")
 
-        # 模拟增量修改（实际应该调用LLM）
-        modified_content = f"{original_content}\n\n[根据反馈修改]\n{feedback.content}"
+        from app.services.llm_service import llm_service
+
+        system_msg = (
+            "你是一位专业的工艺文件编辑助手。请根据用户的反馈意见，对原始内容进行增量修改。"
+            "只修改反馈中提到的部分，保持其余内容不变。直接输出修改后的完整内容。"
+        )
+        if self._writing_preferences:
+            system_msg += self._get_preference_prompt_fragment()
+
+        user_parts = [f"原始内容：\n{original_content}"]
+        user_parts.append(f"修改意见：{feedback.content}")
+        if feedback.suggestions:
+            user_parts.append(f"具体建议：{', '.join(feedback.suggestions)}")
+        if knowledge_context:
+            user_parts.append(f"参考知识：\n{knowledge_context[:500]}")
+
+        result = await llm_service.generate_with_messages(
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": "\n\n".join(user_parts)},
+            ],
+            temperature=0.5,
+            max_tokens=3000,
+            tier="complex",
+        )
+
+        if result["status"] == "error":
+            return {"content": original_content, "suggestions": suggestions}
 
         return {
-            "content": modified_content,
-            "suggestions": suggestions
+            "content": result["content"],
+            "suggestions": suggestions,
         }
 
     def get_version_history(self) -> List[Dict[str, Any]]:
