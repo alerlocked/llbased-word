@@ -304,16 +304,24 @@ class ProcessOrchestrator:
         self._load_writing_preferences()
 
     def _load_writing_preferences(self) -> None:
-        """Load dynamic writing preferences into the writing agent."""
+        """Load dynamic writing preferences from domain profile into the writing agent."""
         if "writing" not in self._agents:
             return
 
         try:
-            from app.models.profile import WritingPreferences
+            from app.models.profile import WritingPreferences, Profile
+            from app.config import settings
+            from pathlib import Path
 
-            # TODO: Load from UserStyleProfile.preference_schema when
-            # user_id is available in session context. For now use defaults.
-            prefs = WritingPreferences()
+            domain = self.config.get("domain", "assembly")
+            profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
+
+            if profile_path.exists():
+                profile = Profile.from_json(profile_path)
+                prefs = WritingPreferences.from_profile(profile)
+            else:
+                prefs = WritingPreferences()
+
             writing_agent = self._agents["writing"]
             if hasattr(writing_agent, "load_preferences"):
                 writing_agent.load_preferences(prefs)
@@ -1955,12 +1963,15 @@ class ProcessOrchestrator:
         iteration_result = self._iteration_manager.process_feedback(feedback)
 
         if iteration_result == IterationResult.COMPLETE:
-            # User accepted — record iteration trail for learning
+            # User accepted — record iteration trail + trigger learning
+            history = self._iteration_manager.get_history()
             logger.info(
                 "iteration_completed",
                 total_iterations=self._iteration_manager.current_iteration,
-                iteration_history=self._iteration_manager.get_history(),
+                iteration_history=history,
             )
+            # Learning feedback: extract preferences from iteration diffs
+            await self._learn_from_iteration(history)
 
             # 获取最后一轮的内容
             last_history = self._iteration_manager._history[-1] if self._iteration_manager._history else None
@@ -2162,3 +2173,149 @@ class ProcessOrchestrator:
             "can_continue": self._iteration_manager.can_continue,
             "history_count": len(self._iteration_manager._history)
         }
+
+    # ============== Learning Feedback Loop ==============
+
+    async def _learn_from_iteration(self, history: List[Dict[str, Any]]) -> None:
+        """Extract writing preferences from iteration diffs and update profile.
+
+        This implements the Hermes-style Learning loop:
+        1. Compare initial content with final accepted content
+        2. Extract structural/lexical differences
+        3. Convert differences into Preference entries
+        4. Write back to the domain profile
+
+        Args:
+            history: iteration history from IterationManager
+        """
+        if len(history) < 2:
+            return
+
+        try:
+            initial_content = history[0].get("content", "")
+            final_content = history[-1].get("content", "")
+
+            if not initial_content or not final_content:
+                return
+
+            # Extract diffs
+            preferences = self._extract_prefs_from_diff(initial_content, final_content)
+            if not preferences:
+                return
+
+            # Write to profile
+            domain = self.config.get("domain", "assembly")
+            self._update_profile_preferences(domain, preferences)
+
+            logger.info(
+                "learning_feedback_applied",
+                domain=domain,
+                new_preference_count=len(preferences),
+            )
+
+        except Exception as e:
+            logger.warning("learning_feedback_failed", error=str(e))
+
+    def _extract_prefs_from_diff(
+        self, initial: str, final: str
+    ) -> List[Dict[str, Any]]:
+        """Extract preference entries from content diff.
+
+        Uses rule-based diff analysis (no LLM call needed):
+        - Sentence length changes → sentence_structure preference
+        - Added caution notes → caution_note preference
+        - Terminology changes → vocabulary preference
+        """
+        import re as _re
+        from app.models.profile import Preference
+
+        prefs: List[Dict[str, Any]] = []
+
+        # Diff 1: Sentence length
+        init_sentences = [s.strip() for s in _re.split(r"[。！？\n]+", initial) if s.strip()]
+        final_sentences = [s.strip() for s in _re.split(r"[。！？\n]+", final) if s.strip()]
+        if init_sentences and final_sentences:
+            init_avg = sum(len(s) for s in init_sentences) / len(init_sentences)
+            final_avg = sum(len(s) for s in final_sentences) / len(final_sentences)
+            if abs(final_avg - init_avg) > 8:
+                direction = "短句" if final_avg < init_avg else "长句"
+                prefs.append(Preference(
+                    dimension="style",
+                    category="sentence_structure",
+                    description=f"用户偏好{direction}表述（平均句长从{init_avg:.0f}字调整为{final_avg:.0f}字）",
+                    learned_from="user_correction",
+                    sample_count=1,
+                    confidence=0.3,
+                ).to_dict())
+
+        # Diff 2: Caution notes added
+        init_caution = len(_re.findall(r"注意|警告|安全|危险|禁止|严禁", initial))
+        final_caution = len(_re.findall(r"注意|警告|安全|危险|禁止|严禁", final))
+        if final_caution > init_caution + 1:
+            prefs.append(Preference(
+                dimension="style",
+                category="caution_notes",
+                description="用户倾向在关键工序后添加安全注意事项",
+                positive_examples=["注意：操作前确认力矩", "警告：高温作业须佩戴防护手套"],
+                learned_from="user_correction",
+                sample_count=1,
+                confidence=0.4,
+            ).to_dict())
+
+        # Diff 3: Terminology changes (word-level diff)
+        init_terms = set(_re.findall(r"[\u4e00-\u9fff]{2,6}", initial))
+        final_terms = set(_re.findall(r"[\u4e00-\u9fff]{2,6}", final))
+        new_terms = final_terms - init_terms
+        removed_terms = init_terms - final_terms
+        if new_terms and removed_terms:
+            # Find potential terminology replacements
+            vocab = {}
+            for nt in list(new_terms)[:5]:
+                for rt in list(removed_terms)[:5]:
+                    if abs(len(nt) - len(rt)) <= 1:
+                        vocab[rt] = nt
+                        break
+            if vocab:
+                prefs.append(Preference(
+                    dimension="style",
+                    category="vocabulary",
+                    description="用户偏好特定术语表达",
+                    positive_examples=list(vocab.values()),
+                    negative_examples=list(vocab.keys()),
+                    learned_from="user_correction",
+                    sample_count=1,
+                    confidence=0.3,
+                ).to_dict())
+
+        return prefs
+
+    def _update_profile_preferences(
+        self, domain: str, new_prefs: List[Dict[str, Any]]
+    ) -> None:
+        """Write learned preferences to domain profile file."""
+        try:
+            from app.models.profile import Profile, Preference
+            from app.config import settings
+            from pathlib import Path
+
+            profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
+            profile_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if profile_path.exists():
+                profile = Profile.from_json(profile_path)
+            else:
+                from app.models.profile import get_default_assembly_profile
+                profile = get_default_assembly_profile()
+
+            for pref_dict in new_prefs:
+                pref = Preference.from_dict(pref_dict)
+                profile.add_preference(pref)
+
+            profile.to_json(profile_path)
+            logger.info(
+                "profile_preferences_updated",
+                domain=domain,
+                total_preferences=len(profile.preferences_list),
+            )
+        except Exception as e:
+            logger.warning("profile_update_failed", domain=domain, error=str(e))

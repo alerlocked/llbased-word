@@ -429,6 +429,81 @@ class Profile:
 # Default profiles
 # ========================================
 
+@dataclass
+class WritingPreferences:
+    """
+    Dynamic writing preferences learned from user behavior.
+
+    Loaded into WritingAgent for prompt injection. Updated via the
+    Learning feedback loop (iteration diff extraction).
+    """
+    tone: str = "技术文档"
+    terminology: str = "standard"
+    detail_level: str = "详细"
+    preferred_sentence_length: str = "medium"  # short / medium / long
+    use_passive_voice: bool = True
+    include_examples: bool = False
+    include_caution_notes: bool = True
+    avoid_phrases: List[str] = field(default_factory=list)
+    custom_vocabulary: Dict[str, str] = field(default_factory=dict)
+    confidence: float = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WritingPreferences":
+        return cls(
+            tone=data.get("tone", "技术文档"),
+            terminology=data.get("terminology", "standard"),
+            detail_level=data.get("detail_level", "详细"),
+            preferred_sentence_length=data.get("preferred_sentence_length", "medium"),
+            use_passive_voice=data.get("use_passive_voice", True),
+            include_examples=data.get("include_examples", False),
+            include_caution_notes=data.get("include_caution_notes", True),
+            avoid_phrases=data.get("avoid_phrases", []),
+            custom_vocabulary=data.get("custom_vocabulary", {}),
+            confidence=data.get("confidence", 0.0),
+        )
+
+    @classmethod
+    def from_profile(cls, profile: "Profile") -> "WritingPreferences":
+        """Build WritingPreferences from a Profile's preferences_list."""
+        prefs = cls()
+        prefs.tone = profile.writing.tone
+        prefs.detail_level = profile.writing.detail_level
+        prefs.terminology = profile.writing.terminology
+
+        for p_dict in profile.preferences_list:
+            p = Preference.from_dict(p_dict)
+            if p.dimension == "style" and p.confidence > 0.2:
+                if p.category == "sentence_structure":
+                    if "短句" in p.description:
+                        prefs.preferred_sentence_length = "short"
+                    elif "长句" in p.description:
+                        prefs.preferred_sentence_length = "long"
+                elif p.category == "voice":
+                    prefs.use_passive_voice = "主动" not in p.description
+                elif p.category == "avoid_phrases":
+                    prefs.avoid_phrases.extend(p.negative_examples)
+                elif p.category == "vocabulary":
+                    prefs.custom_vocabulary.update(
+                        dict(zip(p.positive_examples, p.positive_examples))
+                    )
+                prefs.confidence = max(prefs.confidence, p.confidence)
+
+        # Legacy flat preferences
+        flat = profile.preferences
+        if "preferred_sentence_length" in flat:
+            prefs.preferred_sentence_length = flat["preferred_sentence_length"]
+        if "use_passive_voice" in flat:
+            prefs.use_passive_voice = flat["use_passive_voice"]
+        if "include_caution_notes" in flat:
+            prefs.include_caution_notes = flat["include_caution_notes"]
+
+        return prefs
+
+
 def get_default_assembly_profile() -> Profile:
     """Default assembly process profile with built-in principles."""
     return Profile(

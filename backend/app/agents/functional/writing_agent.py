@@ -395,7 +395,10 @@ class WritingAgent(BaseAgent):
         context: Optional[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
-        生成新内容
+        生成新内容 with Planning/CoT decomposition.
+
+        For complex generation tasks, first asks LLM to produce a writing
+        plan, then uses that plan to guide content generation.
 
         Args:
             task: 任务描述
@@ -425,14 +428,26 @@ class WritingAgent(BaseAgent):
             "inspection": "使用检验工艺规程格式：标题、检验项目表、判定标准、检验设备清单",
         }
 
+        format_guide = template_guides.get(template, template_guides["standard"])
+
+        # Phase 1: Planning — generate a structured writing plan via CoT
+        plan = await self._generate_writing_plan(
+            requirements=requirements,
+            format_guide=format_guide,
+            knowledge_context=knowledge_context,
+            context=context,
+        )
+
+        # Phase 2: Execution — generate content guided by the plan
         system_msg = (
-            "你是一位专业的工艺文件编写助手。请根据用户要求生成规范的工艺文件内容。"
-            f"\n\n格式要求：{template_guides.get(template, template_guides['standard'])}"
+            "你是一位专业的工艺文件编写助手。请严格按照给定的写作计划，"
+            "逐步生成工艺文件的每个章节内容。\n\n"
+            f"格式要求：{format_guide}"
         )
         if self._writing_preferences:
             system_msg += self._get_preference_prompt_fragment()
 
-        user_parts = [f"请根据以下要求生成工艺文件内容：\n{requirements}"]
+        user_parts = [f"## 写作计划\n{plan}\n\n## 用户要求\n{requirements}"]
         if knowledge_context:
             user_parts.append(f"参考知识：\n{knowledge_context[:1000]}")
         if context:
@@ -446,7 +461,7 @@ class WritingAgent(BaseAgent):
                 {"role": "user", "content": "\n\n".join(user_parts)},
             ],
             temperature=0.5,
-            max_tokens=3000,
+            max_tokens=4000,
             tier="complex",
         )
 
@@ -461,8 +476,56 @@ class WritingAgent(BaseAgent):
             "success": True,
             "content": generated_content,
             "template": template,
+            "plan": plan,
             "guardrail_warnings": guardrail_warnings,
         }
+
+    async def _generate_writing_plan(
+        self,
+        requirements: str,
+        format_guide: str,
+        knowledge_context: str,
+        context: Optional[Dict[str, Any]],
+    ) -> str:
+        """Use LLM to create a structured writing plan (CoT step).
+
+        The plan includes: sections to write, key parameters to include,
+        standards to reference, and safety notes needed.
+
+        Returns:
+            Structured plan text to be injected into the generation prompt.
+        """
+        from app.services.llm_service import llm_service
+
+        planning_msg = (
+            "你是工艺文件架构师。请根据用户要求和可用知识，制定一个详细的写作计划。\n"
+            "计划格式：\n"
+            "1. 章节结构（列出所有需要的章节及其主要内容）\n"
+            "2. 关键参数（需要写入的数值、单位、公差范围）\n"
+            "3. 引用标准（需要引用的标准文档编号）\n"
+            "4. 安全注意事项（需要标注的高风险操作）\n"
+            f"\n格式要求：{format_guide}"
+        )
+
+        plan_parts = [f"用户要求：{requirements}"]
+        if knowledge_context:
+            plan_parts.append(f"可用知识：\n{knowledge_context[:1500]}")
+
+        plan_result = await llm_service.generate_with_messages(
+            messages=[
+                {"role": "system", "content": planning_msg},
+                {"role": "user", "content": "\n\n".join(plan_parts)},
+            ],
+            temperature=0.3,
+            max_tokens=1500,
+            tier="fast",
+        )
+
+        if plan_result["status"] == "success":
+            return plan_result["content"]
+
+        # Planning failed — return a minimal default plan
+        return f"按标准格式生成，重点覆盖用户要求：{requirements[:200]}"
 
     def load_preferences(self, preferences: "WritingPreferences") -> None:
         """
