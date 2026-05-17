@@ -28,6 +28,7 @@ pydantic-settings==2.1.0
 python-dotenv==1.0.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+watchdog>=3.0.0  # File system watcher for PDF processing
 
 # 文档解析
 python-docx==1.1.0
@@ -37,18 +38,19 @@ pdfplumber==0.10.0  # 增强表格提取
 Pillow==10.2.0  # 图像处理
 docx2pdf==0.1.8  # Word转PDF
 
-# MinerU高精度表格解析 - 版本锁定
-# 安装选项:
-#   基础安装: pip install magic-pdf==0.7.6
-#   完整安装(含VLM): pip install magic-pdf[full]==0.7.6
-# 注意: RTX 5080需要CUDA 12.8版本的PyTorch
-magic-pdf[full]==0.7.6
+# MinerU高精度PDF解析
+# 注意: magic-pdf已更名为mineru，安装 mineru>=3.0
+# CPU环境: pip install mineru
+# GPU环境(含VLM): pip install mineru[all]
+# 模型下载: 设置 MINERU_MODEL_SOURCE=modelscope 使用国内镜像
+mineru>=3.0.0
 
 # 数据处理
 pandas==2.0.0  # DataFrame操作和CSV导出
 openpyxl>=3.1.0  # Excel文件生成（用于多Sheet导出）
 beautifulsoup4>=4.12.0  # HTML解析（用于MinerU表格转换）
 jieba>=0.42.1  # 中文分词（用于上下文检索增强）
+networkx>=3.0  # Knowledge graph for process relationships
 
 # 日志
 python-json-logger==2.0.7

@@ -275,6 +275,7 @@ class DocumentProfileLearner:
         Merge extracted features into existing profile.
 
         Triples are deduplicated by (s, r, o) key.
+        Graph is rebuilt from all triples after merge.
         """
         # Merge triples (deduplicate by s|r|o key)
         existing_triples = profile_data.get("triples", [])
@@ -311,5 +312,17 @@ class DocumentProfileLearner:
 
         if features.get("domain"):
             profile_data["domain"] = features["domain"]
+
+        # Rebuild knowledge graph from all triples
+        if existing_triples:
+            from app.services.knowledge_graph import KnowledgeGraph
+            kg = KnowledgeGraph.build_from_triples(existing_triples)
+            if kg.node_count > 0:
+                profile_data["graph"] = kg.to_dict()
+                logger.info(
+                    "graph_rebuilt",
+                    nodes=kg.node_count,
+                    edges=kg.edge_count,
+                )
 
         return profile_data

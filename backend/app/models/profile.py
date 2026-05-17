@@ -253,6 +253,9 @@ class Profile:
     # Legacy preferences flat structure
     preferences: Dict[str, Any] = field(default_factory=dict)
 
+    # Knowledge graph (serialized NetworkX DiGraph)
+    graph: Dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -269,6 +272,8 @@ class Profile:
             # Legacy fields
             "triples": self.triples,
             "preferences": self.preferences,
+            # Knowledge graph
+            "graph": self.graph,
         }
 
     @classmethod
@@ -287,6 +292,7 @@ class Profile:
             source_document_ids=data.get("source_document_ids", []),
             triples=data.get("triples", []),
             preferences=data.get("preferences", {}),
+            graph=data.get("graph", {}),
         )
 
     # --- Knowledge CRUD ---
@@ -390,6 +396,14 @@ class Profile:
                 else:
                     knowledge_lines.append(f"- {cg.entity}: {attr_str}")
             parts.append("领域知识:\n" + "\n".join(knowledge_lines))
+
+        # Render knowledge graph relationships
+        if self.graph and self.graph.get("nodes"):
+            from app.services.knowledge_graph import KnowledgeGraph
+            kg = KnowledgeGraph.from_dict(self.graph)
+            graph_text = kg.to_context_text(max_tokens=300)
+            if graph_text:
+                parts.append("知识关系图:\n" + graph_text)
 
         # Render enabled principles
         enabled = [p for p in self.principles if p.get("enabled", True)]

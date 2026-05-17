@@ -128,12 +128,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       content: '',
       timestamp: Date.now(),
       isStreaming: true,
-      steps: [
-        { title: '任务规划', status: 'finish' },
-        { title: '素材检索', status: 'wait' },
-        { title: '内容撰写', status: 'wait' },
-        { title: '质量评审', status: 'wait' }
-      ]
     }
 
     const nextMessages = [...messages, userMsg, assistantMsg]
@@ -141,7 +135,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
     setLoading(true)
 
     let contentAccumulator = ''
-    let stepsAccumulator = [...assistantMsg.steps!]
 
     try {
       const response = await fetch('http://localhost:8000/api/agent/select-plan', {
@@ -181,15 +174,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 setPlanOptions(options)
                 setCurrentSessionIdForPlan(data.session_id || sessionId)
                 
-                contentAccumulator = options.length > 0 
+                contentAccumulator = options.length > 0
                   ? `已生成 ${options.length} 个写作方案，请选择其中一个：`
                   : '等待生成方案...'
-                stepsAccumulator[0].status = 'finish'
-                
+
                 const updatedAssistant: Message = {
                   ...assistantMsg,
                   content: contentAccumulator,
-                  steps: [...stepsAccumulator],
                   isStreaming: false,
                   planOptions: options,
                   sessionId: data.session_id || sessionId
@@ -199,64 +190,34 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 setStreamController(null)
                 return
               } else if (data.type === 'agent_call') {
-                // 记录Agent调用
+                // Record agent collaboration
                 const agentCallData = data as AgentCallEvent
                 setAgentCalls(prev => [...prev, agentCallData])
-                
-                // 更新步骤描述，显示协作信息
                 const callMessage = `${agentCallData.caller} → ${agentCallData.target_agent}: ${agentCallData.reason}`
-                
-                // 根据调用的Agent更新对应步骤
-                if (agentCallData.target_agent === 'retriever') {
-                  stepsAccumulator[1].status = 'process'
-                  stepsAccumulator[1].description = `协作中: ${agentCallData.reason}`
-                } else if (agentCallData.target_agent === 'writer') {
-                  stepsAccumulator[2].status = 'process'
-                  stepsAccumulator[2].description = `协作中: ${agentCallData.reason}`
-                }
-                
-                // 添加到消息内容
                 contentAccumulator += `\n\n[协作] ${callMessage}`
               } else if (data.type === 'collaboration') {
-                // 记录协作过程
                 const collaborationData = data as CollaborationEvent
                 setCollaborationHistory(prev => [...prev, collaborationData])
-                
-                // 显示调用栈
                 if (collaborationData.call_stack.length > 0) {
                   const stackInfo = `调用链: ${collaborationData.call_stack.join(' → ')}`
                   contentAccumulator += `\n\n[协作链] ${stackInfo}`
                 }
               } else if (data.type === 'progress') {
-                if (data.node === 'retriever') {
-                  stepsAccumulator[0].status = 'finish'
-                  stepsAccumulator[1].status = 'process'
-                  stepsAccumulator[1].description = `找到 ${data.data.materials_count?.local || 0} 条素材`
-                } else if (data.node === 'writer') {
-                  stepsAccumulator[1].status = 'finish'
-                  stepsAccumulator[2].status = 'process'
-                  contentAccumulator = data.data.content_preview || contentAccumulator
-                } else if (data.node === 'reviewer') {
-                  stepsAccumulator[2].status = 'finish'
-                  stepsAccumulator[3].status = 'process'
-                }
+                // Progress received — just keep loading state
               } else if (data.type === 'result') {
                 contentAccumulator = data.content
-                // Extract editor content if present (from ---EDITOR--- separator)
                 if (data.has_editor && data.editor_content) {
                   editorContentRef.current = data.editor_content
                 } else {
                   editorContentRef.current = ''
                 }
-                stepsAccumulator[3].status = 'finish'
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
               }
-              
+
               const updatedAssistant: Message = {
                 ...assistantMsg,
                 content: contentAccumulator,
-                steps: [...stepsAccumulator],
                 isStreaming: data.type !== 'result' && data.type !== 'error'
               }
               updateActiveMessages([...messages, userMsg, updatedAssistant])
@@ -307,12 +268,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       content: '',
       timestamp: Date.now(),
       isStreaming: true,
-      steps: [
-        { title: '任务规划', status: 'wait' },
-        { title: '素材检索', status: 'wait' },
-        { title: '内容撰写', status: 'wait' },
-        { title: '质量评审', status: 'wait' }
-      ]
     }
 
     const nextMessages = [...messages, userMsg, assistantMsg]
@@ -321,7 +276,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
     setLoading(true)
 
     let contentAccumulator = ''
-    let stepsAccumulator = [...assistantMsg.steps!]
 
     try {
       // 创建AbortController用于取消请求
@@ -367,21 +321,18 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   `${idx + 1}. ${q.question || q.text || ''}`
                 ).join('\n')
                 
-                contentAccumulator = questions.length > 0 
+                contentAccumulator = questions.length > 0
                   ? `需要补充以下信息：\n\n${questionsText}\n\n请在下方输入框中输入您的回答。`
                   : '等待用户补充信息...'
-                stepsAccumulator[0].status = 'wait'
-                stepsAccumulator[0].description = '等待用户补充信息'
-                
+
                 const newSessionId = data.session_id || sessionId
                 if (newSessionId) {
                   (window as any).__current_session_id = newSessionId
                 }
-                
+
                 const updatedAssistant: Message = {
                   ...assistantMsg,
                   content: contentAccumulator,
-                  steps: [...stepsAccumulator],
                   isStreaming: false,
                   pendingQuestions: questions,
                   sessionId: newSessionId
@@ -391,38 +342,21 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 setStreamController(null)
                 return
               } else if (data.type === 'progress') {
-                if (data.node === 'planner') {
-                  stepsAccumulator[0].status = 'process'
-                  stepsAccumulator[0].description = data.message
-                } else if (data.node === 'retriever') {
-                  stepsAccumulator[0].status = 'finish'
-                  stepsAccumulator[1].status = 'process'
-                  stepsAccumulator[1].description = `找到 ${data.data.materials_count?.local || 0} 条素材`
-                } else if (data.node === 'writer') {
-                  stepsAccumulator[1].status = 'finish'
-                  stepsAccumulator[2].status = 'process'
-                  contentAccumulator = data.data.content_preview || contentAccumulator
-                } else if (data.node === 'reviewer') {
-                  stepsAccumulator[2].status = 'finish'
-                  stepsAccumulator[3].status = 'process'
-                }
+                // Progress received — keep loading state
               } else if (data.type === 'result') {
                 contentAccumulator = data.content
-                // Extract editor content if present (from ---EDITOR--- separator)
                 if (data.has_editor && data.editor_content) {
                   editorContentRef.current = data.editor_content
                 } else {
                   editorContentRef.current = ''
                 }
-                stepsAccumulator[3].status = 'finish'
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
               }
-              
+
               const updatedAssistant: Message = {
                 ...assistantMsg,
                 content: contentAccumulator,
-                steps: [...stepsAccumulator],
                 isStreaming: data.type !== 'result' && data.type !== 'error'
               }
               updateActiveMessages([...messages, userMsg, updatedAssistant])
@@ -498,12 +432,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       content: '',
       timestamp: Date.now(),
       isStreaming: true,
-      steps: [
-        { title: '任务规划', status: 'wait' },
-        { title: '素材检索', status: 'wait' },
-        { title: '内容撰写', status: 'wait' },
-        { title: '质量评审', status: 'wait' }
-      ]
     }
 
     const nextMessages = [...messages, userMsg, assistantMsg]
@@ -517,7 +445,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
 
     let contentAccumulator = ''
     editorContentRef.current = ''  // Reset editor content for new request
-    let stepsAccumulator = [...assistantMsg.steps!]
 
     try {
       // 获取保存的 session_id（优先级：currentSessionIdForSolution > 全局变量 > messages 中最新消息的 sessionId）
@@ -602,17 +529,14 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   (window as any).__current_session_id = sessionId
                 }
                 
-                // 更新助手消息（谦逊、询问的语气）
-                contentAccumulator = solutions.length > 0 
+                // 更新助手消息
+                contentAccumulator = solutions.length > 0
                   ? `老师，关于您提到的内容，我想到几个更实际的思路，供您参考：`
                   : '正在为您思考改进思路...'
-                stepsAccumulator[0].status = 'wait'
-                stepsAccumulator[0].description = '等待您的选择'
-                
+
                 const updatedAssistant: Message = {
                   ...assistantMsg,
                   content: contentAccumulator,
-                  steps: [...stepsAccumulator],
                   isStreaming: false,
                   improvementSolutions: solutions,
                   todoItems: todos,
@@ -628,13 +552,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 
                 const errorMsg = data.error || data.message || '需求分析失败，请重试'
                 contentAccumulator = `❌ ${errorMsg}`
-                stepsAccumulator[0].status = 'error'
-                stepsAccumulator[0].description = '分析失败'
-                
+
                 const updatedAssistant: Message = {
                   ...assistantMsg,
                   content: contentAccumulator,
-                  steps: [...stepsAccumulator],
                   isStreaming: false
                 }
                 updateActiveMessages([...messages, userMsg, updatedAssistant])
@@ -649,22 +570,19 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 ).join('\n')
                 
                 // 更新助手消息
-                contentAccumulator = questions.length > 0 
+                contentAccumulator = questions.length > 0
                   ? `需要补充以下信息：\n\n${questionsText}\n\n请在下方输入框中输入您的回答。`
                   : '等待用户补充信息...'
-                stepsAccumulator[0].status = 'wait'
-                stepsAccumulator[0].description = '等待用户补充信息'
-                
-                // 保存问题数据到消息中（用于后续回复）
+
+                // 保存问题数据到消息中
                 const sessionId = data.session_id || null
                 if (sessionId) {
                   (window as any).__current_session_id = sessionId
                 }
-                
+
                 const updatedAssistant: Message = {
                   ...assistantMsg,
                   content: contentAccumulator,
-                  steps: [...stepsAccumulator],
                   isStreaming: false,
                   pendingQuestions: questions,
                   sessionId: sessionId
@@ -683,16 +601,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 setSelectedPlanId(null)
                 
                 // 更新助手消息
-                contentAccumulator = options.length > 0 
+                contentAccumulator = options.length > 0
                   ? `已生成 ${options.length} 个写作方案，请选择其中一个：`
                   : '等待生成方案...'
-                stepsAccumulator[0].status = 'finish'
-                stepsAccumulator[0].description = '方案已生成'
-                
+
                 const updatedAssistant: Message = {
                   ...assistantMsg,
                   content: contentAccumulator,
-                  steps: [...stepsAccumulator],
                   isStreaming: false,
                   planOptions: options,
                   sessionId: sessionId
@@ -701,43 +616,21 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 setLoading(false)
                 return // 暂停，等待用户选择
               } else if (data.type === 'progress') {
-                // 处理各种进度消息
-                if (data.node === 'context_loader') {
-                  // 新增：处理上下文加载进度
-                  stepsAccumulator[0].status = 'process'
-                  stepsAccumulator[0].description = data.message || '正在加载工艺文档上下文...'
-                } else if (data.node === 'planner') {
-                  stepsAccumulator[0].status = 'process'
-                  stepsAccumulator[0].description = data.message
-                } else if (data.node === 'retriever') {
-                  stepsAccumulator[0].status = 'finish'
-                  stepsAccumulator[1].status = 'process'
-                  stepsAccumulator[1].description = `找到 ${data.data?.materials_count?.local || 0} 条素材`
-                } else if (data.node === 'writer') {
-                  stepsAccumulator[1].status = 'finish'
-                  stepsAccumulator[2].status = 'process'
-                  contentAccumulator = data.data?.content_preview || contentAccumulator
-                } else if (data.node === 'reviewer') {
-                  stepsAccumulator[2].status = 'finish'
-                  stepsAccumulator[3].status = 'process'
-                }
+                // Progress received — frontend shows spinner via isStreaming
               } else if (data.type === 'result') {
                 contentAccumulator = data.content
-                // Extract editor content if present (from ---EDITOR--- separator)
                 if (data.has_editor && data.editor_content) {
                   editorContentRef.current = data.editor_content
                 } else {
                   editorContentRef.current = ''
                 }
-                stepsAccumulator[3].status = 'finish'
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
               }
-              
+
               const updatedAssistant: Message = {
                 ...assistantMsg,
                 content: contentAccumulator,
-                steps: [...stepsAccumulator],
                 isStreaming: data.type !== 'result' && data.type !== 'error'
               }
               updateActiveMessages([...messages, userMsg, updatedAssistant])
@@ -890,7 +783,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   </Space>
                 )}
               </div>
-              {/* 移除步骤框，回答直接显示在原响应框 */}
+              {/* Message content */}
               <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.8, color: colors.textPrimary }}>
                 {msg.content || (msg.isStreaming ? <Spin size="small" /> : '')}
               </div>
@@ -979,51 +872,34 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                         
                         setLoading(true)
                         let continueContent = contentAccumulator
-                        let continueSteps = [...stepsAccumulator]
-                        
+
                         while (true) {
                           const { done, value } = await reader.read()
                           if (done) break
-                          
+
                           const chunk = decoder.decode(value, { stream: true })
                           const lines = chunk.split('\n\n')
-                          
+
                           for (const line of lines) {
                             if (!line.trim() || !line.startsWith('data: ')) continue
-                            
+
                             try {
                               const dataStr = line.slice(6).trim()
                               if (dataStr === '[DONE]') break
-                              
+
                               const continueData = JSON.parse(dataStr)
                               if (continueData.type === 'mode') {
-                                // 接收模式消息
                                 currentModeRef.current = continueData.mode
                                 console.info(`[AI助手-继续] 模式: ${continueData.mode}`)
                               } else if (continueData.type === 'progress') {
-                                if (continueData.node === 'planner') {
-                                  continueSteps[0].status = 'process'
-                                  continueSteps[0].description = continueData.message
-                                } else if (continueData.node === 'retriever') {
-                                  continueSteps[0].status = 'finish'
-                                  continueSteps[1].status = 'process'
-                                } else if (continueData.node === 'writer') {
-                                  continueSteps[1].status = 'finish'
-                                  continueSteps[2].status = 'process'
-                                  continueContent = continueData.data.content_preview || continueContent
-                                } else if (continueData.node === 'reviewer') {
-                                  continueSteps[2].status = 'finish'
-                                  continueSteps[3].status = 'process'
-                                }
+                                // Progress received — keep loading
                               } else if (continueData.type === 'result') {
                                 continueContent = continueData.content
-                                continueSteps[3].status = 'finish'
                               }
-                              
+
                               const updatedMsg: Message = {
                                 ...assistantMsg,
                                 content: continueContent,
-                                steps: [...continueSteps],
                                 isStreaming: continueData.type !== 'result'
                               }
                               updateActiveMessages([...messages, userMsg, updatedMsg])

@@ -49,6 +49,20 @@ def detect_mode(user_input: str) -> str:
     return 'qa' if len(user_input) < 20 else 'write'
 
 
+def _extract_graph_seeds(user_input: str, kg: Any) -> List[str]:
+    """Extract node IDs from user input that match graph nodes.
+
+    Matches user query terms against node labels using substring match.
+    """
+    seeds: List[str] = []
+    for nid in kg._graph.nodes:
+        node = kg._graph.nodes[nid]
+        label = node.get("label", "")
+        if label and label in user_input:
+            seeds.append(nid)
+    return seeds[:10]  # Limit seeds to avoid over-expansion
+
+
 def get_system_prompt(mode: str) -> str:
     """根据模式返回系统提示词"""
     if mode == 'qa':
@@ -814,8 +828,8 @@ async def generate_stream(request: GenerateStreamRequest):
             # 发送模式消息
             yield f"data: {json.dumps({'type': 'mode', 'mode': mode})}\n\n"
             
-            # 发送进度：正在分析
-            yield f"data: {json.dumps({'type': 'progress', 'node': 'planner', 'message': '正在分析您的需求...'})}\n\n"
+            # 发送进度：思考中
+            yield f"data: {json.dumps({'type': 'progress', 'message': '思考中...'})}\n\n"
 
             logger.info(f"[AI助手] 调用LLM: model={settings.QWEN_TEXT_MODEL}")
 
@@ -830,8 +844,8 @@ async def generate_stream(request: GenerateStreamRequest):
                 # 生成或使用现有 session_id
                 current_session_id = session_id or "default"
                 
-                # 发送进度：正在加载上下文
-                yield f"data: {json.dumps({'type': 'progress', 'node': 'context_loader', 'message': '正在加载工艺文档上下文...'})}\n\n"
+                # Context loading progress (no separate step displayed to user)
+                logger.info("[AI助手] 正在加载工艺文档上下文...")
                 
                 # Build layered context with mode-aware loading strategy
                 doc_context = hierarchical_context.build_context(
@@ -871,15 +885,28 @@ async def generate_stream(request: GenerateStreamRequest):
 
             # Load domain profile and inject into context
             profile_context = ""
+            graph_context = ""
+            loaded_profile = None
             try:
                 domain = request.domain or "assembly"
                 from app.models.profile import Profile
                 from pathlib import Path
                 profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
                 if profile_path.exists():
-                    profile = Profile.from_json(profile_path)
-                    profile_context = profile.to_context_text()
+                    loaded_profile = Profile.from_json(profile_path)
+                    profile_context = loaded_profile.to_context_text()
                     logger.info(f"[AI助手] 画像注入成功: domain={domain}, 长度={len(profile_context)}")
+
+                    # Graph-based context expansion for query-relevant knowledge
+                    if loaded_profile.graph and loaded_profile.graph.get("nodes"):
+                        from app.services.knowledge_graph import KnowledgeGraph
+                        kg = KnowledgeGraph.from_dict(loaded_profile.graph)
+                        # Extract potential node IDs from user query
+                        seed_ids = _extract_graph_seeds(user_input, kg)
+                        if seed_ids:
+                            graph_context = kg.to_context_text(seed_ids, max_tokens=400)
+                            if graph_context:
+                                logger.info(f"[AI助手] 图上下文扩展命中: seeds={seed_ids}, 长度={len(graph_context)}")
             except Exception as e:
                 logger.warning(f"[AI助手] 画像加载失败: {e}")
                 profile_context = ""
@@ -942,6 +969,8 @@ async def generate_stream(request: GenerateStreamRequest):
             context_parts: List[str] = []
             if doc_context:
                 context_parts.append(f"## 参考文档\n\n{doc_context}")
+            if graph_context:
+                context_parts.append(f"## 相关工艺知识关系\n\n{graph_context}")
             if user_materials_context:
                 context_parts.append(user_materials_context)
 
@@ -952,8 +981,8 @@ async def generate_stream(request: GenerateStreamRequest):
 
             messages.append({"role": "user", "content": user_message})
 
-            # 发送进度：正在生成
-            yield f"data: {json.dumps({'type': 'progress', 'node': 'writer', 'message': '正在生成回复...', 'data': {'content_preview': ''}})}\n\n"
+            # Sending progress (kept minimal for frontend spinner)
+            yield f"data: {json.dumps({'type': 'progress', 'message': '正在生成回复...'})}\n\n"
 
             # Route to model tier by mode: QA→simple(fast), write→complex(capable)
             model_tier = "simple" if mode == "qa" else "complex"

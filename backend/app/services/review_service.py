@@ -95,6 +95,8 @@ class ReviewService:
             self._check_principles(content, profile, result)
             self._check_knowledge_data(content, profile, result)
             self._check_preferences(content, profile, result)
+            # 3. Graph-based structural checks
+            self._check_graph_structure(content, profile, result)
 
         logger.info(
             "review_completed",
@@ -276,4 +278,45 @@ class ReviewService:
                             "message": f"已学习的偏好不建议使用: 「{neg}」",
                             "preference_id": pref_dict.get("id"),
                         })
+
+    # ========================================
+    # Graph-based structural checks
+    # ========================================
+
+    def _check_graph_structure(self, content: str, profile: Profile, result: ReviewResult):
+        """Check process completeness and parameter consistency using knowledge graph."""
+        if not profile.graph or not profile.graph.get("nodes"):
+            return
+
+        try:
+            from app.services.knowledge_graph import KnowledgeGraph
+            kg = KnowledgeGraph.from_dict(profile.graph)
+
+            # 1. Check for sequential gaps (process steps with no "next step")
+            gaps = kg.find_sequential_gaps()
+            for node_id, label in gaps:
+                # Only flag if this step is mentioned in the content
+                if label in content:
+                    result.suggestions.append({
+                        "type": "process_gap",
+                        "message": f"工序「{label}」在知识图谱中没有后续工序定义，可能存在遗漏",
+                        "node_id": node_id,
+                    })
+
+            # 2. Check for parameter conflicts
+            conflicts = kg.find_parameter_conflicts()
+            for conflict in conflicts:
+                step_label = kg.get_node(conflict["process_step"])
+                step_name = step_label.get("label", conflict["process_step"]) if step_label else conflict["process_step"]
+                if step_name in content:
+                    result.add_issue(Issue(
+                        severity=Severity.WARNING.value,
+                        type="parameter_conflict",
+                        field=conflict["parameter_label"],
+                        message=f"工序「{step_name}」存在参数冲突: {conflict['parameter_label']}",
+                        fix_hint="检查同一参数是否有多个来源的值不一致",
+                    ))
+
+        except Exception as e:
+            logger.warning(f"Graph check failed: {e}")
 
