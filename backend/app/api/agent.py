@@ -938,17 +938,50 @@ async def generate_stream(request: GenerateStreamRequest):
                 yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
                 return
 
-            # Case 1: draft_complete with requires_response → show plan
+            # Case 1: draft_complete → auto-confirm and execute
             if orch_result.get("requires_response"):
                 plan = orch_result.get("modification_plan", "")
-                confirm_options = orch_result.get("confirm_options", [])
 
-                # Send plan as content
-                yield f"data: {json.dumps({'type': 'content', 'content': plan}, ensure_ascii=False)}\n\n"
+                # Send progress
+                yield f"data: {json.dumps({'type': 'progress', 'message': '方案已生成，正在执行...'})}\n\n"
 
-                # Send requires_response event so frontend knows to show confirm UI
-                yield f"data: {json.dumps({'type': 'result', 'has_editor': False, 'requires_response': True, 'confirm_options': confirm_options}, ensure_ascii=False)}\n\n"
-                logger.info("[AI助手] draft_complete plan 已发送，等待用户确认")
+                # Auto-confirm: tell orchestrator to execute the plan
+                from app.agents.orchestrator.interaction_models import UserResponse, InputType
+
+                confirm_response = UserResponse(
+                    input_type=InputType.TEXT,
+                    content="确认执行",
+                    selected_option="confirm",
+                )
+                exec_result = await orchestrator.continue_conversation(
+                    task_id=orch_result.get("task_id") or orchestrator.current_task_id,
+                    user_response=confirm_response,
+                )
+
+                if exec_result.get("success"):
+                    # Extract generated content
+                    agent_result = exec_result.get("result", {})
+                    inner = agent_result.get("result", {})
+                    if isinstance(inner, dict):
+                        new_content = inner.get("content") or inner.get("result", {}).get("content", "")
+                    else:
+                        new_content = str(inner)
+
+                    if new_content:
+                        # Brief summary in chat
+                        yield f"data: {json.dumps({'type': 'content', 'content': plan[:200] + '\\n\\n✅ 已执行修改，内容输出到编辑器。'}, ensure_ascii=False)}\n\n"
+                        # Send editor content via ---EDITOR---
+                        editor_content = new_content
+                        yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
+                        _save_memory(session_id, user_input, new_content)
+                    else:
+                        yield f"data: {json.dumps({'type': 'content', 'content': '执行完成但未生成内容。'}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                else:
+                    error_msg = exec_result.get("error", "执行失败")
+                    yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
+
+                logger.info("[AI助手] draft_complete auto-confirm 执行完成")
                 return
 
             # Case 2: Orchestrator produced content via sub-agents
