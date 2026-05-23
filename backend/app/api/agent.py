@@ -5,7 +5,7 @@ Agent API路由
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, AsyncGenerator
 from datetime import datetime
 import uuid
 import json
@@ -863,6 +863,101 @@ async def chat(request: ChatRequest):
         )
 
 
+async def _generate_via_orchestrator(
+    user_input: str,
+    uploaded_file_content: str,
+    uploaded_file_name: str,
+    session_id: Optional[str],
+    reference_materials: list,
+    project_id: Optional[int],
+) -> AsyncGenerator[str, None]:
+    """Route uploaded-file requests through ProcessOrchestrator.
+
+    Flow: plan → auto-confirm → WritingAgent execute → stream result
+    Yields SSE events compatible with the existing frontend AIChatPanel.
+    """
+    from app.agents.orchestrator.orchestrator import ProcessOrchestrator
+
+    yield f"data: {json.dumps({'type': 'mode', 'mode': 'write'})}\n\n"
+    yield f"data: {json.dumps({'type': 'progress', 'message': '正在分析上传文件...'})}\n\n"
+
+    orchestrator = ProcessOrchestrator()
+    context = {
+        "uploaded_file_content": uploaded_file_content,
+        "uploaded_file_name": uploaded_file_name,
+        "has_uploaded_file": True,
+        "project_id": project_id,
+        "reference_materials": reference_materials,
+    }
+
+    try:
+        result = await orchestrator.process_intent(
+            user_input=user_input,
+            context=context,
+            task_name=f"补齐-{uploaded_file_name}",
+        )
+
+        if not result.get("success"):
+            error_msg = result.get("error", "处理失败")
+            yield f"data: {json.dumps({'type': 'error', 'error': error_msg})}\n\n"
+            return
+
+        # Case A: plan generated, awaiting confirmation → auto-confirm and execute
+        if result.get("requires_response") and result.get("interaction_type") == "draft_plan_review":
+            plan = result.get("modification_plan", "")
+            yield f"data: {json.dumps({'type': 'progress', 'message': '方案已生成，正在执行修改...'})}\n\n"
+
+            # Show the plan in the chat bubble
+            yield f"data: {json.dumps({'type': 'content', 'content': f'📋 **修改方案**\n\n{plan[:500]}...\n\n正在执行修改...'})}\n\n"
+
+            # Auto-confirm and execute
+            from app.agents.orchestrator.interaction_models import UserResponse, InputType
+
+            confirm_response = UserResponse(
+                input_type=InputType.TEXT,
+                content="确认执行",
+                selected_option="confirm",
+            )
+            exec_result = await orchestrator.continue_conversation(
+                task_id=result.get("task_id") or orchestrator.current_task_id,
+                user_response=confirm_response,
+            )
+
+            if exec_result.get("success"):
+                # Extract the generated content
+                agent_result = exec_result.get("result", {})
+                inner = agent_result.get("result", {})
+                if isinstance(inner, dict):
+                    new_content = inner.get("content") or inner.get("result", {}).get("content", "")
+                else:
+                    new_content = str(inner)
+
+                if new_content:
+                    # Send analysis summary in chat bubble
+                    yield f"data: {json.dumps({'type': 'content', 'content': '✅ 工艺文件已按框架完善，内容已输出到编辑器。'})}\n\n"
+                    # Send the full content to editor via ---EDITOR---
+                    editor_content = f"---EDITOR---\n{new_content}\n---END EDITOR---"
+                    yield f"data: {json.dumps({'type': 'content', 'content': editor_content})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'content', 'content': '执行完成但未生成内容。'})}\n\n"
+            else:
+                error_msg = exec_result.get("error", "执行失败")
+                yield f"data: {json.dumps({'type': 'error', 'error': error_msg})}\n\n"
+
+        # Case B: direct result (no confirmation needed)
+        else:
+            generated = result.get("result", {}).get("generated_content", "")
+            if not generated:
+                generated = result.get("message", "处理完成")
+            yield f"data: {json.dumps({'type': 'content', 'content': generated})}\n\n"
+
+    except Exception as e:
+        logger.error(f"[AI助手] Orchestrator error: {e}")
+        yield f"data: {json.dumps({'type': 'error', 'error': f'Agent处理异常: {str(e)}'})}\n\n"
+
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+
 @router.post("/generate-stream")
 async def generate_stream(request: GenerateStreamRequest):
     """
@@ -889,6 +984,20 @@ async def generate_stream(request: GenerateStreamRequest):
             # 导入LLM服务
             from app.services.llm_service import llm_service
             from app.config import settings
+
+            # ── Agent routing: uploaded file → Orchestrator ──
+            if uploaded_file_content:
+                async for event in _generate_via_orchestrator(
+                    user_input=user_input,
+                    uploaded_file_content=uploaded_file_content,
+                    uploaded_file_name=uploaded_file_name or "uploaded_file",
+                    session_id=session_id,
+                    reference_materials=reference_materials,
+                    project_id=project_id,
+                ):
+                    yield event
+                return
+            # ── Default: direct LLM stream ──
 
             # 检查API配置
             if not settings.DASHSCOPE_API_KEY:
