@@ -32,6 +32,8 @@ interface MaterialDrawerProps {
   onInsert: (content: string) => void
   /** Open to upload tab on mount */
   defaultTab?: string
+  /** When true, render as inline panel instead of floating Drawer */
+  inline?: boolean
 }
 
 // Convert flat API folder tree to FolderNode[] for FolderTree component
@@ -56,7 +58,8 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   onClose,
   projectId,
   onInsert,
-  defaultTab
+  defaultTab,
+  inline = false
 }) => {
   const [materials, setMaterials] = useState<MaterialFile[]>([])
   const [loading, setLoading] = useState(false)
@@ -558,6 +561,165 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     </div>
   )
 
+  const tabItems = [
+    {
+      key: 'files',
+      label: (
+        <span>
+          <FolderOutlined />
+          文件管理
+        </span>
+      ),
+      children: (
+        <div style={{ display: 'flex', height: inline ? 'calc(100vh - 200px)' : 'calc(100vh - 150px)' }}>
+          {/* left: folder tree */}
+          <div style={{
+            width: 180,
+            borderRight: `1px solid ${colors.borderLight}`,
+            overflow: 'auto'
+          }}>
+            <FolderTree
+              folders={folders}
+              selectedFolder={selectedFolder}
+              onSelect={setSelectedFolder}
+              onCreate={handleCreateFolder}
+              onRename={handleRenameFolder}
+              onDelete={handleDeleteFolder}
+            />
+          </div>
+
+          {/* right: file list */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {/* toolbar */}
+            <div style={{
+              padding: '8px 16px',
+              borderBottom: `1px solid ${colors.borderLight}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{ color: colors.textSecondary, fontSize: 13 }}>
+                {selectedFolder === 'root' ? '全部文件' :
+                  folders.find(f => f.key === selectedFolder)?.title || '文件'}
+              </span>
+            </div>
+
+            {/* file list */}
+            <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+              <FileList
+                files={materials}
+                loading={loading}
+                currentFolder={selectedFolder}
+                onPreview={handleFilePreview}
+                onInsert={handleFileInsert}
+                onLearnProfile={handleLearnProfile}
+                onDelete={handleFileDelete}
+                onMove={handleFileMove}
+                folders={getFlatFolders()}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'upload',
+      label: (
+        <span>
+          <CloudUploadOutlined />
+          上传
+        </span>
+      ),
+      children: uploadTabContent
+    },
+    {
+      key: 'scope',
+      label: (
+        <span>
+          <DatabaseOutlined />
+          知识库范围
+        </span>
+      ),
+      children: (
+        <div style={{ padding: 16 }}>
+          <p style={{
+            color: colors.textSecondary,
+            marginBottom: 16,
+            fontSize: 13
+          }}>
+            选择 AI 检索时使用的知识库范围。只有选中的文件夹中的内容会被用于检索。
+          </p>
+          <KnowledgeScopeSelector
+            folders={getScopeFolders()}
+            selectedScopes={selectedScopes}
+            onChange={(scopes) => {
+              setSelectedScopes(scopes)
+              localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(scopes))
+            }}
+          />
+          <Divider />
+          <div style={{
+            padding: 12,
+            background: colors.bgTertiary,
+            borderRadius: 8,
+            fontSize: 12,
+            color: colors.textSecondary
+          }}>
+            <strong style={{ color: colors.textPrimary }}>使用提示：</strong>
+            <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
+              <li>选择需要检索的文件夹</li>
+              <li>AI 对话时只会从选中的知识库中检索</li>
+              <li>选择越精确，检索结果越准确</li>
+            </ul>
+          </div>
+        </div>
+      )
+    }
+  ]
+
+  const tabsElement = (
+    <Tabs
+      activeKey={activeTab}
+      onChange={setActiveTab}
+      style={{ padding: '0 16px' }}
+      items={tabItems}
+    />
+  )
+
+  if (inline) {
+    return (
+      <>
+        <div style={{
+          width: 520,
+          borderRight: `1px solid ${colors.borderLight}`,
+          background: colors.bgPrimary,
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            padding: '12px 20px',
+            borderBottom: `1px solid ${colors.borderLight}`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <DatabaseOutlined style={{ color: colors.primary }} />
+              <span style={{ fontWeight: 600, fontSize: 16 }}>素材库</span>
+            </div>
+            <Button size="small" onClick={onClose}>关闭</Button>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            {tabsElement}
+          </div>
+        </div>
+
+      </>
+    )
+  }
+
   return (
     <>
       <Drawer
@@ -567,7 +729,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
             <span>素材库</span>
           </div>
         }
-        placement="right"
+        placement="left"
         width={520}
         onClose={onClose}
         open={visible}
@@ -575,126 +737,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
           body: { padding: 0 }
         }}
       >
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          style={{ padding: '0 16px' }}
-          items={[
-            {
-              key: 'files',
-              label: (
-                <span>
-                  <FolderOutlined />
-                  文件管理
-                </span>
-              ),
-              children: (
-                <div style={{ display: 'flex', height: 'calc(100vh - 150px)' }}>
-                  {/* left: folder tree */}
-                  <div style={{
-                    width: 180,
-                    borderRight: `1px solid ${colors.borderLight}`,
-                    overflow: 'auto'
-                  }}>
-                    <FolderTree
-                      folders={folders}
-                      selectedFolder={selectedFolder}
-                      onSelect={setSelectedFolder}
-                      onCreate={handleCreateFolder}
-                      onRename={handleRenameFolder}
-                      onDelete={handleDeleteFolder}
-                    />
-                  </div>
-
-                  {/* right: file list */}
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    {/* toolbar */}
-                    <div style={{
-                      padding: '8px 16px',
-                      borderBottom: `1px solid ${colors.borderLight}`,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                      <span style={{ color: colors.textSecondary, fontSize: 13 }}>
-                        {selectedFolder === 'root' ? '全部文件' :
-                          folders.find(f => f.key === selectedFolder)?.title || '文件'}
-                      </span>
-                    </div>
-
-                    {/* file list */}
-                    <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
-                      <FileList
-                        files={materials}
-                        loading={loading}
-                        currentFolder={selectedFolder}
-                        onPreview={handleFilePreview}
-                        onInsert={handleFileInsert}
-                        onLearnProfile={handleLearnProfile}
-                        onDelete={handleFileDelete}
-                        onMove={handleFileMove}
-                        folders={getFlatFolders()}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )
-            },
-            {
-              key: 'upload',
-              label: (
-                <span>
-                  <CloudUploadOutlined />
-                  上传
-                </span>
-              ),
-              children: uploadTabContent
-            },
-            {
-              key: 'scope',
-              label: (
-                <span>
-                  <DatabaseOutlined />
-                  知识库范围
-                </span>
-              ),
-              children: (
-                <div style={{ padding: 16 }}>
-                  <p style={{
-                    color: colors.textSecondary,
-                    marginBottom: 16,
-                    fontSize: 13
-                  }}>
-                    选择 AI 检索时使用的知识库范围。只有选中的文件夹中的内容会被用于检索。
-                  </p>
-                  <KnowledgeScopeSelector
-                    folders={getScopeFolders()}
-                    selectedScopes={selectedScopes}
-                    onChange={(scopes) => {
-                      setSelectedScopes(scopes)
-                      localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(scopes))
-                    }}
-                  />
-                  <Divider />
-                  <div style={{
-                    padding: 12,
-                    background: colors.bgTertiary,
-                    borderRadius: 8,
-                    fontSize: 12,
-                    color: colors.textSecondary
-                  }}>
-                    <strong style={{ color: colors.textPrimary }}>使用提示：</strong>
-                    <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
-                      <li>选择需要检索的文件夹</li>
-                      <li>AI 对话时只会从选中的知识库中检索</li>
-                      <li>选择越精确，检索结果越准确</li>
-                    </ul>
-                  </div>
-                </div>
-              )
-            }
-          ]}
-        />
+        {tabsElement}
       </Drawer>
 
       {/* file preview modal */}
