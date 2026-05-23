@@ -1363,7 +1363,13 @@ class ProcessOrchestrator:
             profile_context = await self._load_profile_context(context)
 
             # 3. 构建检索上下文
-            retrieved_context, material_status = await self._build_retrieval_context(user_input, context)
+            # Prefer pre-built context from the caller (e.g. generate_stream's _build_orchestrator_context)
+            # which uses the global hierarchical_context singleton pointing to the correct data dir.
+            if context.get("doc_context"):
+                retrieved_context = context["doc_context"]
+                material_status = context.get("material_status", {"has_documents": bool(retrieved_context)})
+            else:
+                retrieved_context, material_status = await self._build_retrieval_context(user_input, context)
 
             # 3.5 Build material status instruction for Agent context injection
             material_instruction = self._build_material_status_instruction(material_status)
@@ -1601,24 +1607,27 @@ class ProcessOrchestrator:
         if material_instruction:
             material_section = f"\n## 素材状态指令\n{material_instruction}\n"
 
-        prompt = f"""你是工艺文件编辑助手。基于以下信息生成修改方案：
+        prompt = f"""你是工艺文件编辑助手。用户上传了一份不完整的工艺文件，需要你对比知识库中的完整文档，制定简短的修改方案。
+
 {material_section}
 ## 用户画像
 {profile_context}
 
-## 检索到的参考资料
+## 知识库中的参考资料
 {retrieved_context}
 
-## 初稿内容
+## 用户上传的初稿
 {draft_content[:8000]}
 
 ## 用户需求
 {user_requirement}
 
-请生成具体的修改方案，说明：
-1. 需要修改哪些部分
-2. 修改的依据（来自哪个标准/素材）
-3. 修改后的内容建议"""
+请生成简短的修改方案（控制在200字以内）：
+- 只列出需要补齐/修改的章节名称和具体操作
+- 不要写分析过程、不要写通用建议、不要重复已有内容
+- 如果知识库中有对应的完整内容，标注「知识库有原文」
+- 如果知识库也没有，标注「待用户确认」
+"""
 
         try:
             from app.services.deepseek_service import DeepSeekService
