@@ -1363,13 +1363,7 @@ class ProcessOrchestrator:
             profile_context = await self._load_profile_context(context)
 
             # 3. 构建检索上下文
-            # Prefer pre-built context from the caller (e.g. generate_stream's _build_orchestrator_context)
-            # which uses the global hierarchical_context singleton pointing to the correct data dir.
-            if context.get("doc_context"):
-                retrieved_context = context["doc_context"]
-                material_status = context.get("material_status", {"has_documents": bool(retrieved_context)})
-            else:
-                retrieved_context, material_status = await self._build_retrieval_context(user_input, context)
+            retrieved_context, material_status = await self._build_retrieval_context(user_input, context)
 
             # 3.5 Build material status instruction for Agent context injection
             material_instruction = self._build_material_status_instruction(material_status)
@@ -1490,16 +1484,13 @@ class ProcessOrchestrator:
             (retrieved_context: str, material_status: dict)
         """
         try:
-            from app.services.hierarchical_context import HierarchicalContext
+            from app.services.hierarchical_context import hierarchical_context
 
-            data_dir = context.get("data_dir", "data/exports_html")
-            hc = HierarchicalContext(data_dir)
-            hc.set_max_tokens(3000)
             session_id = context.get("session_id", self.current_task_id or "default")
-            rag_ctx = hc.build_context(query=query, session_id=session_id, max_tokens=3000)
+            rag_ctx = hierarchical_context.build_context(query=query, session_id=session_id, max_tokens=3000)
 
             # Get material status
-            material_status = hc.get_material_status(query)
+            material_status = hierarchical_context.get_material_status(query)
 
             return rag_ctx or "（未检索到相关参考资料）", material_status
 
