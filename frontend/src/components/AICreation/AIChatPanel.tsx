@@ -61,13 +61,33 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
   const [historyVisible, setHistoryVisible] = useState(false)
-  // Uploaded file state for AI context injection
-  const [uploadedFile, setUploadedFile] = useState<{
+  // Uploaded file state for AI context injection — persisted in sessionStorage
+  // so it survives page refresh within the same tab/session
+  const UPLOAD_STORAGE_KEY = 'ai_uploaded_file'
+  const [uploadedFile, setUploadedFileState] = useState<{
     name: string
     content: string
     charCount: number
     status: 'uploading' | 'done' | 'error'
-  } | null>(null)
+  } | null>(() => {
+    try {
+      const stored = sessionStorage.getItem(UPLOAD_STORAGE_KEY)
+      return stored ? JSON.parse(stored) : null
+    } catch { return null }
+  })
+
+  // Wrapper that also persists to sessionStorage
+  const setUploadedFile = (val: React.SetStateAction<typeof uploadedFile>) => {
+    setUploadedFileState(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      if (next && next.status === 'done') {
+        sessionStorage.setItem(UPLOAD_STORAGE_KEY, JSON.stringify(next))
+      } else {
+        sessionStorage.removeItem(UPLOAD_STORAGE_KEY)
+      }
+      return next
+    })
+  }
   // 流式读取控制器，用于停止生成
   const [streamController, setStreamController] = useState<AbortController | null>(null)
   // 保存用户原始输入，用于停止时恢复
