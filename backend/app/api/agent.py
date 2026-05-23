@@ -955,18 +955,20 @@ async def generate_stream(request: GenerateStreamRequest):
                     selected_option="confirm",
                 )
                 exec_result = await orchestrator.continue_conversation(
-                    task_id=orch_result.get("task_id") or orchestrator.current_task_id,
                     user_response=confirm_response,
                 )
 
                 if exec_result.get("success"):
-                    # Extract generated content
-                    agent_result = exec_result.get("result", {})
-                    inner = agent_result.get("result", {})
-                    if isinstance(inner, dict):
-                        new_content = inner.get("content") or inner.get("result", {}).get("content", "")
-                    else:
-                        new_content = str(inner)
+                    # Extract generated content from _execute_draft_modification result
+                    # exec_result.result.agent_result.result = {success, result: {content: "..."}, document, suggestions}
+                    result_wrapper = exec_result.get("result", {})
+                    agent_result = result_wrapper.get("agent_result", {})
+                    new_content = ""
+                    if isinstance(agent_result, dict):
+                        inner = agent_result.get("result", {})
+                        if isinstance(inner, dict):
+                            # WritingAgent returns {success, result: {content: "..."}}
+                            new_content = inner.get("content") or inner.get("result", {}).get("content", "")
 
                     if new_content:
                         # Brief summary in chat

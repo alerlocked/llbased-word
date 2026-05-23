@@ -637,7 +637,7 @@ class ProcessOrchestrator:
             try:
                 # 构建任务参数
                 agent_task = {
-                    "action": task_type,
+                    "action": task.get("action") or task_type,
                     "content": task.get("content", ""),
                     "target": task.get("target"),
                     "requirements": task.get("requirements"),
@@ -1223,7 +1223,9 @@ class ProcessOrchestrator:
     async def _handle_user_response(self, response: UserResponse) -> Dict[str, Any]:
         """处理用户响应"""
         # 检查是否是 draft_complete 确认流程
-        if self._collected_info.get("modification_plan") and self._collected_info.get("draft_id"):
+        if self._collected_info.get("modification_plan") and (
+            self._collected_info.get("draft_id") or self._collected_info.get("is_temp_upload")
+        ):
             return await self._handle_draft_plan_response(response)
 
         # 处理响应
@@ -1675,12 +1677,18 @@ class ProcessOrchestrator:
         # 2. 构造 Writing Agent 任务
         writing_task = {
             "type": "writing",
-            "action": "draft_complete",
-            "content": draft_content,
-            "modification_plan": modification_plan,
-            "profile_context": profile_context,
-            "retrieved_context": retrieved_context,
-            "material_instruction": material_instruction,
+            "action": "generate",
+            "content": modification_plan,
+            "target": "工艺文件完善",
+            "requirements": (
+                f"基于以下信息完善用户上传的工艺文件。\n\n"
+                f"## 知识库参考资料\n{retrieved_context[:4000]}\n\n"
+                f"## 用户上传的初稿\n{draft_content[:4000]}\n\n"
+                f"## 用户画像\n{profile_context[:1000]}\n\n"
+                f"{material_instruction}\n\n"
+                f"请按修改方案逐章补充缺失内容，输出完整工艺文件。"
+            ),
+            "generate_doc": False,
         }
 
         # 3. 执行任务
