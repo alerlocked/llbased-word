@@ -863,108 +863,14 @@ async def chat(request: ChatRequest):
         )
 
 
-async def _generate_via_orchestrator(
-    user_input: str,
-    uploaded_file_content: str,
-    uploaded_file_name: str,
-    session_id: Optional[str],
-    reference_materials: list,
-    project_id: Optional[int],
-) -> AsyncGenerator[str, None]:
-    """Route uploaded-file requests through ProcessOrchestrator.
-
-    Flow: plan → auto-confirm → WritingAgent execute → stream result
-    Yields SSE events compatible with the existing frontend AIChatPanel.
-    """
-    from app.agents.orchestrator.orchestrator import ProcessOrchestrator
-
-    yield f"data: {json.dumps({'type': 'mode', 'mode': 'write'})}\n\n"
-    yield f"data: {json.dumps({'type': 'progress', 'message': '正在分析上传文件...'})}\n\n"
-
-    orchestrator = ProcessOrchestrator()
-    context = {
-        "uploaded_file_content": uploaded_file_content,
-        "uploaded_file_name": uploaded_file_name,
-        "has_uploaded_file": True,
-        "project_id": project_id,
-        "reference_materials": reference_materials,
-    }
-
-    try:
-        result = await orchestrator.process_intent(
-            user_input=user_input,
-            context=context,
-            task_name=f"补齐-{uploaded_file_name}",
-        )
-
-        if not result.get("success"):
-            error_msg = result.get("error", "处理失败")
-            yield f"data: {json.dumps({'type': 'error', 'error': error_msg})}\n\n"
-            return
-
-        # Case A: plan generated, awaiting confirmation → auto-confirm and execute
-        if result.get("requires_response") and result.get("interaction_type") == "draft_plan_review":
-            plan = result.get("modification_plan", "")
-            yield f"data: {json.dumps({'type': 'progress', 'message': '方案已生成，正在执行修改...'})}\n\n"
-
-            # Show the plan in the chat bubble
-            yield f"data: {json.dumps({'type': 'content', 'content': f'📋 **修改方案**\n\n{plan[:500]}...\n\n正在执行修改...'})}\n\n"
-
-            # Auto-confirm and execute
-            from app.agents.orchestrator.interaction_models import UserResponse, InputType
-
-            confirm_response = UserResponse(
-                input_type=InputType.TEXT,
-                content="确认执行",
-                selected_option="confirm",
-            )
-            exec_result = await orchestrator.continue_conversation(
-                task_id=result.get("task_id") or orchestrator.current_task_id,
-                user_response=confirm_response,
-            )
-
-            if exec_result.get("success"):
-                # Extract the generated content
-                agent_result = exec_result.get("result", {})
-                inner = agent_result.get("result", {})
-                if isinstance(inner, dict):
-                    new_content = inner.get("content") or inner.get("result", {}).get("content", "")
-                else:
-                    new_content = str(inner)
-
-                if new_content:
-                    # Send analysis summary in chat bubble
-                    yield f"data: {json.dumps({'type': 'content', 'content': '✅ 工艺文件已按框架完善，内容已输出到编辑器。'})}\n\n"
-                    # Send the full content to editor via ---EDITOR---
-                    editor_content = f"---EDITOR---\n{new_content}\n---END EDITOR---"
-                    yield f"data: {json.dumps({'type': 'content', 'content': editor_content})}\n\n"
-                else:
-                    yield f"data: {json.dumps({'type': 'content', 'content': '执行完成但未生成内容。'})}\n\n"
-            else:
-                error_msg = exec_result.get("error", "执行失败")
-                yield f"data: {json.dumps({'type': 'error', 'error': error_msg})}\n\n"
-
-        # Case B: direct result (no confirmation needed)
-        else:
-            generated = result.get("result", {}).get("generated_content", "")
-            if not generated:
-                generated = result.get("message", "处理完成")
-            yield f"data: {json.dumps({'type': 'content', 'content': generated})}\n\n"
-
-    except Exception as e:
-        logger.error(f"[AI助手] Orchestrator error: {e}")
-        yield f"data: {json.dumps({'type': 'error', 'error': f'Agent处理异常: {str(e)}'})}\n\n"
-
-    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-
 @router.post("/generate-stream")
 async def generate_stream(request: GenerateStreamRequest):
     """
-    流式生成内容
+    流式生成内容 — ALL requests go through ProcessOrchestrator
 
-    以SSE方式流式返回生成的内容
-    调用真正的LLM服务进行内容生成
+    Flow: user input → orchestrator.process_intent() → SSE events
+    - draft_complete: plan → confirm → execute via WritingAgent
+    - other intents: context build → LLM streaming (with orchestrator context)
     """
     # 获取用户输入（支持多种字段名）
     user_input = request.content or request.user_input or ""
@@ -975,29 +881,17 @@ async def generate_stream(request: GenerateStreamRequest):
     uploaded_file_content = request.uploaded_file_content
     uploaded_file_name = request.uploaded_file_name
 
-    logger.info(f"[AI助手] 收到请求: prompt={user_input[:50]}..., session={session_id}, project={project_id}, materials={len(reference_materials)}, uploaded_file={'yes' if uploaded_file_content else 'no'}")
+    logger.info(
+        f"[AI助手] 收到请求: prompt={user_input[:50]}..., session={session_id}, "
+        f"project={project_id}, materials={len(reference_materials)}, "
+        f"uploaded_file={'yes' if uploaded_file_content else 'no'}"
+    )
 
     async def generate():
         try:
-            logger.info(f"[AI助手] 开始处理请求")
-
-            # 导入LLM服务
             from app.services.llm_service import llm_service
             from app.config import settings
-
-            # ── Agent routing: uploaded file → Orchestrator ──
-            if uploaded_file_content:
-                async for event in _generate_via_orchestrator(
-                    user_input=user_input,
-                    uploaded_file_content=uploaded_file_content,
-                    uploaded_file_name=uploaded_file_name or "uploaded_file",
-                    session_id=session_id,
-                    reference_materials=reference_materials,
-                    project_id=project_id,
-                ):
-                    yield event
-                return
-            # ── Default: direct LLM stream ──
+            from app.agents.orchestrator.orchestrator import ProcessOrchestrator
 
             # 检查API配置
             if not settings.DASHSCOPE_API_KEY:
@@ -1005,259 +899,131 @@ async def generate_stream(request: GenerateStreamRequest):
                 yield f"data: {json.dumps({'type': 'error', 'error': 'API密钥未配置，请联系管理员配置DASHSCOPE_API_KEY'})}\n\n"
                 return
 
-            # 检测模式（问答 vs 写作）
+            # ── Mode detection (for frontend UI hints) ──
             mode = detect_mode(user_input)
+            if uploaded_file_content:
+                mode = 'write'
             logger.info(f"[AI助手] 模式检测: mode={mode}, input={user_input[:30]}...")
-            
-            # 发送模式消息
+
             yield f"data: {json.dumps({'type': 'mode', 'mode': mode})}\n\n"
-            
-            # 发送进度：思考中
             yield f"data: {json.dumps({'type': 'progress', 'message': '思考中...'})}\n\n"
 
-            logger.info(f"[AI助手] 调用LLM: model={settings.QWEN_TEXT_MODEL}")
+            # ── Build context for orchestrator ──
+            orch_context = _build_orchestrator_context(
+                request=request,
+                user_input=user_input,
+                mode=mode,
+            )
 
-            # 根据模式获取系统提示词
-            # If a temp file is uploaded, use craft file framework prompt
-            if uploaded_file_content:
-                system_prompt = get_craft_system_prompt()
-                # Force write mode for file-based interactions
-                mode = 'write'
-                logger.info("[AI助手] 检测到临时上传文件，切换到工艺文件框架模式")
-            else:
-                system_prompt = get_system_prompt(mode)
+            # ── Route through ProcessOrchestrator ──
+            orchestrator = ProcessOrchestrator()
+            logger.info(f"[AI助手] 调用 ProcessOrchestrator.process_intent()")
 
-            # 注入分层上下文（新增功能）
-            doc_context = ""
-            try:
-                from app.services.hierarchical_context import hierarchical_context
+            orch_result = await orchestrator.process_intent(
+                user_input=user_input,
+                context=orch_context,
+                task_name=f"AI助手请求-{session_id or 'anon'}",
+            )
 
-                # 生成或使用现有 session_id
-                current_session_id = session_id or "default"
+            intent_type = orch_result.get("intent", {}).get("type", "unknown")
+            logger.info(
+                f"[AI助手] Orchestrator 完成: success={orch_result.get('success')}, "
+                f"intent={intent_type}, state={orch_result.get('state')}"
+            )
 
-                # Context loading progress (no separate step displayed to user)
-                logger.info("[AI助手] 正在加载工艺文档上下文...")
+            # ── Handle orchestrator result → SSE events ──
+            if not orch_result.get("success"):
+                error_msg = orch_result.get("error", "主控处理失败")
+                logger.error(f"[AI助手] Orchestrator error: {error_msg}")
+                yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
+                return
 
-                # Build layered context with mode-aware loading strategy
-                # When a file is uploaded, enrich the query with file name keywords
-                # so Layer 3 can find matching knowledge base documents
-                context_query = user_input
-                if uploaded_file_content:
-                    file_keywords = uploaded_file_name or ""
-                    # Also extract key identifiers from the file content (first 500 chars)
-                    content_head = uploaded_file_content[:500] if uploaded_file_content else ""
-                    context_query = f"{user_input} {file_keywords} {content_head}"
-                    logger.info(f"[AI助手] 上下文搜索 query 已拼接上传文件信息: {context_query[:100]}...")
+            # Case 1: draft_complete with requires_response → show plan
+            if orch_result.get("requires_response"):
+                plan = orch_result.get("modification_plan", "")
+                confirm_options = orch_result.get("confirm_options", [])
 
-                doc_context = hierarchical_context.build_context(
-                    query=context_query,
-                    session_id=current_session_id,
-                    max_tokens=15000,
-                    mode=mode,  # qa=light, write=full, review=structure-only
-                )
+                # Send plan as content
+                yield f"data: {json.dumps({'type': 'content', 'content': plan}, ensure_ascii=False)}\n\n"
 
-                # When a file is uploaded (craft file mode), do multi-pass retrieval.
-                # A single query only returns ~4000 tokens of fragments.
-                # For "complete this document" tasks we need targeted per-module searches
-                # so the LLM gets real data instead of fabricating content.
-                if uploaded_file_content:
-                    # Craft file module names for targeted search
-                    module_queries = [
-                        "工艺装备明细表 专用装备",
-                        "工具量具明细表 专用工具 量具",
-                        "材料定额明细 主要材料 辅助材料",
-                        "引用文件目录 标准 规范",
-                        "装配件明细 零部组件",
-                        "工艺总方案 适用范围 人员 环境",
-                        "工序 装配工艺卡 工序内容",
-                        "检测 目视 检验 绝缘",
-                    ]
-                    extra_parts: list[str] = []
-                    seen_snippets: set[str] = set()
+                # Send requires_response event so frontend knows to show confirm UI
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': False, 'requires_response': True, 'confirm_options': confirm_options}, ensure_ascii=False)}\n\n"
+                logger.info("[AI助手] draft_complete plan 已发送，等待用户确认")
+                return
 
-                    for mq in module_queries:
-                        results = hierarchical_context.global_keyword_search(
-                            query=mq, top_k=3
-                        )
-                        for r in results:
-                            snippet = r.get("snippet", "")
-                            doc_name = r.get("doc_name", "")
-                            page = r.get("page", "?")
-                            score = r.get("score", 0)
-                            # Deduplicate by snippet content
-                            dedup_key = snippet[:80]
-                            if dedup_key in seen_snippets or score < 2:
-                                continue
-                            seen_snippets.add(dedup_key)
-                            extra_parts.append(
-                                f"- **{doc_name}** (第{page}页, 相关度:{score}): {snippet}"
-                            )
+            # Case 2: Orchestrator produced content via sub-agents
+            agg_result = orch_result.get("result", {})
+            generated_content = ""
 
-                    if extra_parts:
-                        extra_section = (
-                            "## 补充检索结果（按模块分类）\n\n"
-                            + "\n".join(extra_parts)
-                        )
-                        doc_context += f"\n\n{extra_section}"
-                        logger.info(
-                            f"[AI助手] 多轮补充检索: {len(extra_parts)} 个片段, "
-                            f"总上下文 {len(doc_context)} chars"
-                        )
+            # Try to extract content from aggregated result
+            if isinstance(agg_result, dict):
+                generated_content = agg_result.get("generated_content", "")
+                # Also check component results
+                if not generated_content and agg_result.get("components"):
+                    for comp in agg_result["components"]:
+                        if comp.get("status") == "completed" and comp.get("result"):
+                            comp_result = comp["result"]
+                            if isinstance(comp_result, dict):
+                                inner = comp_result.get("result", {})
+                                if isinstance(inner, dict):
+                                    generated_content += inner.get("content", "")
 
-                # 尝试元信息快速查询
-                meta_answer = hierarchical_context.search_meta_info(user_input)
-                if meta_answer:
-                    logger.info(f"[AI助手] 元信息查询命中: {meta_answer}")
-                    # 元信息查询成功，在上下文前面添加快速回答
-                    doc_context = f"# 快速参考\n\n{meta_answer}\n\n---\n\n{doc_context}"
+            if generated_content:
+                # Orchestrator produced content — send as SSE
+                logger.info(f"[AI助手] Orchestrator 产出内容: {len(generated_content)} chars")
 
-                # Get material status and build instruction
-                material_status = hierarchical_context.get_material_status(user_input)
-                material_instruction = ""
-                if not material_status.get("has_documents"):
-                    material_instruction = (
-                        "【系统提示】当前素材库为空。"
-                        "回答规则：优先从本地知识库检索，如未找到相关信息，可基于自身通识知识简短回答。"
-                        "回答开头必须加一句：「本地知识库暂无相关内容，以下基于通识知识简答」。"
-                        "回答末尾建议用户上传相关工艺文档以获取更准确的指导。"
-                    )
-                elif material_status.get("missing_topics") and len(material_status["missing_topics"]) >= 2:
-                    missing_str = "、".join(material_status["missing_topics"][:5])
-                    doc_names = "、".join(d.get("name", "") for d in material_status.get("documents", []))
-                    material_instruction = (
-                        f"【素材状态】当前有参考文档（{doc_names}），"
-                        f"但以下主题可能未被覆盖：{missing_str}。"
-                        "回答规则：先基于参考文档回答已覆盖的部分，对未覆盖的部分用自身通识知识补充回答，"
-                        "并标注「该部分基于通识知识，非当前文档内容」。"
-                        "如果你也不知道答案，直接说不知道，不要编造。"
-                    )
+                # Parse EDITOR separator
+                EDITOR_MARKER = "---EDITOR---"
+                chat_content = generated_content
+                editor_content = ""
 
-                logger.info(f"[AI助手] 上下文注入成功: 长度={len(doc_context)}, has_materials={material_status.get('has_documents')}")
+                if EDITOR_MARKER in generated_content:
+                    parts = generated_content.split(EDITOR_MARKER, 1)
+                    chat_content = parts[0].strip()
+                    editor_content = parts[1].strip() if len(parts) > 1 else ""
 
-            except Exception as e:
-                logger.warning(f"[AI助手] 上下文注入失败（将继续无上下文生成）: {e}")
-                # 上下文注入失败不影响主流程，继续生成
-                doc_context = ""
+                # Send chat content
+                if chat_content:
+                    yield f"data: {json.dumps({'type': 'content', 'content': chat_content}, ensure_ascii=False)}\n\n"
 
-            # Load domain profile and inject into context
-            profile_context = ""
-            graph_context = ""
-            loaded_profile = None
-            try:
-                domain = request.domain or "assembly"
-                from app.models.profile import Profile
-                from pathlib import Path
-                profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
-                if profile_path.exists():
-                    loaded_profile = Profile.from_json(profile_path)
-                    profile_context = loaded_profile.to_context_text()
-                    logger.info(f"[AI助手] 画像注入成功: domain={domain}, 长度={len(profile_context)}")
+                # Save memory
+                _save_memory(session_id, user_input, generated_content)
 
-                    # Graph-based context expansion for query-relevant knowledge
-                    if loaded_profile.graph and loaded_profile.graph.get("nodes"):
-                        from app.services.knowledge_graph import KnowledgeGraph
-                        kg = KnowledgeGraph.from_dict(loaded_profile.graph)
-                        # Extract potential node IDs from user query
-                        seed_ids = _extract_graph_seeds(user_input, kg)
-                        if seed_ids:
-                            graph_context = kg.to_context_text(seed_ids, max_tokens=400)
-                            if graph_context:
-                                logger.info(f"[AI助手] 图上下文扩展命中: seeds={seed_ids}, 长度={len(graph_context)}")
-            except Exception as e:
-                logger.warning(f"[AI助手] 画像加载失败: {e}")
-                profile_context = ""
+                # Send final result
+                if editor_content:
+                    yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
 
-            # 构建完整提示词
-            # 构建用户选中的素材上下文
-            user_materials_context = ""
-            if reference_materials:
-                user_materials_context = "\n\n## 用户选中的参考素材\n\n" + "\n\n".join([
-                    f"### 【{m.get('name', '未命名素材')}】\n{m.get('content', '')}"
-                    for m in reference_materials
-                ])
-                logger.info(f"[AI助手] 注入用户选中素材: {len(reference_materials)} 个")
+                logger.info("[AI助手] Orchestrator 内容输出完成")
+                return
 
-            # Inject material instruction if available
-            material_instruction = locals().get('material_instruction', '')
-            material_section = f"\n{material_instruction}\n" if material_instruction else ""
+            # Case 3: Orchestrator produced no content (e.g. QA, unknown intent)
+            # Fall back to streaming LLM with orchestrator-built context
+            logger.info("[AI助手] Orchestrator 无直接内容，fallback 到流式 LLM")
 
-            # Determine conversation phase for context injection
-            if not material_status.get("has_documents"):
-                conversation_phase = (
-                    "【当前阶段：通识问答】素材库为空。"
-                    "优先从本地知识库检索，如未找到相关信息，可基于通识知识简短回答。"
-                    "回答开头加「本地知识库暂无相关内容，以下基于通识知识简答」，末尾建议上传相关文档。\n"
-                    "绝对禁止使用 ---EDITOR---（因为没有参考文档）。"
-                )
-            elif material_status.get("missing_topics") and len(material_status.get("missing_topics", [])) >= 2:
-                conversation_phase = "【当前阶段：素材评估】部分素材缺失。先在对话中告知用户缺什么，等用户确认后再使用 ---EDITOR---。"
-            else:
-                conversation_phase = "【当前阶段：内容生成】素材充足，可以基于参考文档直接生成内容。"
-            material_section += f"\n{conversation_phase}\n"
-
-            # Build structured message array (OpenAI/Claude standard format)
-            # instead of flattening everything into one string.
-            # This lets the model natively distinguish system rules, prior turns,
-            # retrieved context, and the current user input.
-
-            messages: List[Dict[str, str]] = []
-
-            # 1. System message: behavior rules + profile
-            system_parts = [system_prompt]
-            if material_section:
-                system_parts.append(material_section)
-            if profile_context:
-                system_parts.append(f"\n## 当前用户画像\n{profile_context}")
-            messages.append({"role": "system", "content": "\n".join(system_parts)})
-
-            # 2. Chat history (prior turns from current session)
-            chat_history = request.chat_history or []
-            for msg in chat_history[-10:]:  # Keep last 10 turns
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-                if not content:
-                    continue
-                # Map frontend roles to API roles
-                api_role = "assistant" if role == "assistant" else "user"
-                # Truncate very long messages
-                if len(content) > 500:
-                    content = content[:500] + "..."
-                messages.append({"role": api_role, "content": content})
-
-            # 3. Current user message with injected context
-            # Context (retrieved docs + materials) goes with the current user message
-            # so the model knows these are reference materials for THIS query
-            context_parts: List[str] = []
-            if uploaded_file_content:
-                file_label = uploaded_file_name or "上传文件"
-                context_parts.append(f"## 用户上传的文件：{file_label}\n\n{uploaded_file_content}")
-                logger.info(f"[AI助手] 注入上传文件内容: {len(uploaded_file_content)} chars")
-            if doc_context:
-                context_parts.append(f"## 参考文档\n\n{doc_context}")
-            if graph_context:
-                context_parts.append(f"## 相关工艺知识关系\n\n{graph_context}")
-            if user_materials_context:
-                context_parts.append(user_materials_context)
-
-            if context_parts:
-                user_message = "\n\n".join(context_parts) + f"\n\n## 用户问题\n\n{user_input}\n\n请基于参考文档和对话历史回答用户问题。如果参考文档中没有相关信息，请如实告知。"
-            else:
-                user_message = user_input
-
-            messages.append({"role": "user", "content": user_message})
-
-            # Sending progress (kept minimal for frontend spinner)
             yield f"data: {json.dumps({'type': 'progress', 'message': '正在生成回复...'})}\n\n"
 
-            # Route to model tier by mode: QA→simple(fast), write→complex(capable)
-            model_tier = "simple" if mode == "qa" else "complex"
-            # Use higher token limit for craft file framework mode
-            max_gen_tokens = 4000 if uploaded_file_content else 2000
-            logger.info(f"[AI助手] 调用LLM(流式): tier={model_tier}, messages={len(messages)}, max_tokens={max_gen_tokens}")
+            system_prompt = get_craft_system_prompt() if uploaded_file_content else get_system_prompt(mode)
+            messages = _build_llm_messages(
+                system_prompt=system_prompt,
+                user_input=user_input,
+                doc_context=orch_context.get("doc_context", ""),
+                profile_context=orch_context.get("profile_context", ""),
+                graph_context=orch_context.get("graph_context", ""),
+                material_section=orch_context.get("material_section", ""),
+                uploaded_file_content=uploaded_file_content,
+                uploaded_file_name=uploaded_file_name,
+                reference_materials=reference_materials,
+                chat_history=request.chat_history or [],
+            )
 
-            # --- Streaming LLM call ---
+            model_tier = "simple" if mode == "qa" else "complex"
+            max_gen_tokens = 4000 if uploaded_file_content else 2000
+            logger.info(f"[AI助手] Fallback LLM(流式): tier={model_tier}, messages={len(messages)}")
+
+            # Streaming LLM call
             full_content = ""
-            full_thinking = ""
             async for chunk in llm_service.generate_with_messages_stream(
                 messages=messages,
                 temperature=0.7,
@@ -1268,51 +1034,287 @@ async def generate_stream(request: GenerateStreamRequest):
                 chunk_content = chunk.get("content", "")
 
                 if chunk_type == "thinking":
-                    full_thinking += chunk_content
                     yield f"data: {json.dumps({'type': 'thinking', 'content': chunk_content}, ensure_ascii=False)}\n\n"
                 elif chunk_type == "content":
                     full_content += chunk_content
                     yield f"data: {json.dumps({'type': 'content', 'content': chunk_content}, ensure_ascii=False)}\n\n"
                 elif chunk_type == "error":
-                    logger.error(f"[AI助手] 流式LLM错误: {chunk_content}")
                     yield f"data: {json.dumps({'type': 'error', 'error': f'AI服务暂时不可用: {chunk_content}'})}\n\n"
                     return
 
-            content = full_content
-            logger.info(f"[AI助手] LLM响应成功(流式): 长度={len(content)}")
-
-            # Parse EDITOR separator: split chat content from editor content
+            # Parse EDITOR separator
             EDITOR_MARKER = "---EDITOR---"
-            chat_content = content
+            chat_content = full_content
             editor_content = ""
-
-            if EDITOR_MARKER in content:
-                parts = content.split(EDITOR_MARKER, 1)
+            if EDITOR_MARKER in full_content:
+                parts = full_content.split(EDITOR_MARKER, 1)
                 chat_content = parts[0].strip()
                 editor_content = parts[1].strip() if len(parts) > 1 else ""
 
-            # Async save conversation memory (fire-and-forget)
-            try:
-                from app.services.hierarchical_context import hierarchical_context
-                hierarchical_context._memory_service.save_summary_async(
-                    session_id, user_input, content
-                )
-            except Exception as mem_err:
-                logger.warning(f"[AI助手] 记忆保存跳过: {mem_err}")
+            # Save memory
+            _save_memory(session_id, user_input, full_content)
 
-            # Send final result — only editor info, not content (already streamed)
+            # Send final result
             if editor_content:
                 yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
             else:
                 yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
 
-            logger.info(f"[AI助手] 流式输出完成")
+            logger.info("[AI助手] 流式输出完成")
 
         except Exception as e:
             logger.error(f"[AI助手] 处理异常: {str(e)}", exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'error': f'处理失败: {str(e)}'})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+def _build_orchestrator_context(
+    request: GenerateStreamRequest,
+    user_input: str,
+    mode: str,
+) -> Dict[str, Any]:
+    """Build context dict for ProcessOrchestrator.
+
+    Loads: hierarchical context, domain profile, material status,
+    uploaded file, reference materials.
+    """
+    from app.config import settings
+
+    ctx: Dict[str, Any] = {
+        "session_id": request.session_id or "default",
+        "user_id": request.user_id or 1,
+        "project_id": request.project_id,
+        "domain": request.domain or "assembly",
+        "has_uploaded_file": bool(request.uploaded_file_content),
+        "uploaded_file_content": request.uploaded_file_content,
+        "uploaded_file_name": request.uploaded_file_name,
+        "mode": mode,
+    }
+
+    # ── Hierarchical context ──
+    doc_context = ""
+    material_status: Dict[str, Any] = {}
+    try:
+        from app.services.hierarchical_context import hierarchical_context
+
+        current_session_id = request.session_id or "default"
+        context_query = user_input
+        if request.uploaded_file_content:
+            file_keywords = request.uploaded_file_name or ""
+            content_head = request.uploaded_file_content[:500]
+            context_query = f"{user_input} {file_keywords} {content_head}"
+            logger.info(f"[AI助手] 上下文搜索 query 已拼接上传文件信息: {context_query[:100]}...")
+
+        doc_context = hierarchical_context.build_context(
+            query=context_query,
+            session_id=current_session_id,
+            max_tokens=15000,
+            mode=mode,
+        )
+
+        # Multi-pass retrieval for craft file mode
+        if request.uploaded_file_content:
+            doc_context = _multi_pass_retrieval(hierarchical_context, doc_context)
+
+        # Meta info quick query
+        meta_answer = hierarchical_context.search_meta_info(user_input)
+        if meta_answer:
+            logger.info(f"[AI助手] 元信息查询命中: {meta_answer}")
+            doc_context = f"# 快速参考\n\n{meta_answer}\n\n---\n\n{doc_context}"
+
+        # Material status
+        material_status = hierarchical_context.get_material_status(user_input)
+
+        logger.info(
+            f"[AI助手] 上下文注入成功: 长度={len(doc_context)}, "
+            f"has_materials={material_status.get('has_documents')}"
+        )
+    except Exception as e:
+        logger.warning(f"[AI助手] 上下文注入失败（将继续无上下文生成）: {e}")
+
+    ctx["doc_context"] = doc_context
+    ctx["material_status"] = material_status
+
+    # ── Domain profile ──
+    profile_context = ""
+    graph_context = ""
+    try:
+        from app.models.profile import Profile
+        from pathlib import Path
+        domain = request.domain or "assembly"
+        profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
+        if profile_path.exists():
+            loaded_profile = Profile.from_json(profile_path)
+            profile_context = loaded_profile.to_context_text()
+            logger.info(f"[AI助手] 画像注入成功: domain={domain}, 长度={len(profile_context)}")
+
+            if loaded_profile.graph and loaded_profile.graph.get("nodes"):
+                from app.services.knowledge_graph import KnowledgeGraph
+                kg = KnowledgeGraph.from_dict(loaded_profile.graph)
+                seed_ids = _extract_graph_seeds(user_input, kg)
+                if seed_ids:
+                    graph_context = kg.to_context_text(seed_ids, max_tokens=400)
+                    if graph_context:
+                        logger.info(f"[AI助手] 图上下文扩展命中: seeds={seed_ids}, 长度={len(graph_context)}")
+    except Exception as e:
+        logger.warning(f"[AI助手] 画像加载失败: {e}")
+
+    ctx["profile_context"] = profile_context
+    ctx["graph_context"] = graph_context
+
+    # ── Material status instruction ──
+    material_instruction = ""
+    if not material_status.get("has_documents"):
+        material_instruction = (
+            "【系统提示】当前素材库为空。"
+            "回答规则：优先从本地知识库检索，如未找到相关信息，可基于自身通识知识简短回答。"
+            "回答开头必须加一句：「本地知识库暂无相关内容，以下基于通识知识简答」。"
+            "回答末尾建议用户上传相关工艺文档以获取更准确的指导。"
+        )
+    elif material_status.get("missing_topics") and len(material_status.get("missing_topics", [])) >= 2:
+        missing_str = "、".join(material_status["missing_topics"][:5])
+        doc_names = "、".join(d.get("name", "") for d in material_status.get("documents", []))
+        material_instruction = (
+            f"【素材状态】当前有参考文档（{doc_names}），"
+            f"但以下主题可能未被覆盖：{missing_str}。"
+            "回答规则：先基于参考文档回答已覆盖的部分，对未覆盖的部分用自身通识知识补充回答，"
+            "并标注「该部分基于通识知识，非当前文档内容」。"
+            "如果你也不知道答案，直接说不知道，不要编造。"
+        )
+
+    # Conversation phase
+    if not material_status.get("has_documents"):
+        conversation_phase = (
+            "【当前阶段：通识问答】素材库为空。"
+            "优先从本地知识库检索，如未找到相关信息，可基于通识知识简短回答。"
+            "回答开头加「本地知识库暂无相关内容，以下基于通识知识简答」，末尾建议上传相关文档。\n"
+            "绝对禁止使用 ---EDITOR---（因为没有参考文档）。"
+        )
+    elif material_status.get("missing_topics") and len(material_status.get("missing_topics", [])) >= 2:
+        conversation_phase = "【当前阶段：素材评估】部分素材缺失。先在对话中告知用户缺什么，等用户确认后再使用 ---EDITOR---。"
+    else:
+        conversation_phase = "【当前阶段：内容生成】素材充足，可以基于参考文档直接生成内容。"
+
+    material_section = f"\n{material_instruction}\n" if material_instruction else ""
+    material_section += f"\n{conversation_phase}\n"
+    ctx["material_section"] = material_section
+
+    return ctx
+
+
+def _multi_pass_retrieval(hierarchical_context: Any, base_context: str) -> str:
+    """Run targeted per-module searches for craft file completion tasks."""
+    module_queries = [
+        "工艺装备明细表 专用装备",
+        "工具量具明细表 专用工具 量具",
+        "材料定额明细 主要材料 辅助材料",
+        "引用文件目录 标准 规范",
+        "装配件明细 零部组件",
+        "工艺总方案 适用范围 人员 环境",
+        "工序 装配工艺卡 工序内容",
+        "检测 目视 检验 绝缘",
+    ]
+    extra_parts: list[str] = []
+    seen_snippets: set[str] = set()
+
+    for mq in module_queries:
+        results = hierarchical_context.global_keyword_search(query=mq, top_k=3)
+        for r in results:
+            snippet = r.get("snippet", "")
+            doc_name = r.get("doc_name", "")
+            page = r.get("page", "?")
+            score = r.get("score", 0)
+            dedup_key = snippet[:80]
+            if dedup_key in seen_snippets or score < 2:
+                continue
+            seen_snippets.add(dedup_key)
+            extra_parts.append(
+                f"- **{doc_name}** (第{page}页, 相关度:{score}): {snippet}"
+            )
+
+    if extra_parts:
+        extra_section = (
+            "## 补充检索结果（按模块分类）\n\n"
+            + "\n".join(extra_parts)
+        )
+        base_context += f"\n\n{extra_section}"
+        logger.info(f"[AI助手] 多轮补充检索: {len(extra_parts)} 个片段, 总上下文 {len(base_context)} chars")
+
+    return base_context
+
+
+def _build_llm_messages(
+    system_prompt: str,
+    user_input: str,
+    doc_context: str = "",
+    profile_context: str = "",
+    graph_context: str = "",
+    material_section: str = "",
+    uploaded_file_content: Optional[str] = None,
+    uploaded_file_name: Optional[str] = None,
+    reference_materials: Optional[List[dict]] = None,
+    chat_history: Optional[List[dict]] = None,
+) -> List[Dict[str, str]]:
+    """Build structured message array for LLM call."""
+    messages: List[Dict[str, str]] = []
+
+    # 1. System message
+    system_parts = [system_prompt]
+    if material_section:
+        system_parts.append(material_section)
+    if profile_context:
+        system_parts.append(f"\n## 当前用户画像\n{profile_context}")
+    messages.append({"role": "system", "content": "\n".join(system_parts)})
+
+    # 2. Chat history
+    for msg in (chat_history or [])[-10:]:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if not content:
+            continue
+        api_role = "assistant" if role == "assistant" else "user"
+        if len(content) > 500:
+            content = content[:500] + "..."
+        messages.append({"role": api_role, "content": content})
+
+    # 3. User message with context
+    context_parts: List[str] = []
+    if uploaded_file_content:
+        file_label = uploaded_file_name or "上传文件"
+        context_parts.append(f"## 用户上传的文件：{file_label}\n\n{uploaded_file_content}")
+        logger.info(f"[AI助手] 注入上传文件内容: {len(uploaded_file_content)} chars")
+    if doc_context:
+        context_parts.append(f"## 参考文档\n\n{doc_context}")
+    if graph_context:
+        context_parts.append(f"## 相关工艺知识关系\n\n{graph_context}")
+
+    # User-selected reference materials
+    if reference_materials:
+        user_materials_context = "\n\n## 用户选中的参考素材\n\n" + "\n\n".join([
+            f"### 【{m.get('name', '未命名素材')}】\n{m.get('content', '')}"
+            for m in reference_materials
+        ])
+        context_parts.append(user_materials_context)
+
+    if context_parts:
+        user_message = "\n\n".join(context_parts) + f"\n\n## 用户问题\n\n{user_input}\n\n请基于参考文档和对话历史回答用户问题。如果参考文档中没有相关信息，请如实告知。"
+    else:
+        user_message = user_input
+
+    messages.append({"role": "user", "content": user_message})
+    return messages
+
+
+def _save_memory(session_id: Optional[str], user_input: str, content: str):
+    """Async save conversation memory (fire-and-forget)."""
+    try:
+        from app.services.hierarchical_context import hierarchical_context
+        hierarchical_context._memory_service.save_summary_async(
+            session_id, user_input, content
+        )
+    except Exception as e:
+        logger.warning(f"[AI助手] 记忆保存跳过: {e}")
 
 
 @router.post("/select-solution")
