@@ -949,7 +949,8 @@ async def generate_stream(request: GenerateStreamRequest):
                 from app.agents.orchestrator.interaction_models import UserResponse, InputType
 
                 confirm_response = UserResponse(
-                    input_type=InputType.TEXT,
+                    session_id=session_id or "default",
+                    response_type=InputType.TEXT,
                     content="确认执行",
                     selected_option="confirm",
                 )
