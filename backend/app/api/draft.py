@@ -5,6 +5,7 @@ Phase 4 - PIV: piv_20260411_draft_api_phase4
 """
 import io
 import os
+import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -342,3 +343,170 @@ def _generate_word(title: str, content: str, draft_id: int) -> Path:
     doc.save(str(file_path))
 
     return file_path
+
+
+# ── 10. Temp upload (no DB, parse-only) ──────────────────────────
+
+class TempUploadResponse(BaseModel):
+    filename: str
+    file_type: str
+    content: str
+    content_format: str = "html"   # "html" or "text"
+    char_count: int
+    page_count: Optional[int] = None
+
+
+@router.post("/upload-temp", response_model=TempUploadResponse)
+async def upload_temp(file: UploadFile = File(...)):
+    """Upload a file for temporary AI context — no DB storage.
+
+    PDF: VL Service (MinerU/Qwen) pipeline → HTML per page
+    Word: python-docx extraction → HTML
+    Results are not persisted to DB.
+    """
+    filename = file.filename or "unknown"
+    ext = Path(filename).suffix.lower().lstrip(".")
+    if ext not in ("pdf", "docx", "doc"):
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+
+    content_bytes = await file.read()
+    file_type = "pdf" if ext == "pdf" else "docx"
+
+    if file_type == "pdf":
+        content, page_count = await _parse_pdf_with_vl(content_bytes)
+    else:
+        content, page_count = _parse_docx_to_html(content_bytes)
+
+    logger.info(f"📤 Draft API: upload_temp - {filename}, {len(content)} chars, {page_count} pages")
+
+    return TempUploadResponse(
+        filename=filename,
+        file_type=file_type,
+        content=content,
+        content_format="html",
+        char_count=len(content),
+        page_count=page_count,
+    )
+
+
+def _md_to_html(md_text: str) -> str:
+    """Convert markdown (with tables) to HTML."""
+    import markdown
+    return markdown.markdown(md_text, extensions=["tables", "fenced_code"])
+
+
+async def _parse_pdf_with_vl(content_bytes: bytes) -> tuple[str, int]:
+    """Parse PDF using the VL Service pipeline (MinerU/Qwen).
+
+    1. Save bytes to temp file
+    2. Render pages to images (PyMuPDF)
+    3. OCR each page with VL Service
+    4. Convert each page markdown to HTML
+    5. Return concatenated HTML + page count
+    """
+    import fitz
+    from app.services.vl_service import vl_service
+
+    # Write to temp file so fitz can open it
+    tmp_path = Path(tempfile.mktemp(suffix=".pdf"))
+    tmp_path.write_bytes(content_bytes)
+
+    try:
+        # Render pages to images
+        doc = fitz.open(str(tmp_path))
+        total_pages = len(doc)
+
+        # Save page images to a temp directory
+        img_dir = Path(tempfile.mkdtemp(prefix="temp_upload_"))
+        image_paths: list[Path] = []
+
+        for page_num in range(total_pages):
+            page = doc[page_num]
+            zoom = 3.0
+            mat = fitz.Matrix(zoom, zoom)
+            pix = page.get_pixmap(matrix=mat)
+            img_path = img_dir / f"page_{page_num + 1}.png"
+            pix.save(str(img_path))
+            image_paths.append(img_path)
+
+        doc.close()
+
+        # OCR each page with VL Service → markdown → HTML
+        html_parts: list[str] = []
+        for i, img_path in enumerate(image_paths):
+            page_num = i + 1
+            try:
+                md_content, _figures = await vl_service.ocr_page_to_markdown(img_path)
+                page_html = _md_to_html(md_content)
+                html_parts.append(
+                    f'<section class="page" data-page="{page_num}">\n'
+                    f'<h2>第 {page_num} 页</h2>\n'
+                    f'{page_html}\n'
+                    f'</section>'
+                )
+                logger.info(f"upload_temp: page {page_num}/{total_pages} OCR done")
+            except Exception as e:
+                logger.warning(f"upload_temp: page {page_num} OCR failed: {e}")
+                html_parts.append(
+                    f'<section class="page" data-page="{page_num}">\n'
+                    f'<h2>第 {page_num} 页</h2>\n'
+                    f'<p>[解析失败]</p>\n'
+                    f'</section>'
+                )
+
+        content = "\n".join(html_parts)
+
+        # Cleanup temp images
+        shutil.rmtree(str(img_dir), ignore_errors=True)
+
+        return content, total_pages
+
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def _parse_docx_to_html(content_bytes: bytes) -> tuple[str, int]:
+    """Extract text from Word and convert to HTML. Returns (html, page_count)."""
+    import markdown
+    from docx import Document
+
+    doc = Document(io.BytesIO(content_bytes))
+    md_parts: list[str] = []
+
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if not text:
+            continue
+        # Preserve heading levels
+        style_name = para.style.name.lower() if para.style else ""
+        if "heading 1" in style_name:
+            md_parts.append(f"# {text}")
+        elif "heading 2" in style_name:
+            md_parts.append(f"## {text}")
+        elif "heading 3" in style_name:
+            md_parts.append(f"### {text}")
+        else:
+            md_parts.append(text)
+
+    # Also extract tables
+    for table in doc.tables:
+        md_parts.append("")
+        rows = table.rows
+        if len(rows) == 0:
+            continue
+        # Header row
+        header = "| " + " | ".join(cell.text.strip() for cell in rows[0].cells) + " |"
+        separator = "| " + " | ".join("---" for _ in rows[0].cells) + " |"
+        md_parts.append(header)
+        md_parts.append(separator)
+        # Data rows
+        for row in rows[1:]:
+            cells = "| " + " | ".join(cell.text.strip() for cell in row.cells) + " |"
+            md_parts.append(cells)
+        md_parts.append("")
+
+    md_text = "\n".join(md_parts)
+    html = markdown.markdown(md_text, extensions=["tables", "fenced_code"])
+
+    page_count = max(1, len(md_text) // 3000)
+    return html, page_count

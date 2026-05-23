@@ -2,8 +2,13 @@
 文档导出API
 支持导出Word、PDF等格式
 """
+import io
+import os
+import tempfile
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
@@ -204,10 +209,151 @@ async def preview_word_content(
             "figure_count": figure_count,
             "can_export": project.content is not None and len(project.content) > 0
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ 预览失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Content-based export (no project_id required) ──────────────
+
+class ExportContentRequest(BaseModel):
+    """Content-based export request — accepts raw content"""
+    title: str = "未命名文档"
+    content: str
+
+
+@router.post("/content-pdf")
+async def export_content_pdf(request: ExportContentRequest):
+    """Export raw markdown/text content as PDF (no project required)."""
+    logger.info(f"📤 API: 内容PDF导出 - title={request.title}, chars={len(request.content)}")
+    if not request.content.strip():
+        raise HTTPException(status_code=400, detail="内容为空")
+    try:
+        pdf_bytes = _generate_pdf_from_content(request.title, request.content)
+        safe_title = request.title.replace("/", "_").replace("\\", "_")
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe_title}.pdf"'},
+        )
+    except Exception as e:
+        logger.error(f"❌ 内容PDF导出失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/content-word")
+async def export_content_word(request: ExportContentRequest):
+    """Export raw markdown/text content as Word (no project required)."""
+    logger.info(f"📤 API: 内容Word导出 - title={request.title}, chars={len(request.content)}")
+    if not request.content.strip():
+        raise HTTPException(status_code=400, detail="内容为空")
+    try:
+        word_path = _generate_word_from_content(request.title, request.content)
+        safe_title = request.title.replace("/", "_").replace("\\", "_")
+        return FileResponse(
+            path=str(word_path),
+            filename=f"{safe_title}.docx",
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    except Exception as e:
+        logger.error(f"❌ 内容Word导出失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _generate_pdf_from_content(title: str, content: str) -> bytes:
+    """Generate PDF from text content using reportlab."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import re
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=25 * mm, rightMargin=25 * mm,
+        topMargin=20 * mm, bottomMargin=20 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+
+    # Register CJK font
+    font_name = "Helvetica"
+    for font_path in [
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/simsun.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+    ]:
+        if os.path.exists(font_path):
+            try:
+                pdfmetrics.registerFont(TTFont("CJKFont", font_path))
+                font_name = "CJKFont"
+                break
+            except Exception:
+                continue
+
+    title_style = ParagraphStyle("ExportTitle", parent=styles["Title"], fontName=font_name, fontSize=18, spaceAfter=12)
+    h2_style = ParagraphStyle("ExportH2", parent=styles["Heading2"], fontName=font_name, fontSize=14, spaceBefore=12, spaceAfter=6)
+    body_style = ParagraphStyle("ExportBody", parent=styles["Normal"], fontName=font_name, fontSize=11, leading=16, spaceBefore=2)
+
+    def _escape(text: str) -> str:
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    elements = []
+    elements.append(Paragraph(_escape(title), title_style))
+    elements.append(Spacer(1, 12))
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            elements.append(Spacer(1, 4))
+            continue
+        # Detect markdown headings
+        if stripped.startswith("## "):
+            elements.append(Paragraph(_escape(stripped[3:]), h2_style))
+        elif stripped.startswith("# "):
+            elements.append(Paragraph(_escape(stripped[2:]), title_style))
+        else:
+            elements.append(Paragraph(_escape(stripped), body_style))
+
+    doc.build(elements)
+    return buf.getvalue()
+
+
+def _generate_word_from_content(title: str, content: str) -> Path:
+    """Generate Word from text content using python-docx."""
+    from docx import Document
+    from docx.shared import Pt
+
+    doc = Document()
+    doc.add_heading(title, level=0)
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            doc.add_paragraph("")
+            continue
+        if stripped.startswith("## "):
+            doc.add_heading(stripped[3:], level=2)
+        elif stripped.startswith("# "):
+            doc.add_heading(stripped[2:], level=1)
+        elif stripped.startswith("| ") and "|" in stripped[2:]:
+            # Table row — collect consecutive table lines
+            para = doc.add_paragraph(stripped)
+            para.style.font.size = Pt(10)
+        else:
+            para = doc.add_paragraph(stripped)
+            para.style.font.size = Pt(11)
+
+    tmp_dir = Path(tempfile.gettempdir()) / "content_exports"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    safe_title = title.replace("/", "_").replace("\\", "_")
+    file_path = tmp_dir / f"{safe_title}.docx"
+    doc.save(str(file_path))
+    return file_path
 

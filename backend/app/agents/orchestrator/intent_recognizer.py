@@ -226,7 +226,12 @@ class IntentRecognizer:
         # 检查上下文中是否有初稿
         has_draft_context = False
         if context:
-            has_draft_context = bool(context.get("draft_id") or context.get("has_draft"))
+            has_draft_context = bool(
+                context.get("draft_id")
+                or context.get("has_draft")
+                or context.get("has_uploaded_file")
+                or context.get("uploaded_file_content")
+            )
 
         if has_doc_hint or has_draft_context:
             return 0.85  # 高置信度

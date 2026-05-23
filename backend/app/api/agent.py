@@ -17,6 +17,77 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+# ==================== 工艺文件标准框架 ====================
+
+CRAFT_FILE_FRAMEWORK = """\
+## 工艺文件标准框架（参考用，非强制填充）
+
+| # | 模块 | 典型内容 |
+|---|------|----------|
+| 1 | 封面 | 文件名称、编号、产品代号、产品名称、编制/审核/批准签名+日期 |
+| 2 | 工艺装备明细表 | 专用工艺装备清单：序号、名称、编号、数量 |
+| 3 | 工具量具明细表 | 专用工具、量具清单 |
+| 4 | 材料定额明细 | 主要材料 + 辅助材料（名称、牌号、规格、标准号、数量） |
+| 5 | 引用文件目录 | 引用的标准、规范清单 |
+| 6 | 装配件明细 | 零部组件代号、名称、数量、来源 |
+| 7 | 工艺总方案 | 适用范围、人员要求、环境要求、装配前检查、通用注意事项 |
+| 8 | 工序页 | 工序号→工序名称→工序内容→设备→工艺装备→工时定额 |
+| 9 | 检测页 | 目视检测要求、检测参数、判定标准、记录要求 |
+| 10 | 审签页 | 会签栏、编制/审核/批准签名栏 |
+"""
+
+
+def get_craft_system_prompt() -> str:
+    """Get system prompt for craft file refinement mode (with uploaded file)."""
+    return CRAFT_FILE_FRAMEWORK + """\
+
+## 核心职责
+
+你是工艺文件编辑助手。用户上传了一份工艺文件，你要在原有基础上改进它。
+
+## 参考优先级（从高到低）
+
+1. **上传文件本身** — 主要内容来源。尊重原文结构和已有数据，不随意删改。
+2. **用户指令** — 用户说改哪里就改哪里，说润色就润色，说补某块就补某块。
+3. **知识库** — 如果检索到相关参考文档，作为补充依据；没有也不强求。
+
+## 工作原则
+
+- **先读透再动笔**：综合三方面信息后一次性输出完整内容，不要边分析边输出碎片
+- **以原文为底稿**：上传文件是已经写好的东西，大部分内容是完整的，只是写得不够好。你的任务是提升质量，不是重写
+- **内容不空但需提升的常见情况**：
+  - 工序描述过于简略，需要补充操作细节
+  - 参数不完整（缺少公差、量具精度等）
+  - 检测标准模糊，需要具体化
+  - 表格数据有遗漏
+- **标注规则**：基于推定的内容用 `[推定]` 标注，需要用户确认的内容用 `[待确认]` 标注
+
+## 输出格式
+
+### 分析区（对话气泡，150 字以内）
+简要说明：原文整体状况、你要改什么、为什么改。不要长篇大论。
+
+### ---EDITOR--- 区（写入编辑器）
+改进后的完整工艺文件。用 Markdown 格式输出，保留原文的模块划分。表格用 Markdown table。
+
+🚫 **禁止**使用 ---EDITOR--- 的情况：
+- 尚未上传文件
+- 正在等待用户确认方案
+
+## 示例
+
+用户上传了一份电缆装配工艺规程，说"帮我完善一下"。
+
+> 📋 **分析**
+> 原文结构完整（封面→材料→工序→检测），但工序页的参数描述偏简略，检测页缺少判定标准。我将基于原文补充工序细节和检测参数。
+>
+> ---
+>
+> ---EDITOR---
+> （完整的改进后内容）
+"""
+
+
 # ==================== 模式检测 ====================
 
 def detect_mode(user_input: str) -> str:
@@ -71,9 +142,9 @@ def get_system_prompt(mode: str) -> str:
 ## 核心原则：明确回答，不回避，不注水
 
 每次回复必须让用户获得以下之一：
-1. **明确答案** — 基于参考文档直接回答，引用来源（文档名+页码/表格号）
-2. **明确方案** — 文档信息不足时，基于已有内容给出可行的补充方案，列出具体选项
-3. **明确缺失提醒** — 告知用户哪些信息在当前素材库中确实不存在，建议上传哪些文档
+1. **明确答案** — 优先基于参考文档回答，引用来源；文档未覆盖时用通识知识补充回答，标注来源
+2. **明确方案** — 文档信息不足时，基于已有内容+通识知识给出可行的补充方案
+3. **诚实回答** — 文档没有、你也不知道的，直接说不知道，不要编造
 
 ## 长度约束
 对话回复控制在 150 字以内。信息充分时直接给答案+来源，信息缺失时只列缺项+建议。
@@ -92,12 +163,12 @@ def get_system_prompt(mode: str) -> str:
 ### 信息部分覆盖时
 分两部分：
 1. ✅ **已确认内容**（引用原文，注明来源）
-2. ⚠️ **当前文档未覆盖的内容**（具体列出缺什么）
+2. 📖 **通识补充**（文档未覆盖但你了解的内容，标注「基于通识知识」）
 
-然后给出可行的补充方案。
+如果通识知识也不足以回答，说"我暂时不了解这个问题的准确答案"。
 
 ### 信息完全缺失时
-明确告知缺失，建议用户上传哪些标准或文档。
+基于自身通识知识简短回答。回答开头加「本地知识库暂无相关内容，以下基于通识知识简答」，末尾建议用户上传相关文档。如果你也不知道，直接说不知道。
 
 ## 回答示例
 
@@ -285,6 +356,8 @@ class GenerateStreamRequest(BaseModel):
     domain: Optional[str] = Field(None, description="工艺类型 (assembly/welding/coating/general)")
     reference_materials: Optional[List[dict]] = Field(None, description="用户选中的参考素材")
     chat_history: Optional[List[dict]] = Field(None, description="最近对话历史 [{role, content}]")
+    uploaded_file_content: Optional[str] = Field(None, description="临时上传文件解析后的纯文本内容")
+    uploaded_file_name: Optional[str] = Field(None, description="临时上传文件名")
 
 
 class SelectSolutionRequest(BaseModel):
@@ -804,8 +877,10 @@ async def generate_stream(request: GenerateStreamRequest):
     project_id = request.project_id
     user_id = request.user_id or 1
     reference_materials = request.reference_materials or []
+    uploaded_file_content = request.uploaded_file_content
+    uploaded_file_name = request.uploaded_file_name
 
-    logger.info(f"[AI助手] 收到请求: prompt={user_input[:50]}..., session={session_id}, project={project_id}, materials={len(reference_materials)}")
+    logger.info(f"[AI助手] 收到请求: prompt={user_input[:50]}..., session={session_id}, project={project_id}, materials={len(reference_materials)}, uploaded_file={'yes' if uploaded_file_content else 'no'}")
 
     async def generate():
         try:
@@ -834,27 +909,92 @@ async def generate_stream(request: GenerateStreamRequest):
             logger.info(f"[AI助手] 调用LLM: model={settings.QWEN_TEXT_MODEL}")
 
             # 根据模式获取系统提示词
-            system_prompt = get_system_prompt(mode)
+            # If a temp file is uploaded, use craft file framework prompt
+            if uploaded_file_content:
+                system_prompt = get_craft_system_prompt()
+                # Force write mode for file-based interactions
+                mode = 'write'
+                logger.info("[AI助手] 检测到临时上传文件，切换到工艺文件框架模式")
+            else:
+                system_prompt = get_system_prompt(mode)
 
             # 注入分层上下文（新增功能）
             doc_context = ""
             try:
                 from app.services.hierarchical_context import hierarchical_context
-                
+
                 # 生成或使用现有 session_id
                 current_session_id = session_id or "default"
-                
+
                 # Context loading progress (no separate step displayed to user)
                 logger.info("[AI助手] 正在加载工艺文档上下文...")
-                
+
                 # Build layered context with mode-aware loading strategy
+                # When a file is uploaded, enrich the query with file name keywords
+                # so Layer 3 can find matching knowledge base documents
+                context_query = user_input
+                if uploaded_file_content:
+                    file_keywords = uploaded_file_name or ""
+                    # Also extract key identifiers from the file content (first 500 chars)
+                    content_head = uploaded_file_content[:500] if uploaded_file_content else ""
+                    context_query = f"{user_input} {file_keywords} {content_head}"
+                    logger.info(f"[AI助手] 上下文搜索 query 已拼接上传文件信息: {context_query[:100]}...")
+
                 doc_context = hierarchical_context.build_context(
-                    query=user_input,
+                    query=context_query,
                     session_id=current_session_id,
                     max_tokens=15000,
                     mode=mode,  # qa=light, write=full, review=structure-only
                 )
-                
+
+                # When a file is uploaded (craft file mode), do multi-pass retrieval.
+                # A single query only returns ~4000 tokens of fragments.
+                # For "complete this document" tasks we need targeted per-module searches
+                # so the LLM gets real data instead of fabricating content.
+                if uploaded_file_content:
+                    # Craft file module names for targeted search
+                    module_queries = [
+                        "工艺装备明细表 专用装备",
+                        "工具量具明细表 专用工具 量具",
+                        "材料定额明细 主要材料 辅助材料",
+                        "引用文件目录 标准 规范",
+                        "装配件明细 零部组件",
+                        "工艺总方案 适用范围 人员 环境",
+                        "工序 装配工艺卡 工序内容",
+                        "检测 目视 检验 绝缘",
+                    ]
+                    extra_parts: list[str] = []
+                    seen_snippets: set[str] = set()
+
+                    for mq in module_queries:
+                        results = hierarchical_context.global_keyword_search(
+                            query=mq, top_k=3
+                        )
+                        for r in results:
+                            snippet = r.get("snippet", "")
+                            doc_name = r.get("doc_name", "")
+                            page = r.get("page", "?")
+                            score = r.get("score", 0)
+                            # Deduplicate by snippet content
+                            dedup_key = snippet[:80]
+                            if dedup_key in seen_snippets or score < 2:
+                                continue
+                            seen_snippets.add(dedup_key)
+                            extra_parts.append(
+                                f"- **{doc_name}** (第{page}页, 相关度:{score}): {snippet}"
+                            )
+
+                    if extra_parts:
+                        extra_section = (
+                            "## 补充检索结果（按模块分类）\n\n"
+                            + "\n".join(extra_parts)
+                        )
+                        doc_context += f"\n\n{extra_section}"
+                        logger.info(
+                            f"[AI助手] 多轮补充检索: {len(extra_parts)} 个片段, "
+                            f"总上下文 {len(doc_context)} chars"
+                        )
+
                 # 尝试元信息快速查询
                 meta_answer = hierarchical_context.search_meta_info(user_input)
                 if meta_answer:
@@ -866,14 +1006,21 @@ async def generate_stream(request: GenerateStreamRequest):
                 material_status = hierarchical_context.get_material_status(user_input)
                 material_instruction = ""
                 if not material_status.get("has_documents"):
-                    material_instruction = "【系统提示】当前素材库中没有任何参考文档。请在回复中明确告知用户：请先通过素材库上传相关工艺文件。"
+                    material_instruction = (
+                        "【系统提示】当前素材库为空。"
+                        "回答规则：优先从本地知识库检索，如未找到相关信息，可基于自身通识知识简短回答。"
+                        "回答开头必须加一句：「本地知识库暂无相关内容，以下基于通识知识简答」。"
+                        "回答末尾建议用户上传相关工艺文档以获取更准确的指导。"
+                    )
                 elif material_status.get("missing_topics") and len(material_status["missing_topics"]) >= 2:
                     missing_str = "、".join(material_status["missing_topics"][:5])
                     doc_names = "、".join(d.get("name", "") for d in material_status.get("documents", []))
                     material_instruction = (
                         f"【素材状态】当前有参考文档（{doc_names}），"
                         f"但以下主题可能未被覆盖：{missing_str}。"
-                        "基于已有素材回答，对缺少参考信息的部分明确告知用户。"
+                        "回答规则：先基于参考文档回答已覆盖的部分，对未覆盖的部分用自身通识知识补充回答，"
+                        "并标注「该部分基于通识知识，非当前文档内容」。"
+                        "如果你也不知道答案，直接说不知道，不要编造。"
                     )
 
                 logger.info(f"[AI助手] 上下文注入成功: 长度={len(doc_context)}, has_materials={material_status.get('has_documents')}")
@@ -927,7 +1074,12 @@ async def generate_stream(request: GenerateStreamRequest):
 
             # Determine conversation phase for context injection
             if not material_status.get("has_documents"):
-                conversation_phase = "【当前阶段：信息收集】素材库为空，你必须只做纯对话回复，绝对禁止使用 ---EDITOR---。告诉用户需要上传什么文档。"
+                conversation_phase = (
+                    "【当前阶段：通识问答】素材库为空。"
+                    "优先从本地知识库检索，如未找到相关信息，可基于通识知识简短回答。"
+                    "回答开头加「本地知识库暂无相关内容，以下基于通识知识简答」，末尾建议上传相关文档。\n"
+                    "绝对禁止使用 ---EDITOR---（因为没有参考文档）。"
+                )
             elif material_status.get("missing_topics") and len(material_status.get("missing_topics", [])) >= 2:
                 conversation_phase = "【当前阶段：素材评估】部分素材缺失。先在对话中告知用户缺什么，等用户确认后再使用 ---EDITOR---。"
             else:
@@ -967,6 +1119,10 @@ async def generate_stream(request: GenerateStreamRequest):
             # Context (retrieved docs + materials) goes with the current user message
             # so the model knows these are reference materials for THIS query
             context_parts: List[str] = []
+            if uploaded_file_content:
+                file_label = uploaded_file_name or "上传文件"
+                context_parts.append(f"## 用户上传的文件：{file_label}\n\n{uploaded_file_content}")
+                logger.info(f"[AI助手] 注入上传文件内容: {len(uploaded_file_content)} chars")
             if doc_context:
                 context_parts.append(f"## 参考文档\n\n{doc_context}")
             if graph_context:
@@ -986,22 +1142,35 @@ async def generate_stream(request: GenerateStreamRequest):
 
             # Route to model tier by mode: QA→simple(fast), write→complex(capable)
             model_tier = "simple" if mode == "qa" else "complex"
-            logger.info(f"[AI助手] 调用LLM: tier={model_tier}, messages={len(messages)}")
-            result = await llm_service.generate_with_messages(
+            # Use higher token limit for craft file framework mode
+            max_gen_tokens = 4000 if uploaded_file_content else 2000
+            logger.info(f"[AI助手] 调用LLM(流式): tier={model_tier}, messages={len(messages)}, max_tokens={max_gen_tokens}")
+
+            # --- Streaming LLM call ---
+            full_content = ""
+            full_thinking = ""
+            async for chunk in llm_service.generate_with_messages_stream(
                 messages=messages,
                 temperature=0.7,
-                max_tokens=2000,
+                max_tokens=max_gen_tokens,
                 tier=model_tier,
-            )
+            ):
+                chunk_type = chunk.get("type", "")
+                chunk_content = chunk.get("content", "")
 
-            if result.get("status") == "error":
-                error_msg = result.get("error", "LLM调用失败")
-                logger.error(f"[AI助手] LLM调用失败: {error_msg}")
-                yield f"data: {json.dumps({'type': 'error', 'error': f'AI服务暂时不可用: {error_msg}'})}\n\n"
-                return
+                if chunk_type == "thinking":
+                    full_thinking += chunk_content
+                    yield f"data: {json.dumps({'type': 'thinking', 'content': chunk_content}, ensure_ascii=False)}\n\n"
+                elif chunk_type == "content":
+                    full_content += chunk_content
+                    yield f"data: {json.dumps({'type': 'content', 'content': chunk_content}, ensure_ascii=False)}\n\n"
+                elif chunk_type == "error":
+                    logger.error(f"[AI助手] 流式LLM错误: {chunk_content}")
+                    yield f"data: {json.dumps({'type': 'error', 'error': f'AI服务暂时不可用: {chunk_content}'})}\n\n"
+                    return
 
-            content = result.get("content", "")
-            logger.info(f"[AI助手] LLM响应成功: 长度={len(content)}")
+            content = full_content
+            logger.info(f"[AI助手] LLM响应成功(流式): 长度={len(content)}")
 
             # Parse EDITOR separator: split chat content from editor content
             EDITOR_MARKER = "---EDITOR---"
@@ -1022,13 +1191,11 @@ async def generate_stream(request: GenerateStreamRequest):
             except Exception as mem_err:
                 logger.warning(f"[AI助手] 记忆保存跳过: {mem_err}")
 
-            # 发送最终结果
+            # Send final result — only editor info, not content (already streamed)
             if editor_content:
-                # Has editor content: send chat part and editor part separately
-                yield f"data: {json.dumps({'type': 'result', 'content': chat_content, 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
             else:
-                # Pure chat response (no editor content)
-                yield f"data: {json.dumps({'type': 'result', 'content': chat_content, 'has_editor': False}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
 
             logger.info(f"[AI助手] 流式输出完成")
 

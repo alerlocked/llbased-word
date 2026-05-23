@@ -6,10 +6,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
-import { Select, Button, Space, message, Modal, Input, Tooltip, Popconfirm } from 'antd'
+import { Select, Button, Space, message, Modal, Input, Tooltip, Popconfirm, Dropdown } from 'antd'
 import {
   PlusOutlined, SaveOutlined, UndoOutlined,
-  DatabaseOutlined, SettingOutlined, RobotOutlined, DeleteOutlined, UserOutlined
+  DatabaseOutlined, SettingOutlined, DeleteOutlined, UserOutlined,
+  ExportOutlined, FilePdfOutlined, FileWordOutlined
 } from '@ant-design/icons'
 import { useCreationStore } from '../stores/creationStore'
 import MaterialDrawer from '../components/workspace/MaterialDrawer'
@@ -52,15 +53,14 @@ const WorkspacePage: React.FC = () => {
   const canUndoNow = currentProjectId ? canUndo(currentProjectId) : false
 
   // UI状态
-  const [aiPanelVisible, setAiPanelVisible] = useState(false)
-  const [materialDrawerVisible, setMaterialDrawerVisible] = useState(false)
-  const [materialDrawerTab, setMaterialDrawerTab] = useState<string | undefined>(undefined)
-  const [settingsDrawerVisible, setSettingsDrawerVisible] = useState(false)
   const [imageModalVisible, setImageModalVisible] = useState(false)
+  // Left sidebar: which panel is active ('materials' | 'settings' | null)
+  const [leftSidePanel, setLeftSidePanel] = useState<string | null>(null)
+  const [materialDrawerTab, setMaterialDrawerTab] = useState<string | undefined>(undefined)
 
   // AI交互状态
   const [_selectedText, _setSelectedText] = useState('')
-  
+
   // 预览模式状态（智能写作结果预览）
   const [previewMode, setPreviewMode] = useState(false)
   const [previewContent, setPreviewContent] = useState('')
@@ -436,15 +436,58 @@ const WorkspacePage: React.FC = () => {
     message.info('已取消')
   }, [])
 
+  // Export content as PDF or Word
+  const handleExport = useCallback(async (format: 'pdf' | 'word') => {
+    if (!currentProjectId || !editorContent.trim()) {
+      message.warning('没有可导出的内容')
+      return
+    }
+    // Find current project name
+    const project = projects.find(p => p.id === currentProjectId)
+    const title = project?.name || '未命名文档'
+
+    try {
+      const endpoint = format === 'pdf'
+        ? 'http://localhost:8000/api/export/content-pdf'
+        : 'http://localhost:8000/api/export/content-word'
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content: editorContent }),
+      })
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ detail: '导出失败' }))
+        throw new Error(errData.detail || '导出失败')
+      }
+
+      // Download blob
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${title}.${format === 'pdf' ? 'pdf' : 'docx'}`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      message.success(`已导出为 ${format.toUpperCase()}`)
+    } catch (error) {
+      const err = error as Error
+      message.error(`导出失败: ${err.message}`)
+    }
+  }, [currentProjectId, editorContent, projects])
+
   return (
-    <div style={{ 
-      height: '100vh', 
-      display: 'flex', 
+    <div style={{
+      height: '100vh',
+      display: 'flex',
       flexDirection: 'column',
       background: colors.bgPrimary
     }}>
-      {/* 顶部导航栏 - 极简温暖风格 */}
-      <nav aria-label="主导航" style={{ 
+      {/* 顶部导航栏 */}
+      <nav aria-label="主导航" style={{
         height: 56,
         padding: '0 24px',
         borderBottom: `1px solid ${colors.borderLight}`,
@@ -454,7 +497,7 @@ const WorkspacePage: React.FC = () => {
         justifyContent: 'space-between',
         flexShrink: 0
       }}>
-        {/* 左侧：Logo + 项目选择 */}
+        {/* 左侧：Logo + 项目选择 + 编辑操作 */}
         <Space size={16}>
           <div style={{
             fontSize: 18,
@@ -467,9 +510,9 @@ const WorkspacePage: React.FC = () => {
             <span style={{ fontSize: 24 }}>📄</span>
             <span style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>CraftDoc</span>
           </div>
-          
+
           <div style={{ width: 1, height: 24, background: colors.border }} />
-          
+
           <Select
             style={{ width: 160 }}
             placeholder="选择项目"
@@ -513,6 +556,31 @@ const WorkspacePage: React.FC = () => {
               style={{ color: colors.textSecondary }}
             />
           </Tooltip>
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'pdf',
+                  icon: <FilePdfOutlined />,
+                  label: '导出 PDF',
+                  onClick: () => handleExport('pdf'),
+                },
+                {
+                  key: 'word',
+                  icon: <FileWordOutlined />,
+                  label: '导出 Word',
+                  onClick: () => handleExport('word'),
+                },
+              ],
+            }}
+          >
+            <Button
+              type="text"
+              icon={<ExportOutlined />}
+              disabled={!currentProjectId || !editorContent.trim()}
+              style={{ color: colors.textSecondary }}
+            />
+          </Dropdown>
           <Tooltip title="撤销 (Ctrl+Z)">
             <Button
               type="text"
@@ -523,63 +591,104 @@ const WorkspacePage: React.FC = () => {
             />
           </Tooltip>
         </Space>
+      </nav>
 
-        {/* 右侧：功能入口 */}
-        <Space size={8}>
-          <Tooltip title="素材库">
+      {/* 主内容区：左侧图标栏 + 展开面板 + 编辑区 + AI 面板 */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+        {/* 左侧图标栏 */}
+        <div style={{
+          width: 48,
+          background: colors.bgSecondary,
+          borderRight: `1px solid ${colors.borderLight}`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          paddingTop: 12,
+          gap: 4,
+          flexShrink: 0,
+        }}>
+          <Tooltip title="素材库" placement="right">
             <Button
-              type="text"
+              type={leftSidePanel === 'materials' ? 'primary' : 'text'}
               icon={<DatabaseOutlined />}
-              onClick={() => {
-                setMaterialDrawerTab('files')
-                setMaterialDrawerVisible(true)
+              onClick={() => setLeftSidePanel(leftSidePanel === 'materials' ? null : 'materials')}
+              style={{
+                color: leftSidePanel === 'materials' ? undefined : colors.textSecondary,
+                width: 36,
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
-              style={{ color: colors.textSecondary }}
             />
           </Tooltip>
-          <Tooltip title={aiPanelVisible ? '隐藏' : '显示'}>
-            <Button
-              type={aiPanelVisible ? 'primary' : 'text'}
-              icon={<RobotOutlined />}
-              onClick={() => setAiPanelVisible(!aiPanelVisible)}
-              style={aiPanelVisible ? {} : { color: colors.textSecondary }}
-            />
-          </Tooltip>
-          <Tooltip title="用户画像">
+          <Tooltip title="用户画像" placement="right">
             <Button
               type="text"
               icon={<UserOutlined />}
               onClick={() => navigate(currentProjectId ? `/profile?projectId=${currentProjectId}` : '/profile')}
-              style={{ color: colors.textSecondary }}
+              style={{
+                color: colors.textSecondary,
+                width: 36,
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             />
           </Tooltip>
-          <Tooltip title="设置">
+          <Tooltip title="设置" placement="right">
             <Button
-              type="text"
+              type={leftSidePanel === 'settings' ? 'primary' : 'text'}
               icon={<SettingOutlined />}
-              onClick={() => setSettingsDrawerVisible(true)}
-              style={{ color: colors.textSecondary }}
+              onClick={() => setLeftSidePanel(leftSidePanel === 'settings' ? null : 'settings')}
+              style={{
+                color: leftSidePanel === 'settings' ? undefined : colors.textSecondary,
+                width: 36,
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             />
           </Tooltip>
-        </Space>
-      </nav>
+        </div>
 
-      {/* 主内容区 */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* 左侧展开面板（inline，推挤主内容区） */}
+        {leftSidePanel === 'materials' && (
+          <MaterialDrawer
+            visible={leftSidePanel === 'materials'}
+            onClose={() => setLeftSidePanel(null)}
+            projectId={currentProjectId}
+            onInsert={handleInsertToEditor}
+            defaultTab={materialDrawerTab}
+            inline={true}
+          />
+        )}
+        {leftSidePanel === 'settings' && (
+          <SettingsDrawer
+            visible={leftSidePanel === 'settings'}
+            onClose={() => setLeftSidePanel(null)}
+            inline={true}
+          />
+        )}
+
         {/* 编辑区 */}
-        <div 
-          style={{ 
-            flex: 1, 
-            display: 'flex', 
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            background: colors.bgPrimary
+            background: colors.bgPrimary,
+            minWidth: 0,
           }}
         >
           {/* 编辑器区域 */}
           <div style={{ flex: 1, padding: '24px 48px', overflow: 'auto' }}>
-            <div style={{ 
-              maxWidth: 800, 
+            <div style={{
+              maxWidth: 800,
               margin: '0 auto',
               minHeight: '100%'
             }}>
@@ -594,7 +703,7 @@ const WorkspacePage: React.FC = () => {
                       size="large"
                       icon={<PlusOutlined />}
                       onClick={() => setCreateModalVisible(true)}
-                      style={{ 
+                      style={{
                         background: colors.primary,
                         borderColor: colors.primary,
                         borderRadius: 20,
@@ -617,15 +726,15 @@ const WorkspacePage: React.FC = () => {
                   borderRadius: 8,
                   border: `2px dashed ${colors.primary}`
                 }}>
-                  <div style={{ 
-                    marginBottom: 16, 
+                  <div style={{
+                    marginBottom: 16,
                     padding: '8px 12px',
                     background: `${colors.primary}15`,
                     borderRadius: 8,
                     fontSize: 13,
                     color: colors.textSecondary
                   }}>
-                    📝 正在预览 AI 生成内容，按 <kbd style={{ 
+                    📝 正在预览 AI 生成内容，按 <kbd style={{
                       background: colors.bgSecondary,
                       padding: '2px 6px',
                       borderRadius: 4,
@@ -642,7 +751,7 @@ const WorkspacePage: React.FC = () => {
                   />
                 </div>
               ) : (
-                /* 编辑模式 - 使用 Tiptap 编辑器（支持内联图片） */
+                /* 编辑模式 */
                 <MarkdownTiptapEditor
                   key={currentProjectId || 'no-project'}
                   ref={editorRef}
@@ -658,7 +767,7 @@ const WorkspacePage: React.FC = () => {
               )}
             </div>
           </div>
-          
+
           {/* 预览模式浮动确认栏 */}
           {previewMode && (
             <FloatingConfirmBar
@@ -672,45 +781,26 @@ const WorkspacePage: React.FC = () => {
           )}
         </div>
 
-        {/* AI面板 - 可折叠 */}
-        {aiPanelVisible && (
-          <div style={{ 
-            width: 380, 
-            borderLeft: `1px solid ${colors.borderLight}`,
-            background: colors.bgSecondary,
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <AIChatPanel
-                projectId={currentProjectId}
-                selectedText={_selectedText}
-                onInsertToEditor={handleInsertToEditor}
-                onDirectInsert={handleDirectInsert}
-                onPreviewContent={handlePreviewContent}
-                onClose={() => setAiPanelVisible(false)}
-              />
-            </div>
+        {/* AI 面板 - 永远固定在右侧 */}
+        <div style={{
+          width: 380,
+          borderLeft: `1px solid ${colors.borderLight}`,
+          background: colors.bgSecondary,
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0,
+        }}>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <AIChatPanel
+              projectId={currentProjectId}
+              selectedText={_selectedText}
+              onInsertToEditor={handleInsertToEditor}
+              onDirectInsert={handleDirectInsert}
+              onPreviewContent={handlePreviewContent}
+            />
           </div>
-        )}
+        </div>
       </div>
-
-      {/* 抽屉组件 */}
-      <MaterialDrawer
-        visible={materialDrawerVisible}
-        onClose={() => {
-          setMaterialDrawerVisible(false)
-          setMaterialDrawerTab(undefined)
-        }}
-        projectId={currentProjectId}
-        onInsert={handleInsertToEditor}
-        defaultTab={materialDrawerTab}
-      />
-
-      <SettingsDrawer
-        visible={settingsDrawerVisible}
-        onClose={() => setSettingsDrawerVisible(false)}
-      />
 
       {/* 图片插入对话框 */}
       <ImageInsertDialog
@@ -739,8 +829,8 @@ const WorkspacePage: React.FC = () => {
         confirmLoading={creating}
         width={420}
         okButtonProps={{
-          style: { 
-            background: colors.primary, 
+          style: {
+            background: colors.primary,
             borderColor: colors.primary,
             borderRadius: 20
           }
@@ -759,15 +849,15 @@ const WorkspacePage: React.FC = () => {
             maxLength={50}
             showCount
             autoFocus
-            style={{ 
+            style={{
               borderRadius: 12,
               height: 48
             }}
           />
-          <p style={{ 
-            marginTop: 12, 
-            fontSize: 13, 
-            color: colors.textTertiary 
+          <p style={{
+            marginTop: 12,
+            fontSize: 13,
+            color: colors.textTertiary
           }}>
             💡 项目用于组织你的工艺文档和编辑内容
           </p>

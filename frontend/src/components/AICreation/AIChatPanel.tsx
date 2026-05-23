@@ -4,8 +4,8 @@
  * 温暖黄色系视觉风格
  */
 import { useState, useEffect, useRef } from 'react'
-import { Input, Button, Space, message, Spin, Drawer, List, Typography, Popconfirm } from 'antd'
-import { CopyOutlined, PlusOutlined, RocketOutlined, HistoryOutlined, DeleteOutlined, MenuFoldOutlined, MessageOutlined, StopOutlined } from '@ant-design/icons'
+import { Input, Button, Space, message, Spin, Drawer, List, Typography, Popconfirm, Collapse, Upload } from 'antd'
+import { CopyOutlined, PlusOutlined, RocketOutlined, HistoryOutlined, DeleteOutlined, MenuFoldOutlined, MessageOutlined, StopOutlined, PaperClipOutlined, CloseOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useCreationStore, Message } from '../../stores/creationStore'
 import { colors } from '../../styles/design-tokens'
 import { PlanOptionCard } from './PlanOptionCard'
@@ -61,6 +61,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
   const [historyVisible, setHistoryVisible] = useState(false)
+  // Uploaded file state for AI context injection
+  const [uploadedFile, setUploadedFile] = useState<{
+    name: string
+    content: string
+    charCount: number
+    status: 'uploading' | 'done' | 'error'
+  } | null>(null)
   // 流式读取控制器，用于停止生成
   const [streamController, setStreamController] = useState<AbortController | null>(null)
   // 保存用户原始输入，用于停止时恢复
@@ -444,6 +451,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
     setStreamController(controller)
 
     let contentAccumulator = ''
+    let thinkingAccumulator = ''
     editorContentRef.current = ''  // Reset editor content for new request
 
     try {
@@ -481,6 +489,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             content: m.content,
             type: m.type
           })) : undefined,  // 注入选中的素材
+          uploaded_file_content: uploadedFile?.status === 'done' ? uploadedFile.content : undefined,
+          uploaded_file_name: uploadedFile?.status === 'done' ? uploadedFile.name : undefined,
           chat_history: messages.slice(-10).map((m: any) => ({
             role: m.role,
             content: typeof m.content === 'string' ? m.content.slice(0, 500) : '',
@@ -515,6 +525,26 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 // 接收模式消息
                 currentModeRef.current = data.mode
                 console.info(`[AI助手] 模式: ${data.mode}`)
+              } else if (data.type === 'thinking') {
+                // Streaming thinking tokens — accumulate and update UI
+                thinkingAccumulator += data.content || ''
+                const updatedAssistant: Message = {
+                  ...assistantMsg,
+                  content: contentAccumulator,
+                  thinkingContent: thinkingAccumulator,
+                  isStreaming: true,
+                }
+                updateActiveMessages([...messages, userMsg, updatedAssistant])
+              } else if (data.type === 'content') {
+                // Streaming content tokens — accumulate and update UI
+                contentAccumulator += data.content || ''
+                const updatedAssistant: Message = {
+                  ...assistantMsg,
+                  content: contentAccumulator,
+                  thinkingContent: thinkingAccumulator || undefined,
+                  isStreaming: true,
+                }
+                updateActiveMessages([...messages, userMsg, updatedAssistant])
               } else if (data.type === 'improvement_solutions') {
                 // 收到改进方案，显示方案选择界面
                 const solutions = Array.isArray(data.solutions) ? data.solutions : []
@@ -618,7 +648,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
               } else if (data.type === 'progress') {
                 // Progress received — frontend shows spinner via isStreaming
               } else if (data.type === 'result') {
-                contentAccumulator = data.content
+                // Stream finished — only extract editor content, don't overwrite accumulated text
                 if (data.has_editor && data.editor_content) {
                   editorContentRef.current = data.editor_content
                 } else {
@@ -680,6 +710,47 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       setStreamController(null)
       setOriginalInput('')
     }
+  }
+
+  // Handle temp file upload for AI context
+  const handleFileUpload = async (file: File) => {
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ]
+    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|docx?|doc)$/i)) {
+      message.error('仅支持 PDF、Word 文件')
+      return
+    }
+
+    setUploadedFile({ name: file.name, content: '', charCount: 0, status: 'uploading' })
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await fetch('http://localhost:8000/api/drafts/upload-temp', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ detail: '上传失败' }))
+        throw new Error(errData.detail || '上传失败')
+      }
+      const data = await response.json()
+      setUploadedFile({
+        name: data.filename,
+        content: data.content,
+        charCount: data.char_count,
+        status: 'done',
+      })
+      message.success(`解析完成: ${data.char_count} 字`)
+    } catch (error) {
+      const err = error as Error
+      setUploadedFile({ name: file.name, content: '', charCount: 0, status: 'error' })
+      message.error(`文件解析失败: ${err.message}`)
+    }
+    return false // prevent antd Upload from doing default upload
   }
 
   const handleNewSession = () => {
@@ -764,7 +835,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
               {/* 消息头部 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ fontSize: 12, color: colors.textTertiary }}>
-                  {msg.role === 'user' ? '你' : '🤖 阿西莫夫'}
+                  {msg.role === 'user' ? '你' : '🤖 工艺助手'}
                 </span>
                 {msg.role === 'assistant' && !msg.isStreaming && (
                   <Space size={4}>
@@ -783,10 +854,105 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   </Space>
                 )}
               </div>
-              {/* Message content */}
-              <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.8, color: colors.textPrimary }}>
-                {msg.content || (msg.isStreaming ? <Spin size="small" /> : '')}
-              </div>
+              {/* Thinking content — show in real-time during streaming, collapsed after done */}
+              {msg.thinkingContent && (
+                msg.isStreaming ? (
+                  // Streaming: show thinking text live
+                  <div style={{
+                    marginBottom: 8,
+                    padding: 8,
+                    background: `${colors.primary}08`,
+                    borderRadius: 6,
+                    borderLeft: `3px solid ${colors.primary}`,
+                  }}>
+                    <div style={{ fontSize: 12, color: colors.primary, marginBottom: 4, fontWeight: 500 }}>
+                      思考中...
+                    </div>
+                    <div style={{
+                      whiteSpace: 'pre-wrap',
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      color: colors.textTertiary,
+                      maxHeight: 120,
+                      overflow: 'auto',
+                    }}>
+                      {msg.thinkingContent}
+                    </div>
+                  </div>
+                ) : (
+                  // Finished: collapsed, click to expand
+                  <Collapse
+                    size="small"
+                    style={{ marginBottom: 8, border: 'none', background: 'transparent' }}
+                    items={[{
+                      key: 'thinking',
+                      label: (
+                        <span style={{ fontSize: 12, color: colors.primary, cursor: 'pointer' }}>
+                          ▸ 查看思考过程
+                        </span>
+                      ),
+                      children: (
+                        <div style={{
+                          whiteSpace: 'pre-wrap',
+                          fontSize: 12,
+                          lineHeight: 1.6,
+                          color: colors.textTertiary,
+                          maxHeight: 200,
+                          overflow: 'auto',
+                          background: colors.bgPrimary,
+                          padding: 8,
+                          borderRadius: 6,
+                        }}>
+                          {msg.thinkingContent}
+                        </div>
+                      ),
+                    }]}
+                  />
+                )
+              )}
+              {/* Streaming spinner when no content and no thinking yet */}
+              {msg.isStreaming && !msg.content && !msg.thinkingContent && (
+                <div style={{ padding: '8px 0' }}>
+                  <Spin size="small" />
+                </div>
+              )}
+              {/* Message content with general-knowledge disclaimer split */}
+              {(() => {
+                const disclaimerPrefix = '本地知识库暂无相关内容，以下基于通识知识简答'
+                if (msg.content.startsWith(disclaimerPrefix)) {
+                  const rest = msg.content.slice(disclaimerPrefix.length).replace(/^[：:，,]\s*/, '')
+                  return (
+                    <>
+                      {/* Prominent disclaimer banner */}
+                      <div style={{
+                        marginBottom: 10,
+                        padding: '8px 12px',
+                        background: '#fff7e6',
+                        border: '1px solid #ffd591',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: '#ad6800',
+                        lineHeight: 1.6,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 6,
+                      }}>
+                        <span style={{ flexShrink: 0 }}>⚠️</span>
+                        <span>本地知识库暂无相关内容，以下回答基于通识知识，建议上传相关工艺文档获取更准确的指导。</span>
+                      </div>
+                      {/* Actual answer */}
+                      <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.8, color: colors.textPrimary }}>
+                        {rest}
+                      </div>
+                    </>
+                  )
+                }
+                return (
+                  <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.8, color: colors.textPrimary }}>
+                    {msg.content}
+                  </div>
+                )
+              })()}
               {/* 如果有待办事项，显示在消息气泡内（只显示标题） */}
               {(msg as any).todoItems && Array.isArray((msg as any).todoItems) && (msg as any).todoItems.length > 0 && (
                 <div style={{ marginTop: 12, padding: '12px', background: colors.bgPrimary, borderRadius: 6, border: `1px solid ${colors.borderLight}` }}>
@@ -963,6 +1129,69 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
 
         {/* 输入区域 - 简化版只有写作输入 */}
         <div style={{ padding: 16, borderTop: `1px solid ${colors.borderLight}`, background: colors.bgSecondary }}>
+        {/* File upload area */}
+        {!uploadedFile ? (
+          <Upload
+            beforeUpload={(file) => { handleFileUpload(file); return false }}
+            showUploadList={false}
+            accept=".pdf,.docx,.doc"
+          >
+            <div style={{
+              border: `1px dashed ${colors.borderLight}`,
+              borderRadius: 8,
+              padding: '8px 12px',
+              marginBottom: 8,
+              textAlign: 'center',
+              cursor: 'pointer',
+              color: colors.textTertiary,
+              fontSize: 12,
+              transition: 'border-color 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = colors.primary }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.borderLight }}
+            >
+              <PaperClipOutlined style={{ marginRight: 6 }} />
+              点击上传文件作为 AI 上下文（PDF、Word）
+            </div>
+          </Upload>
+        ) : (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '6px 10px',
+            marginBottom: 8,
+            borderRadius: 8,
+            background: uploadedFile.status === 'error' ? '#fff2f0' : colors.bgPrimary,
+            border: `1px solid ${uploadedFile.status === 'error' ? '#ffccc7' : colors.borderLight}`,
+            fontSize: 12,
+          }}>
+            {uploadedFile.status === 'uploading' ? (
+              <Spin size="small" />
+            ) : uploadedFile.status === 'done' ? (
+              <FileTextOutlined style={{ color: colors.primary }} />
+            ) : (
+              <span style={{ color: '#ff4d4f' }}>!</span>
+            )}
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: colors.textPrimary }}>
+              {uploadedFile.name}
+            </span>
+            {uploadedFile.status === 'done' && (
+              <span style={{ color: colors.primary, fontSize: 11 }}>
+                {uploadedFile.charCount.toLocaleString()} 字
+              </span>
+            )}
+            {uploadedFile.status === 'uploading' && <span style={{ color: colors.textTertiary }}>解析中...</span>}
+            {uploadedFile.status === 'error' && <span style={{ color: '#ff4d4f' }}>失败</span>}
+            <Button
+              type="text"
+              size="small"
+              icon={<CloseOutlined />}
+              onClick={() => setUploadedFile(null)}
+              style={{ color: colors.textTertiary, minWidth: 20, padding: 0 }}
+            />
+          </div>
+        )}
         <Space.Compact style={{ width: '100%' }}>
           <TextArea
             value={inputText}

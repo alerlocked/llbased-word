@@ -3,7 +3,7 @@
 使用通义千问qwen-plus模型进行文本生成
 """
 import time
-from typing import List, Dict, Optional, Literal
+from typing import List, Dict, Optional, Literal, AsyncGenerator
 import httpx
 from openai import OpenAI
 
@@ -387,7 +387,8 @@ class QwenLLMService:
                 model=model,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                extra_body={"enable_thinking": False},
             )
 
             content = response.choices[0].message.content.strip()
@@ -410,6 +411,62 @@ class QwenLLMService:
                 "error": str(e),
                 "content": ""
             }
+
+    async def generate_with_messages_stream(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        tier: Literal["simple", "complex"] = "complex",
+    ) -> AsyncGenerator[Dict[str, str], None]:
+        """Streaming chat completion.
+
+        Yields dicts with keys:
+          - {"type": "thinking", "content": "..."} for model reasoning tokens
+          - {"type": "content", "content": "..."} for regular output tokens
+        """
+        start_time = time.time()
+        model = self._get_model(tier)
+        client = self._get_client(tier)
+
+        try:
+            stream = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+                extra_body={"enable_thinking": True},
+            )
+
+            for chunk in stream:
+                choice = chunk.choices[0] if chunk.choices else None
+                if not choice:
+                    continue
+
+                delta = choice.delta
+
+                # Reasoning/thinking tokens (supported by DeepSeek-R1 etc.)
+                reasoning = getattr(delta, "reasoning_content", None)
+                if reasoning:
+                    yield {"type": "thinking", "content": reasoning}
+
+                # Regular content tokens
+                if delta.content:
+                    yield {"type": "content", "content": delta.content}
+
+                # If the stream is finished, break
+                if choice.finish_reason:
+                    break
+
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "流式消息生成", "success", duration_ms)
+
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("通义千问LLM", "流式消息生成", "error", duration_ms)
+            logger.error(f"❌ 流式消息生成失败: {str(e)}")
+            yield {"type": "error", "content": str(e)}
 
 # 创建全局实例
 llm_service = QwenLLMService()

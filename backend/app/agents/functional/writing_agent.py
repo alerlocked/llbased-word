@@ -217,6 +217,9 @@ class WritingAgent(BaseAgent):
                 r.get("content", "") for r in results[:3]
             ])
 
+        # Inject knowledge catalog (materials/tools/standards)
+        catalog_context = self._get_knowledge_catalog_context(requirements or content)
+
         # Call LLM for actual editing
         from app.services.llm_service import llm_service
 
@@ -233,6 +236,8 @@ class WritingAgent(BaseAgent):
         user_parts.append(f"原文：\n{content}")
         if knowledge_context:
             user_parts.append(f"参考依据：\n{knowledge_context[:800]}")
+        if catalog_context:
+            user_parts.append(f"物料与标准参考：\n{catalog_context[:1000]}")
 
         result = await llm_service.generate_with_messages(
             messages=[
@@ -568,13 +573,33 @@ class WritingAgent(BaseAgent):
             return "\n## 用户写作偏好 (基于历史交互学习)\n" + "\n".join(lines)
         return ""
 
+    def _get_knowledge_catalog_context(self, query: str) -> str:
+        """Query the knowledge catalog for materials/tools/standards relevant to the query.
+
+        Returns formatted text for LLM injection, or empty string if nothing found.
+        """
+        if not query:
+            return ""
+        try:
+            from app.database import SessionLocal
+            from app.services.knowledge_search import KnowledgeSearchService
+            db = SessionLocal()
+            try:
+                svc = KnowledgeSearchService()
+                return svc.build_knowledge_context_text(db, query, max_items=5)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"knowledge_catalog_query_failed: {e}")
+            return ""
+
     async def _search_knowledge(
         self,
         query: str,
         mode: str = "comprehensive"
     ) -> Dict[str, Any]:
         """
-        使用 Search Agent 检索知识
+        使用 Search Agent 检索知识，fallback to hierarchical_context.
 
         Args:
             query: 查询字符串
@@ -583,8 +608,10 @@ class WritingAgent(BaseAgent):
         Returns:
             检索结果
         """
+        results = []
+
+        # Primary: SearchAgent (ChromaDB vector search)
         try:
-            # 映射检索模式
             mode_mapping = {
                 "files_only": SearchMode.FILES_ONLY,
                 "knowledge_only": SearchMode.KNOWLEDGE_ONLY,
@@ -592,15 +619,12 @@ class WritingAgent(BaseAgent):
             }
             search_mode = mode_mapping.get(mode, SearchMode.COMPREHENSIVE)
 
-            # 调用 Search Agent
             search_context = await self.search_agent.search(
                 mode=search_mode,
                 query=query,
-                token_budget=4000  # 默认Token预算
+                token_budget=4000
             )
 
-            # 转换为兼容格式
-            results = []
             for ctx in search_context.contexts:
                 results.append({
                     "content": ctx.content,
@@ -609,28 +633,35 @@ class WritingAgent(BaseAgent):
                     "metadata": ctx.metadata
                 })
 
-            logger.info(
-                "search_agent_retrieval_completed",
-                mode=mode,
-                results_count=len(results),
-                total_tokens=search_context.total_tokens,
-                cache_hit=search_context.cache_hit
-            )
-
-            return {
-                "success": True,
-                "results": results,
-                "total_tokens": search_context.total_tokens,
-                "cache_hit": search_context.cache_hit
-            }
-
         except Exception as e:
-            logger.error("search_knowledge_failed", error=str(e), query=query[:100])
-            return {
-                "success": False,
-                "error": str(e),
-                "results": []
-            }
+            logger.warning("search_agent_failed_fallback_to_hier", error=str(e), query=query[:100])
+
+        # Fallback: hierarchical_context keyword search if SearchAgent returned nothing
+        if not results:
+            try:
+                from app.services.hierarchical_context import hierarchical_context
+
+                hc_results = hierarchical_context.global_keyword_search(
+                    query=query, top_k=5
+                )
+                for r in hc_results:
+                    if r.get("score", 0) >= 2:
+                        results.append({
+                            "content": r.get("snippet", ""),
+                            "source": r.get("doc_name", ""),
+                            "score": float(r.get("score", 0)),
+                            "metadata": {"page": r.get("page"), "retriever": "hierarchical_context"},
+                        })
+
+                logger.info("search_hier_fallback", query=query[:50], results=len(results))
+            except Exception as e:
+                logger.warning("hier_context_search_failed", error=str(e))
+
+        return {
+            "success": len(results) > 0,
+            "results": results,
+            "total": len(results)
+        }
 
     async def handle_feedback(
         self,

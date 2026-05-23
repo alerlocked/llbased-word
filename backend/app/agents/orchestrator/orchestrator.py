@@ -464,6 +464,21 @@ class ProcessOrchestrator:
             intent = await self.intent_recognizer.recognize(user_input, full_context)
             logger.info("intent_recognized", intent_type=intent.get("type"), confidence=intent.get("confidence"))
 
+            # 4.5 Route DRAFT_COMPLETE to dedicated handler
+            # This includes temp uploaded file scenarios (no draft_id)
+            if intent.get("type") == "draft_complete":
+                # Record user message before routing
+                if self.repository and self.current_task_id:
+                    self.repository.add_message(
+                        task_id=self.current_task_id,
+                        role="user",
+                        content=user_input,
+                        metadata={"intent": intent},
+                    )
+                # Merge context + uploaded file info
+                merged_context = {**(context or {}), **full_context}
+                return await self._handle_draft_complete(user_input, intent, merged_context)
+
             # 5. 分解任务
             tasks = await self.task_decomposer.decompose(intent)
             logger.info("tasks_decomposed", task_count=len(tasks), task_types=[t.get("type") for t in tasks])
@@ -1356,11 +1371,16 @@ class ProcessOrchestrator:
             # 4. 读取初稿内容
             draft_content, draft_id = await self._load_draft_content(context)
             if draft_content is None:
-                return {
-                    "success": False,
-                    "error": "未找到初稿，请先上传工艺文件初稿，或在上下文中提供 draft_id",
-                    "state": self.state_machine.current_state.value,
-                }
+                # Fallback: use uploaded file content from context (temp upload, no DB)
+                draft_content = context.get("uploaded_file_content", "")
+                if not draft_content:
+                    return {
+                        "success": False,
+                        "error": "未找到初稿，请先上传工艺文件初稿，或在上下文中提供 draft_id",
+                        "state": self.state_machine.current_state.value,
+                    }
+                draft_id = context.get("draft_id")  # May be None for temp uploads
+                logger.info("draft_loaded_from_temp_upload", content_length=len(draft_content))
 
             # 5. 组装 prompt 并调用 LLM
             modification_plan = await self._generate_modification_plan(
@@ -1381,6 +1401,7 @@ class ProcessOrchestrator:
             self._collected_info["retrieved_context"] = retrieved_context
             self._collected_info["material_status"] = material_status
             self._collected_info["material_instruction"] = material_instruction
+            self._collected_info["is_temp_upload"] = draft_id is None and bool(context.get("uploaded_file_content"))
 
             # 7. 转到用户确认
             await self.state_machine.transition_to(
@@ -1640,8 +1661,9 @@ class ProcessOrchestrator:
         retrieved_context = self._collected_info.get("retrieved_context", "")
         material_instruction = self._collected_info.get("material_instruction", "")
         intent = self._collected_info.get("intent", {})
+        is_temp_upload = self._collected_info.get("is_temp_upload", False)
 
-        if not draft_id:
+        if not draft_id and not is_temp_upload:
             return {"success": False, "error": "缺少 draft_id"}
 
         # 1. 任务分解
@@ -1677,18 +1699,23 @@ class ProcessOrchestrator:
                 new_content = inner.get("content") or inner.get("result", {}).get("content")
 
         if new_content:
-            try:
-                from app.services.draft_service import DraftService
-                from app.models.database import get_db
-
-                db = next(get_db())
+            if draft_id and not is_temp_upload:
+                # Save to DB draft
                 try:
-                    ds = DraftService(db)
-                    ds.update_content(draft_id, new_content, source="ai_draft_complete")
-                finally:
-                    db.close()
-            except Exception as e:
-                logger.error("draft_save_failed", draft_id=draft_id, error=str(e))
+                    from app.services.draft_service import DraftService
+                    from app.models.database import get_db
+
+                    db = next(get_db())
+                    try:
+                        ds = DraftService(db)
+                        ds.update_content(draft_id, new_content, source="ai_draft_complete")
+                    finally:
+                        db.close()
+                except Exception as e:
+                    logger.error("draft_save_failed", draft_id=draft_id, error=str(e))
+            else:
+                # Temp upload — just return the content, don't save to DB
+                logger.info("draft_complete_temp_upload", content_length=len(new_content))
 
         # 5. 聚合结果
         await self.state_machine.transition_to(
