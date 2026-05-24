@@ -485,26 +485,65 @@ class WritingAgent(BaseAgent):
             if draft_ctx:
                 user_parts.append(f"## 用户初稿（在此基础上补充，保留已有内容）\n{draft_ctx}")
 
-            result = await llm_service.generate_with_messages(
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": "\n\n".join(user_parts)},
-                ],
-                temperature=0.3,
-                max_tokens=8000,
-                tier="complex",
-            )
+            # Multi-pass generation for long documents
+            # A 53-page process doc (~30000 chars) exceeds single-call output limits.
+            # Generate in passes, each continuing from where the previous left off.
+            all_content = ""
+            max_passes = 5
+            user_msg = "\n\n".join(user_parts)
 
-            if result["status"] == "error":
-                return {"success": False, "error": result.get("error", "LLM调用失败")}
+            for pass_num in range(max_passes):
+                if pass_num > 0:
+                    # Continuation pass: show the tail of previous output
+                    tail = all_content[-1500:] if len(all_content) > 1500 else all_content
+                    user_msg = (
+                        f"以下是之前已生成的内容尾部：\n\n---\n{tail}\n---\n\n"
+                        "请从上面的断点处继续生成，不要重复已有内容。"
+                    )
 
-            generated_content = result["content"]
-            guardrail_warnings = self._quick_check_output(generated_content)
-            self._save_version(generated_content)
+                result = await llm_service.generate_with_messages(
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg},
+                    ],
+                    temperature=0.3,
+                    max_tokens=8000,
+                    tier="complex",
+                )
+
+                if result["status"] == "error":
+                    # If we already have some content from previous passes, return it
+                    if all_content:
+                        break
+                    return {"success": False, "error": result.get("error", "LLM调用失败")}
+
+                chunk = result["content"]
+                if pass_num == 0:
+                    all_content = chunk
+                else:
+                    all_content += "\n" + chunk
+
+                logger.info(
+                    "multi_pass_generation",
+                    pass_num=pass_num + 1,
+                    chunk_len=len(chunk),
+                    total_len=len(all_content),
+                )
+
+                # Check if generation looks complete
+                if self._looks_complete(all_content):
+                    break
+
+                # If chunk is short (< 2000 chars), model likely finished
+                if len(chunk) < 2000:
+                    break
+
+            guardrail_warnings = self._quick_check_output(all_content)
+            self._save_version(all_content)
 
             return {
                 "success": True,
-                "content": generated_content,
+                "content": all_content,
                 "template": template,
                 "guardrail_warnings": guardrail_warnings,
             }
@@ -565,6 +604,12 @@ class WritingAgent(BaseAgent):
             "plan": plan,
             "guardrail_warnings": guardrail_warnings,
         }
+
+    def _looks_complete(self, content: str) -> bool:
+        """Check if the generated document looks complete (has closing sections)."""
+        tail = content[-800:] if len(content) > 800 else content
+        completion_markers = ["审签页", "批准", "签名", "检验要求", "质量检验"]
+        return any(m in tail for m in completion_markers)
 
     async def _generate_writing_plan(
         self,

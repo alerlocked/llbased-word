@@ -150,7 +150,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       timestamp: Date.now()
     }
     
-    const assistantMsg: Message = {
+    let assistantMsg: Message = {
       role: 'assistant',
       content: '',
       timestamp: Date.now(),
@@ -292,7 +292,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       timestamp: Date.now()
     }
     
-    const assistantMsg: Message = {
+    let assistantMsg: Message = {
       role: 'assistant',
       content: '',
       timestamp: Date.now(),
@@ -457,7 +457,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       timestamp: Date.now()
     }
     
-    const assistantMsg: Message = {
+    let assistantMsg: Message = {
       role: 'assistant',
       content: '',
       timestamp: Date.now(),

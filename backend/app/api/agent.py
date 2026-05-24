@@ -974,7 +974,11 @@ async def generate_stream(request: GenerateStreamRequest):
                             new_content = inner.get("content") or inner.get("result", {}).get("content", "")
 
                     if new_content:
-                        # Send generated content directly to editor
+                        # Send a brief summary to chat panel
+                        char_count = len(new_content)
+                        summary = f"已根据知识库完整文档补齐缺失模块，输出 {char_count} 字到编辑器。"
+                        yield f"data: {json.dumps({'type': 'content', 'content': summary}, ensure_ascii=False)}\n\n"
+                        # Send generated content to editor
                         editor_content = new_content
                         yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
                         _save_memory(session_id, user_input, new_content)
