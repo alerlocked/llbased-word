@@ -8,6 +8,8 @@ export interface Message {
   timestamp: number
   steps?: any[]
   isStreaming?: boolean
+  /** Progress text shown while waiting for content (e.g. "正在分析...") */
+  progressText?: string
 }
 
 export interface ChatSession {

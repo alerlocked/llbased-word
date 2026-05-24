@@ -906,7 +906,7 @@ async def generate_stream(request: GenerateStreamRequest):
             logger.info(f"[AI助手] 模式检测: mode={mode}, input={user_input[:30]}...")
 
             yield f"data: {json.dumps({'type': 'mode', 'mode': mode})}\n\n"
-            yield f"data: {json.dumps({'type': 'progress', 'message': '思考中...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'message': '正在加载知识库...'})}\n\n"
 
             # ── Build context for orchestrator ──
             orch_context = _build_orchestrator_context(
@@ -916,6 +916,7 @@ async def generate_stream(request: GenerateStreamRequest):
             )
 
             # ── Route through ProcessOrchestrator ──
+            yield f"data: {json.dumps({'type': 'progress', 'message': '正在分析意图...'})}\n\n"
             orchestrator = ProcessOrchestrator()
             logger.info(f"[AI助手] 调用 ProcessOrchestrator.process_intent()")
 
@@ -943,7 +944,7 @@ async def generate_stream(request: GenerateStreamRequest):
                 plan = orch_result.get("modification_plan", "")
 
                 # Send progress
-                yield f"data: {json.dumps({'type': 'progress', 'message': '方案已生成，正在执行...'})}\n\n"
+                yield f"data: {json.dumps({'type': 'progress', 'message': '正在制定修改方案...'})}\n\n"
 
                 # Auto-confirm: tell orchestrator to execute the plan
                 from app.agents.orchestrator.interaction_models import UserResponse, InputType
@@ -957,6 +958,8 @@ async def generate_stream(request: GenerateStreamRequest):
                 exec_result = await orchestrator.continue_conversation(
                     user_response=confirm_response,
                 )
+
+                yield f"data: {json.dumps({'type': 'progress', 'message': '正在生成内容...'})}\n\n"
 
                 if exec_result.get("success"):
                     # Extract generated content from _execute_draft_modification result

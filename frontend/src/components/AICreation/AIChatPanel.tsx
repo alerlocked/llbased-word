@@ -230,7 +230,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   contentAccumulator += `\n\n[协作链] ${stackInfo}`
                 }
               } else if (data.type === 'progress') {
-                // Progress received — just keep loading state
+                // Update progress text so user sees what's happening
+                assistantMsg = { ...assistantMsg, progressText: data.message || '' }
               } else if (data.type === 'result') {
                 contentAccumulator = data.content
                 if (data.has_editor && data.editor_content) {
@@ -245,7 +246,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
               const updatedAssistant: Message = {
                 ...assistantMsg,
                 content: contentAccumulator,
-                isStreaming: data.type !== 'result' && data.type !== 'error'
+                isStreaming: data.type !== 'result' && data.type !== 'error',
+                progressText: data.type === 'progress' ? (data.message || '') : undefined,
               }
               updateActiveMessages([...messages, userMsg, updatedAssistant])
             } catch (e) {
@@ -369,7 +371,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 setStreamController(null)
                 return
               } else if (data.type === 'progress') {
-                // Progress received — keep loading state
+                assistantMsg = { ...assistantMsg, progressText: data.message || '' }
               } else if (data.type === 'result') {
                 contentAccumulator = data.content
                 if (data.has_editor && data.editor_content) {
@@ -384,7 +386,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
               const updatedAssistant: Message = {
                 ...assistantMsg,
                 content: contentAccumulator,
-                isStreaming: data.type !== 'result' && data.type !== 'error'
+                isStreaming: data.type !== 'result' && data.type !== 'error',
+                progressText: data.type === 'progress' ? (data.message || '') : undefined,
               }
               updateActiveMessages([...messages, userMsg, updatedAssistant])
             } catch (e) {
@@ -666,7 +669,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 setLoading(false)
                 return // 暂停，等待用户选择
               } else if (data.type === 'progress') {
-                // Progress received — frontend shows spinner via isStreaming
+                assistantMsg = { ...assistantMsg, progressText: data.message || '' }
               } else if (data.type === 'result') {
                 // Stream finished — only extract editor content, don't overwrite accumulated text
                 if (data.has_editor && data.editor_content) {
@@ -681,7 +684,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
               const updatedAssistant: Message = {
                 ...assistantMsg,
                 content: contentAccumulator,
-                isStreaming: data.type !== 'result' && data.type !== 'error'
+                isStreaming: data.type !== 'result' && data.type !== 'error',
+                progressText: data.type === 'progress' ? (data.message || '') : undefined,
               }
               updateActiveMessages([...messages, userMsg, updatedAssistant])
             } catch (e) {
@@ -930,10 +934,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   />
                 )
               )}
-              {/* Streaming spinner when no content and no thinking yet */}
+              {/* Streaming progress — show text instead of spinner */}
               {msg.isStreaming && !msg.content && !msg.thinkingContent && (
-                <div style={{ padding: '8px 0' }}>
+                <div style={{ padding: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Spin size="small" />
+                  <span style={{ color: colors.textTertiary, fontSize: 13 }}>
+                    {msg.progressText || '思考中...'}
+                  </span>
                 </div>
               )}
               {/* Message content with general-knowledge disclaimer split */}
@@ -1078,7 +1085,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                                 currentModeRef.current = continueData.mode
                                 console.info(`[AI助手-继续] 模式: ${continueData.mode}`)
                               } else if (continueData.type === 'progress') {
-                                // Progress received — keep loading
+                                assistantMsg = { ...assistantMsg, progressText: continueData.message || '' }
                               } else if (continueData.type === 'result') {
                                 continueContent = continueData.content
                               }
@@ -1086,7 +1093,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                               const updatedMsg: Message = {
                                 ...assistantMsg,
                                 content: continueContent,
-                                isStreaming: continueData.type !== 'result'
+                                isStreaming: continueData.type !== 'result',
+                                progressText: continueData.type === 'progress' ? (continueData.message || '') : undefined,
                               }
                               updateActiveMessages([...messages, userMsg, updatedMsg])
                             } catch (e) {
