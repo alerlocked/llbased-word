@@ -131,9 +131,16 @@ class WritingAgent(BaseAgent):
                     "error_code": "INVALID_ACTION"
                 }
 
-            # 1. 使用 Search Agent 检索相关知识（如果有要求）
+            # 1. Use pre-loaded context if available (skip re-search)
             knowledge = None
-            if task.get("requirements"):
+            if task.get("skip_planning") and task.get("retrieved_context"):
+                # Context already provided by orchestrator
+                knowledge = {
+                    "success": True,
+                    "results": [{"content": task["retrieved_context"], "source": "orchestrator", "score": 1.0}],
+                    "total": 1,
+                }
+            elif task.get("requirements"):
                 knowledge = await self._search_knowledge(
                     task["requirements"],
                     task.get("search_mode", "comprehensive")
@@ -405,6 +412,10 @@ class WritingAgent(BaseAgent):
         For complex generation tasks, first asks LLM to produce a writing
         plan, then uses that plan to guide content generation.
 
+        When task contains `skip_planning=True` and pre-loaded context
+        (from orchestrator), skips the planning phase and uses the
+        provided context directly.
+
         Args:
             task: 任务描述
             knowledge: 检索到的知识
@@ -435,6 +446,70 @@ class WritingAgent(BaseAgent):
 
         format_guide = template_guides.get(template, template_guides["standard"])
 
+        # Check for pre-loaded context from orchestrator (skip planning)
+        has_preloaded = task.get("skip_planning") and task.get("retrieved_context")
+
+        if has_preloaded:
+            # Direct generation with orchestrator-provided context
+            retrieved_ctx = task.get("retrieved_context", "")
+            draft_ctx = task.get("draft_content", "")
+            mod_plan = task.get("modification_plan", "")
+            material_instr = task.get("material_instruction", "")
+
+            system_msg = (
+                "你是一位专业的工艺文件编写助手。任务：根据知识库中的完整文档，补齐用户上传的不完整工艺文件。\n\n"
+                "工作方法：\n"
+                "1. 以「用户初稿」为基础框架，保留所有已有内容\n"
+                "2. 对比「知识库完整文档」，逐模块补充缺失内容\n"
+                "3. 如果知识库有对应内容，直接引用或改编（不要自己编造参数）\n"
+                "4. 如果知识库也没有对应内容，用[待确认]标注\n\n"
+                "输出规则（必须遵守）：\n"
+                "- 直接输出完整工艺文件内容，不要输出分析过程、推理说明、依据标注\n"
+                "- 不要使用 ✅ ❌ ⚠️ 🔹 等标记符号\n"
+                "- 不要写「依据来源」「缺失说明」「本次修订严格遵循」等元描述\n"
+                "- 不确定的内容用方括号标注[待确认]，不要解释为什么不确定\n"
+                "- 保持原文档的章节结构和编号体系\n"
+                "- 输出就是最终给用户看的完整文件，不是内部草稿"
+            )
+            if self._writing_preferences:
+                system_msg += self._get_preference_prompt_fragment()
+
+            user_parts = []
+            if mod_plan:
+                user_parts.append(f"## 修改方案\n{mod_plan}")
+            user_parts.append(f"## 任务要求\n{requirements}")
+            if material_instr:
+                user_parts.append(material_instr)
+            if retrieved_ctx:
+                user_parts.append(f"## 知识库完整文档（优先参考此内容补充）\n{retrieved_ctx}")
+            if draft_ctx:
+                user_parts.append(f"## 用户初稿（在此基础上补充，保留已有内容）\n{draft_ctx}")
+
+            result = await llm_service.generate_with_messages(
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": "\n\n".join(user_parts)},
+                ],
+                temperature=0.3,
+                max_tokens=8000,
+                tier="complex",
+            )
+
+            if result["status"] == "error":
+                return {"success": False, "error": result.get("error", "LLM调用失败")}
+
+            generated_content = result["content"]
+            guardrail_warnings = self._quick_check_output(generated_content)
+            self._save_version(generated_content)
+
+            return {
+                "success": True,
+                "content": generated_content,
+                "template": template,
+                "guardrail_warnings": guardrail_warnings,
+            }
+
+        # Standard flow: planning then generation
         # Phase 1: Planning — generate a structured writing plan via CoT
         plan = await self._generate_writing_plan(
             requirements=requirements,
@@ -447,14 +522,20 @@ class WritingAgent(BaseAgent):
         system_msg = (
             "你是一位专业的工艺文件编写助手。请严格按照给定的写作计划，"
             "逐步生成工艺文件的每个章节内容。\n\n"
-            f"格式要求：{format_guide}"
+            f"格式要求：{format_guide}\n\n"
+            "输出规则（必须遵守）：\n"
+            "- 直接输出工艺文件内容，不要输出任何分析过程、推理说明、依据标注\n"
+            "- 不要使用 ✅ ❌ ⚠️ 🔹 等标记符号\n"
+            "- 不要写「依据来源」「缺失说明」「本次修订严格遵循」等元描述\n"
+            "- 不确定的内容直接留空或用方括号标注[待确认]，不要解释为什么不确定\n"
+            "- 输出就是最终给用户看的文件，不是内部草稿"
         )
         if self._writing_preferences:
             system_msg += self._get_preference_prompt_fragment()
 
         user_parts = [f"## 写作计划\n{plan}\n\n## 用户要求\n{requirements}"]
         if knowledge_context:
-            user_parts.append(f"参考知识：\n{knowledge_context[:1000]}")
+            user_parts.append(f"参考知识：\n{knowledge_context[:3000]}")
         if context:
             doc_context = context.get("document_context", "")
             if doc_context:

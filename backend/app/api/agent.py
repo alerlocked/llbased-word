@@ -974,9 +974,7 @@ async def generate_stream(request: GenerateStreamRequest):
                             new_content = inner.get("content") or inner.get("result", {}).get("content", "")
 
                     if new_content:
-                        # Brief summary in chat
-                        yield f"data: {json.dumps({'type': 'content', 'content': plan[:200] + '\\n\\n✅ 已执行修改，内容输出到编辑器。'}, ensure_ascii=False)}\n\n"
-                        # Send editor content via ---EDITOR---
+                        # Send generated content directly to editor
                         editor_content = new_content
                         yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
                         _save_memory(session_id, user_input, new_content)

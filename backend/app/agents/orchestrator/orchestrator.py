@@ -1489,7 +1489,7 @@ class ProcessOrchestrator:
             from app.services.hierarchical_context import hierarchical_context
 
             session_id = context.get("session_id", self.current_task_id or "default")
-            rag_ctx = hierarchical_context.build_context(query=query, session_id=session_id, max_tokens=3000)
+            rag_ctx = hierarchical_context.build_context(query=query, session_id=session_id, max_tokens=8000)
 
             # Get material status
             material_status = hierarchical_context.get_material_status(query)
@@ -1600,7 +1600,7 @@ class ProcessOrchestrator:
         if material_instruction:
             material_section = f"\n## 素材状态指令\n{material_instruction}\n"
 
-        prompt = f"""你是工艺文件编辑助手。用户上传了一份不完整的工艺文件，需要你对比知识库中的完整文档，制定简短的修改方案。
+        prompt = f"""你是工艺文件编辑助手。用户上传了一份不完整的工艺文件，需要你对比知识库中的完整文档，制定修改方案。
 
 {material_section}
 ## 用户画像
@@ -1610,16 +1610,17 @@ class ProcessOrchestrator:
 {retrieved_context}
 
 ## 用户上传的初稿
-{draft_content[:8000]}
+{draft_content[:12000]}
 
 ## 用户需求
 {user_requirement}
 
-请生成简短的修改方案（控制在200字以内）：
-- 只列出需要补齐/修改的章节名称和具体操作
-- 不要写分析过程、不要写通用建议、不要重复已有内容
-- 如果知识库中有对应的完整内容，标注「知识库有原文」
+请生成修改方案：
+- 逐个模块对比初稿和知识库文档，列出每个缺失或需要补充的模块
+- 对每个缺失模块，写明：模块名称 + 需要补充的具体内容（关键参数、表格、步骤等）
+- 如果知识库中有对应完整内容，标注「知识库有原文」
 - 如果知识库也没有，标注「待用户确认」
+- 不要写分析过程、不要写通用建议、不要重复已有内容
 """
 
         try:
@@ -1674,20 +1675,20 @@ class ProcessOrchestrator:
             trigger="draft_plan_confirmed",
         )
 
-        # 2. 构造 Writing Agent 任务
+        # 2. 构造 Writing Agent 任务 — structured context via params
         writing_task = {
             "type": "writing",
             "action": "generate",
             "content": modification_plan,
             "target": "工艺文件完善",
-            "requirements": (
-                f"基于以下信息完善用户上传的工艺文件。\n\n"
-                f"## 知识库参考资料\n{retrieved_context[:4000]}\n\n"
-                f"## 用户上传的初稿\n{draft_content[:4000]}\n\n"
-                f"## 用户画像\n{profile_context[:1000]}\n\n"
-                f"{material_instruction}\n\n"
-                f"请按修改方案逐章补充缺失内容，输出完整工艺文件。"
-            ),
+            "requirements": "请按修改方案，逐章补充缺失内容，输出完整工艺文件。",
+            "params": {
+                "retrieved_context": retrieved_context,
+                "draft_content": draft_content,
+                "modification_plan": modification_plan,
+                "material_instruction": material_instruction,
+                "skip_planning": True,
+            },
             "generate_doc": False,
         }
 

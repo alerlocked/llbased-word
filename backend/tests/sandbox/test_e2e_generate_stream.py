@@ -11,6 +11,7 @@ just without the HTTP/SSE layer.
 """
 import asyncio
 import sys
+import pytest
 import os
 import json
 
@@ -45,6 +46,7 @@ UPLOADED_FILE_HTML = """
 USER_INPUT = "帮我完善这份不完整的工艺文件，从结构和内容两个方面完善"
 
 
+@pytest.mark.asyncio
 async def test_e2e():
     """Full end-to-end: context → orchestrator → auto-confirm → result"""
     from app.api.agent import _build_orchestrator_context, _save_memory
