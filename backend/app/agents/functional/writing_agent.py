@@ -133,11 +133,12 @@ class WritingAgent(BaseAgent):
 
             # 1. Use pre-loaded context if available (skip re-search)
             knowledge = None
-            if task.get("skip_planning") and task.get("retrieved_context"):
+            preloaded_content = task.get("retrieved_context") or task.get("chapter_source_text")
+            if task.get("skip_planning") and preloaded_content:
                 # Context already provided by orchestrator
                 knowledge = {
                     "success": True,
-                    "results": [{"content": task["retrieved_context"], "source": "orchestrator", "score": 1.0}],
+                    "results": [{"content": preloaded_content, "source": "orchestrator", "score": 1.0}],
                     "total": 1,
                 }
             elif task.get("requirements"):
@@ -447,7 +448,10 @@ class WritingAgent(BaseAgent):
         format_guide = template_guides.get(template, template_guides["standard"])
 
         # Check for pre-loaded context from orchestrator (skip planning)
-        has_preloaded = task.get("skip_planning") and task.get("retrieved_context")
+        chapter_source_text = task.get("chapter_source_text", "")
+        has_preloaded = task.get("skip_planning") and (
+            task.get("retrieved_context") or chapter_source_text
+        )
 
         if has_preloaded:
             # Direct generation with orchestrator-provided context
@@ -455,7 +459,65 @@ class WritingAgent(BaseAgent):
             draft_ctx = task.get("draft_content", "")
             mod_plan = task.get("modification_plan", "")
             material_instr = task.get("material_instruction", "")
+            module_name = task.get("module_name", "")
+            module_instruction = task.get("module_instruction", "")
 
+            # Single-module focus mode: only output content for this one module
+            if module_name:
+                # Use chapter source text when available, fallback to retrieved_context
+                source_text = chapter_source_text or retrieved_ctx
+                source_label = "知识库该章节原文" if chapter_source_text else "知识库完整文档"
+
+                system_msg = (
+                    f"你是一位专业的工艺文件编写助手。任务：仅生成「{module_name}」模块的完整内容。\n\n"
+                    "工作方法：\n"
+                    f"1. 从「{source_label}」中提取与该模块相关的所有内容\n"
+                    "2. 严格按照工艺术语和格式要求，生成该模块的完整内容\n"
+                    "3. 严格基于原文内容输出，不要编造参数和材料名称\n"
+                    "4. 如果知识库没有对应内容，用[待确认]标注\n\n"
+                    "输出规则（必须遵守）：\n"
+                    f"- 只输出「{module_name}」模块的内容，不要输出其他模块\n"
+                    "- 不要输出分析过程、推理说明、依据标注\n"
+                    "- 不要使用 ✅ ❌ ⚠️ 🔹 等标记符号\n"
+                    "- 不确定的内容用方括号标注[待确认]\n"
+                    "- 使用 Markdown 表格格式输出所有表格内容\n"
+                    "- 跳过签名栏、日期栏，这些在导出时由模板填充\n"
+                    "- 输出就是该模块的最终内容，不是内部草稿"
+                )
+                if self._writing_preferences:
+                    system_msg += self._get_preference_prompt_fragment()
+
+                user_parts = [f"## 生成指令\n{module_instruction}"]
+                if material_instr:
+                    user_parts.append(material_instr)
+                if source_text:
+                    user_parts.append(f"## {source_label}（从中提取 {module_name} 相关内容）\n{source_text}")
+
+                result = await llm_service.generate_with_messages(
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": "\n\n".join(user_parts)},
+                    ],
+                    temperature=0.3,
+                    max_tokens=8000,
+                    tier="complex",
+                )
+
+                if result["status"] == "error":
+                    return {"success": False, "error": result.get("error", "LLM调用失败")}
+
+                content = result["content"]
+                guardrail_warnings = self._quick_check_output(content)
+                self._save_version(content)
+
+                return {
+                    "success": True,
+                    "content": content,
+                    "template": template,
+                    "guardrail_warnings": guardrail_warnings,
+                }
+
+            # Full-document generation mode (original logic)
             system_msg = (
                 "你是一位专业的工艺文件编写助手。任务：根据知识库中的完整文档，补齐用户上传的不完整工艺文件。\n\n"
                 "工作方法：\n"
@@ -469,6 +531,8 @@ class WritingAgent(BaseAgent):
                 "- 不要写「依据来源」「缺失说明」「本次修订严格遵循」等元描述\n"
                 "- 不确定的内容用方括号标注[待确认]，不要解释为什么不确定\n"
                 "- 保持原文档的章节结构和编号体系\n"
+                "- 跳过签名栏、日期栏（编制/校对/审核/标检/批准及日期），这些在导出时由模板填充\n"
+                "- 使用 Markdown 表格格式输出所有表格内容\n"
                 "- 输出就是最终给用户看的完整文件，不是内部草稿"
             )
             if self._writing_preferences:

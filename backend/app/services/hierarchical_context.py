@@ -957,6 +957,183 @@ class HierarchicalContext:
 
         return "\n\n---\n\n".join(parts)
 
+    # ==================== Chapter-level content retrieval ====================
+
+    def load_chapter_index(self, doc_dir_name: str) -> Optional[Dict[str, Any]]:
+        """Load chapter_index.json for a document.
+
+        If the index does not exist, attempt to build it on the fly.
+
+        Args:
+            doc_dir_name: document directory name (e.g. "1")
+
+        Returns:
+            chapter_index dict or None
+        """
+        doc_dir = self.data_dir / doc_dir_name
+        index_path = doc_dir / "chapter_index.json"
+
+        if index_path.exists():
+            try:
+                with open(index_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning("chapter_index_load_failed", path=str(index_path), error=str(e))
+
+        # Build index on the fly if missing
+        try:
+            from app.services.document_indexer import DocumentIndexer
+            indexer = DocumentIndexer(data_dir=self.data_dir)
+            return indexer.build_index(doc_dir_name)
+        except Exception as e:
+            logger.warning("chapter_index_build_failed", doc_dir=doc_dir_name, error=str(e))
+            return None
+
+    def get_chapter_content(
+        self, doc_dir_name: str, chapter_title: str, max_tokens: int = 12000
+    ) -> Optional[str]:
+        """Return full plain-text content for a named chapter.
+
+        Args:
+            doc_dir_name: document directory name (e.g. "1")
+            chapter_title: chapter title to match (exact or substring)
+            max_tokens: max token budget (approximate)
+
+        Returns:
+            Chapter text content, or None if not found
+        """
+        chapter_index = self.load_chapter_index(doc_dir_name)
+        if not chapter_index:
+            return None
+
+        # Find matching chapter
+        chapter = None
+        for ch in chapter_index.get("chapters", []):
+            if chapter_title in ch["title"]:
+                chapter = ch
+                break
+
+        if not chapter:
+            logger.warning("chapter_not_found", doc_dir=doc_dir_name, title=chapter_title)
+            return None
+
+        pages = chapter.get("pages", [])
+        if not pages:
+            return None
+
+        return self.get_pages_content(doc_dir_name, pages[0], pages[-1], max_tokens)
+
+    def get_pages_content(
+        self, doc_dir_name: str, start_page: int, end_page: int,
+        max_tokens: int = 12000,
+    ) -> Optional[str]:
+        """Return plain-text content for a page range.
+
+        Extracts pages from content.html, strips HTML tags, and
+        concatenates into a single string.
+
+        Args:
+            doc_dir_name: document directory name
+            start_page: first page number (inclusive)
+            end_page: last page number (inclusive)
+            max_tokens: token budget
+
+        Returns:
+            Concatenated page text or None on failure
+        """
+        doc_dir = self.data_dir / doc_dir_name
+        from app.config import settings
+        html_path = settings.resolve_doc_content_html(doc_dir)
+
+        if not html_path.exists():
+            return None
+
+        try:
+            with open(html_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
+
+            soup = BeautifulSoup(html_content, "html.parser")
+            plain_text = soup.get_text(separator="\n")
+
+            # Split into pages using same logic as global_keyword_search
+            pages = self._split_text_by_pages(plain_text)
+
+            # Collect pages in range
+            selected_pages = []
+            for pn in range(start_page, end_page + 1):
+                if pn in pages:
+                    selected_pages.append(f"--- 第{pn}页 ---\n{pages[pn]}")
+
+            if not selected_pages:
+                return None
+
+            result = "\n\n".join(selected_pages)
+
+            # Truncate if over token budget
+            estimated = self._estimate_tokens(result)
+            if estimated > max_tokens:
+                # Approximate truncation: 1 token ≈ 1.5 Chinese chars
+                char_limit = int(max_tokens * 1.5)
+                result = result[:char_limit] + "\n\n[内容已截断，超出 token 预算]"
+                logger.info(
+                    "chapter_content_truncated",
+                    doc_dir=doc_dir_name,
+                    pages=f"{start_page}-{end_page}",
+                    max_tokens=max_tokens,
+                )
+
+            return result
+
+        except Exception as e:
+            logger.error("get_pages_content_failed", doc_dir=doc_dir_name, error=str(e))
+            return None
+
+    def _split_text_by_pages(self, plain_text: str) -> Dict[int, str]:
+        """Split plain text into pages by ## 第 N 页 markers.
+
+        Returns:
+            Dict mapping page_number → page_text
+        """
+        lines = plain_text.split("\n")
+        pages: Dict[int, str] = {}
+        current_page = 0
+        current_lines: List[str] = []
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("## 第") and "页" in stripped:
+                if current_page > 0:
+                    pages[current_page] = "\n".join(current_lines)
+                m = re.search(r"第\s*(\d+)\s*页", stripped)
+                current_page = int(m.group(1)) if m else current_page + 1
+                current_lines = []
+            else:
+                if stripped:
+                    current_lines.append(stripped)
+
+        if current_page > 0:
+            pages[current_page] = "\n".join(current_lines)
+
+        return pages
+
+    def get_all_chapter_indexes(self) -> List[Dict[str, Any]]:
+        """Load chapter indexes for all documents.
+
+        Returns:
+            List of chapter_index dicts
+        """
+        documents = self._get_all_documents()
+        results = []
+        for doc in documents:
+            doc_dir_name = doc.get("_doc_dir")
+            if not doc_dir_name:
+                continue
+            idx = self.load_chapter_index(doc_dir_name)
+            if idx:
+                idx["_doc_dir"] = doc_dir_name
+                results.append(idx)
+        return results
+
 
 # 全局单例
 hierarchical_context = HierarchicalContext()

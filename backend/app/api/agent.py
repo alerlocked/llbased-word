@@ -939,12 +939,50 @@ async def generate_stream(request: GenerateStreamRequest):
                 yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
                 return
 
-            # Case 1: draft_complete → auto-confirm and execute
+            # Case 1: draft_complete → show plan then auto-confirm and execute
             if orch_result.get("requires_response"):
                 plan = orch_result.get("modification_plan", "")
+                missing_chapters = orch_result.get("missing_chapters", [])
 
-                # Send progress
-                yield f"data: {json.dumps({'type': 'progress', 'message': '正在制定修改方案...'})}\n\n"
+                # Show material status as progress (separate visual indicator)
+                material_status = orch_result.get("material_status", {})
+                if material_status:
+                    doc_count = material_status.get("document_count", 0)
+                    doc_names = [d.get("name", "") for d in material_status.get("documents", [])]
+                    missing = material_status.get("missing_topics", [])
+                    if not material_status.get("has_documents"):
+                        mat_msg = "素材状态：知识库暂无参考素材"
+                    elif missing and len(missing) >= 2:
+                        mat_msg = f"素材状态：{doc_count} 个文档，部分覆盖（可能缺失：{'、'.join(missing[:3])}）"
+                    else:
+                        mat_msg = f"素材状态：充足（{doc_count} 个文档）"
+                    yield f"data: {json.dumps({'type': 'progress', 'message': mat_msg}, ensure_ascii=False)}\n\n"
+
+                # Show chapter-level diff result
+                if missing_chapters:
+                    chapter_msg = f"章节对比完成，发现 {len(missing_chapters)} 个缺失章节：{'、'.join(missing_chapters[:5])}"
+                    if len(missing_chapters) > 5:
+                        chapter_msg += f" 等 {len(missing_chapters)} 个"
+                    yield f"data: {json.dumps({'type': 'progress', 'message': chapter_msg}, ensure_ascii=False)}\n\n"
+
+                # Strip the ---MODULES--- JSON block from plan before showing to user
+                display_plan = plan.split("---MODULES---")[0].strip() if plan else ""
+
+                # Build a clean content message with the modification plan
+                plan_content = "已分析初稿与知识库文档，以下是修改方案：\n\n"
+                if display_plan:
+                    plan_content += display_plan
+                yield f"data: {json.dumps({'type': 'content', 'content': plan_content}, ensure_ascii=False)}\n\n"
+
+                # Signal a new message section before execution starts
+                yield f"data: {json.dumps({'type': 'content_section'}, ensure_ascii=False)}\n\n"
+
+                # Show execution progress
+                if missing_chapters:
+                    exec_msg = f"正在按章节提取原文并生成内容（{len(missing_chapters)} 个章节并行）..."
+                else:
+                    exec_msg = "正在执行修改方案..."
+                yield f"data: {json.dumps({'type': 'progress', 'message': exec_msg}, ensure_ascii=False)}\n\n"
 
                 # Auto-confirm: tell orchestrator to execute the plan
                 from app.agents.orchestrator.interaction_models import UserResponse, InputType
@@ -959,28 +997,37 @@ async def generate_stream(request: GenerateStreamRequest):
                     user_response=confirm_response,
                 )
 
-                yield f"data: {json.dumps({'type': 'progress', 'message': '正在生成内容...'})}\n\n"
-
                 if exec_result.get("success"):
                     # Extract generated content from _execute_draft_modification result
-                    # exec_result.result.agent_result.result = {success, result: {content: "..."}, document, suggestions}
                     result_wrapper = exec_result.get("result", {})
                     agent_result = result_wrapper.get("agent_result", {})
+                    modules_generated = result_wrapper.get("modules_generated", 0)
                     new_content = ""
                     if isinstance(agent_result, dict):
                         inner = agent_result.get("result", {})
                         if isinstance(inner, dict):
-                            # WritingAgent returns {success, result: {content: "..."}}
                             new_content = inner.get("content") or inner.get("result", {}).get("content", "")
 
                     if new_content:
-                        # Send a brief summary to chat panel
-                        char_count = len(new_content)
-                        summary = f"已根据知识库完整文档补齐缺失模块，输出 {char_count} 字到编辑器。"
+                        # Build completion summary with chapter info
+                        if missing_chapters:
+                            summary = (
+                                "修改方案已执行完成。\n\n"
+                                f"基于知识库原文补充了 {len(missing_chapters)} 个缺失章节，"
+                                f"生成内容 {len(new_content)} 字已输出到编辑器。\n\n"
+                                f"补充章节：{'、'.join(missing_chapters)}"
+                            )
+                        elif modules_generated > 0:
+                            summary = (
+                                "修改方案已执行完成。\n\n"
+                                f"共补充 {modules_generated} 个缺失模块，"
+                                f"生成内容 {len(new_content)} 字已输出到编辑器。"
+                            )
+                        else:
+                            summary = f"内容生成完成，共 {len(new_content)} 字已输出到编辑器。"
                         yield f"data: {json.dumps({'type': 'content', 'content': summary}, ensure_ascii=False)}\n\n"
                         # Send generated content to editor
-                        editor_content = new_content
-                        yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': editor_content}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': new_content}, ensure_ascii=False)}\n\n"
                         _save_memory(session_id, user_input, new_content)
                     else:
                         yield f"data: {json.dumps({'type': 'content', 'content': '执行完成但未生成内容。'}, ensure_ascii=False)}\n\n"

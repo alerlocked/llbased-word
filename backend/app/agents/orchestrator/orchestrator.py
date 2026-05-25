@@ -1338,12 +1338,12 @@ class ProcessOrchestrator:
     ) -> Dict[str, Any]:
         """处理 draft_complete 意图
 
-        流程：
-        1. 加载画像（ContextService）
-        2. 构建检索上下文（LLMContextService 或 HierarchicalContext）
-        3. 读取初稿（DraftService）
-        4. 组装 prompt 给 LLM 生成修改方案
-        5. 返回方案让用户确认
+        流程（基于章节索引）：
+        1. 加载画像
+        2. 加载章节索引 + 读取初稿
+        3. 结构对比：章节索引 vs 初稿 → 缺失章节列表
+        4. 按缺失章节提取原文（get_chapter_content）
+        5. 生成修改方案 + 返回让用户确认
 
         Args:
             user_input: 用户输入
@@ -1364,16 +1364,29 @@ class ProcessOrchestrator:
             # 2. 加载画像
             profile_context = await self._load_profile_context(context)
 
-            # 3. 构建检索上下文
-            retrieved_context, material_status = await self._build_retrieval_context(user_input, context)
+            # 3. 加载章节索引
+            from app.services.hierarchical_context import hierarchical_context
+            chapter_indexes = hierarchical_context.get_all_chapter_indexes()
 
-            # 3.5 Build material status instruction for Agent context injection
+            # Build a compact chapter summary for the LLM
+            chapter_summary_lines = []
+            for idx in chapter_indexes:
+                for ch in idx.get("chapters", []):
+                    pages = ch["pages"]
+                    page_range = f"第{pages[0]}-{pages[-1]}页" if len(pages) > 1 else f"第{pages[0]}页"
+                    chapter_summary_lines.append(
+                        f"- {ch['title']} ({page_range}, {ch['page_count']}页)"
+                    )
+            chapter_summary = "\n".join(chapter_summary_lines) if chapter_summary_lines else "（无章节索引）"
+            doc_name = chapter_indexes[0]["doc_name"] if chapter_indexes else ""
+
+            # 4. 构建素材状态
+            material_status = hierarchical_context.get_material_status(user_input)
             material_instruction = self._build_material_status_instruction(material_status)
 
-            # 4. 读取初稿内容
+            # 5. 读取初稿内容
             draft_content, draft_id = await self._load_draft_content(context)
             if draft_content is None:
-                # Fallback: use uploaded file content from context (temp upload, no DB)
                 draft_content = context.get("uploaded_file_content", "")
                 if not draft_content:
                     return {
@@ -1381,10 +1394,72 @@ class ProcessOrchestrator:
                         "error": "未找到初稿，请先上传工艺文件初稿，或在上下文中提供 draft_id",
                         "state": self.state_machine.current_state.value,
                     }
-                draft_id = context.get("draft_id")  # May be None for temp uploads
+                draft_id = context.get("draft_id")
                 logger.info("draft_loaded_from_temp_upload", content_length=len(draft_content))
 
-            # 5. 组装 prompt 并调用 LLM
+            # 6. 结构对比 Agent：章节索引 vs 初稿 → 缺失章节
+            missing_chapters = await self._detect_missing_chapters(
+                chapter_summary=chapter_summary,
+                draft_content=draft_content,
+                user_requirement=user_input,
+            )
+
+            logger.info(
+                "chapter_diff_complete",
+                total_chapters=len(chapter_summary_lines),
+                missing_count=len(missing_chapters),
+                missing_titles=[mc.get("title", "") for mc in missing_chapters],
+            )
+
+            # 7. 按缺失章节提取原文（大章节按子章节拆分）
+            chapter_source_texts: Dict[str, str] = {}
+            # Track sub-chapters for large chapters
+            chapter_sub_sources: Dict[str, Dict[str, str]] = {}
+            for mc in missing_chapters:
+                title = mc.get("title", "")
+                doc_dir = mc.get("_doc_dir", "")
+                pages = mc.get("pages", [])
+                page_count = mc.get("page_count", 0)
+                sub_chapters = mc.get("sub_chapters", [])
+                if not doc_dir:
+                    continue
+
+                # Large chapters with sub-chapters: split into sub-chapters
+                if page_count > 5 and sub_chapters:
+                    sub_sources: Dict[str, str] = {}
+                    for sc in sub_chapters:
+                        sc_pages = sc.get("pages", [])
+                        if not sc_pages:
+                            continue
+                        sc_text = hierarchical_context.get_pages_content(
+                            doc_dir_name=doc_dir,
+                            start_page=sc_pages[0],
+                            end_page=sc_pages[-1],
+                        )
+                        if sc_text:
+                            sub_sources[sc["title"]] = sc_text
+                    if sub_sources:
+                        chapter_sub_sources[title] = sub_sources
+                    # Also try full chapter as fallback
+                    full_text = hierarchical_context.get_chapter_content(
+                        doc_dir_name=doc_dir, chapter_title=title,
+                    )
+                    if full_text:
+                        chapter_source_texts[title] = full_text
+                else:
+                    source_text = hierarchical_context.get_chapter_content(
+                        doc_dir_name=doc_dir, chapter_title=title,
+                    )
+                    if source_text:
+                        chapter_source_texts[title] = source_text
+
+            # 8. 生成修改方案（使用章节级上下文）
+            # Build a compact retrieved_context from chapter source texts for the plan generation
+            retrieved_context_parts = []
+            for title, text in chapter_source_texts.items():
+                retrieved_context_parts.append(f"## {title}\n{text}")
+            retrieved_context = "\n\n---\n\n".join(retrieved_context_parts) if retrieved_context_parts else ""
+
             modification_plan = await self._generate_modification_plan(
                 profile_context=profile_context,
                 retrieved_context=retrieved_context,
@@ -1393,7 +1468,7 @@ class ProcessOrchestrator:
                 material_instruction=material_instruction,
             )
 
-            # 6. 缓存以便后续确认使用
+            # 9. 缓存以便后续确认使用
             self._collected_info["draft_id"] = draft_id
             self._collected_info["draft_content"] = draft_content
             self._collected_info["modification_plan"] = modification_plan
@@ -1404,15 +1479,19 @@ class ProcessOrchestrator:
             self._collected_info["material_status"] = material_status
             self._collected_info["material_instruction"] = material_instruction
             self._collected_info["is_temp_upload"] = draft_id is None and bool(context.get("uploaded_file_content"))
+            # Store chapter-level data for execution phase
+            self._collected_info["missing_chapters"] = missing_chapters
+            self._collected_info["chapter_source_texts"] = chapter_source_texts
+            self._collected_info["chapter_sub_sources"] = chapter_sub_sources
 
-            # 7. 转到用户确认
+            # 10. 转到用户确认
             await self.state_machine.transition_to(
                 ProcessState.USER_CONFIRMATION,
                 context_update={"modification_plan": modification_plan},
                 trigger="plan_generated",
             )
 
-            # 8. 暂停等待确认
+            # 11. 暂停等待确认
             await self.state_machine.transition_to(
                 ProcessState.PAUSED,
                 trigger="awaiting_draft_plan_confirmation",
@@ -1424,6 +1503,8 @@ class ProcessOrchestrator:
                 "interaction_type": "draft_plan_review",
                 "draft_id": draft_id,
                 "modification_plan": modification_plan,
+                "material_status": material_status,
+                "missing_chapters": [mc.get("title", "") for mc in missing_chapters],
                 "confirm_options": [
                     {"label": "确认执行", "value": "confirm"},
                     {"label": "需要调整", "value": "modify"},
@@ -1440,6 +1521,112 @@ class ProcessOrchestrator:
                 "error": str(e),
                 "state": self.state_machine.current_state.value,
             }
+
+    async def _detect_missing_chapters(
+        self,
+        chapter_summary: str,
+        draft_content: str,
+        user_requirement: str,
+    ) -> List[Dict[str, Any]]:
+        """Use LLM to compare chapter index against user draft and find missing chapters.
+
+        Returns:
+            List of {"title": str, "pages": [int], "_doc_dir": str, "page_count": int}
+        """
+        from app.services.hierarchical_context import hierarchical_context
+        chapter_indexes = hierarchical_context.get_all_chapter_indexes()
+
+        prompt = f"""你是工艺文件结构对比助手。请对比知识库文档的完整章节列表和用户的初稿，找出初稿中缺失的章节。
+
+## 知识库文档完整章节列表
+{chapter_summary}
+
+## 用户初稿内容
+{draft_content[:12000]}
+
+## 用户需求
+{user_requirement}
+
+请输出一个 JSON 数组，每个元素代表一个初稿中确实缺失或内容不完整的章节：
+```json
+[
+  {{"chapter": "章节名称", "reason": "缺失原因"}}
+]
+```
+
+要求：
+- 只列出初稿中确实缺失或内容严重不完整的章节
+- 不要列已有完整内容的章节
+- 如果没有缺失，输出空数组 []
+- 只输出 JSON，不要输出其他内容"""
+
+        try:
+            from app.services.llm_service import llm_service
+            result = await llm_service.generate_with_messages(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=2000,
+                tier="simple",
+            )
+            if result.get("status") == "error":
+                logger.warning("missing_chapter_detection_llm_failed", error=result.get("error"))
+                return self._fallback_missing_detection(chapter_indexes, draft_content)
+
+            content = result.get("content", "").strip()
+            # Strip markdown code fences
+            if content.startswith("```"):
+                lines = content.split("\n")
+                lines = [l for l in lines if not l.strip().startswith("```")]
+                content = "\n".join(lines).strip()
+
+            import json as _json
+            detected = _json.loads(content)
+            if not isinstance(detected, list):
+                return []
+
+            # Map detected chapter names back to index entries
+            missing = []
+            for item in detected:
+                ch_name = item.get("chapter", "")
+                for idx in chapter_indexes:
+                    for ch in idx.get("chapters", []):
+                        if ch_name in ch["title"] or ch["title"] in ch_name:
+                            missing.append({
+                                "title": ch["title"],
+                                "pages": ch["pages"],
+                                "page_count": ch["page_count"],
+                                "sub_chapters": ch.get("sub_chapters", []),
+                                "_doc_dir": idx.get("_doc_dir", ""),
+                                "reason": item.get("reason", ""),
+                            })
+                            break
+
+            return missing
+
+        except Exception as e:
+            logger.warning("missing_chapter_detection_failed", error=str(e))
+            return self._fallback_missing_detection(chapter_indexes, draft_content)
+
+    def _fallback_missing_detection(
+        self,
+        chapter_indexes: List[Dict[str, Any]],
+        draft_content: str,
+    ) -> List[Dict[str, Any]]:
+        """Fallback: mark all chapters as missing if LLM detection fails."""
+        missing = []
+        for idx in chapter_indexes:
+            for ch in idx.get("chapters", []):
+                # Simple heuristic: check if chapter title appears in draft
+                if ch["title"] not in draft_content:
+                    missing.append({
+                        "title": ch["title"],
+                        "pages": ch["pages"],
+                        "page_count": ch["page_count"],
+                        "sub_chapters": ch.get("sub_chapters", []),
+                        "_doc_dir": idx.get("_doc_dir", ""),
+                        "reason": "章节标题未出现在初稿中",
+                    })
+        return missing
 
     async def _load_profile_context(self, context: Dict[str, Any]) -> str:
         """加载用户画像上下文
@@ -1615,11 +1802,24 @@ class ProcessOrchestrator:
 ## 用户需求
 {user_requirement}
 
-请生成修改方案：
-- 逐个模块对比初稿和知识库文档，列出每个缺失或需要补充的模块
-- 对每个缺失模块，写明：模块名称 + 需要补充的具体内容（关键参数、表格、步骤等）
-- 如果知识库中有对应完整内容，标注「知识库有原文」
-- 如果知识库也没有，标注「待用户确认」
+请完成以下两项任务：
+
+### 任务1：修改方案文本
+逐个模块对比初稿和知识库文档，列出每个缺失或需要补充的模块。对每个缺失模块写明：模块名称 + 需要补充的具体内容（关键参数、表格、步骤等）。如果知识库有对应完整内容，标注「知识库有原文」；如果知识库也没有，标注「待用户确认」。
+
+### 任务2：结构化模块列表（必须放在末尾）
+在方案文本的最后，用 `---MODULES---` 作为分隔符，然后输出一个 JSON 数组。每个元素代表一个需要补充（缺失或部分缺失）的模块：
+
+```json
+[
+  {{"name": "模块名称", "status": "缺失或部分缺失", "source": "知识库有原文或待用户确认", "instruction": "补充的具体指令"}}
+]
+```
+
+要求：
+- 只列出初稿中**确实缺失或需要补充**的模块，不要列已有完整内容的模块
+- instruction 要具体：写明需要补充哪些表格、参数、步骤等
+- 如果没有任何模块缺失，输出空数组 []
 - 不要写分析过程、不要写通用建议、不要重复已有内容
 """
 
@@ -1646,16 +1846,55 @@ class ProcessOrchestrator:
             "请根据检索到的参考资料和画像要求，手动确认修改方案。"
         )
 
-    async def _execute_draft_modification(self) -> Dict[str, Any]:
-        """执行已确认的初稿修改方案
+    def _parse_modules_from_plan(self, plan_text: str) -> List[Dict[str, str]]:
+        """Parse structured module list from modification plan text.
 
-        流程：
-        1. 从缓存获取修改方案
-        2. 读取初稿内容
-        3. 分解为 Writing Agent 指令
-        4. Writing Agent 执行
-        5. DraftService.update_content 保存（先快照再覆盖）
-        6. 返回结果
+        Looks for a ``---MODULES---`` delimiter in the plan, then extracts
+        the JSON array that follows it.  Returns a list of dicts with keys
+        ``name``, ``status``, ``source``, ``instruction``.  Returns an empty
+        list on any parse failure (caller falls back to single-task mode).
+        """
+        import json as _json
+
+        delimiter = "---MODULES---"
+        idx = plan_text.find(delimiter)
+        if idx == -1:
+            logger.info("modules_delimiter_not_found")
+            return []
+
+        json_part = plan_text[idx + len(delimiter):].strip()
+        # Strip markdown code fences if present
+        if json_part.startswith("```"):
+            lines = json_part.split("\n")
+            # Remove first line (```json) and last line (```)
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            json_part = "\n".join(lines).strip()
+
+        try:
+            modules = _json.loads(json_part)
+            if isinstance(modules, list) and all(
+                isinstance(m, dict) and "name" in m and "instruction" in m
+                for m in modules
+            ):
+                logger.info("modules_parsed", count=len(modules))
+                return modules
+            logger.warning("modules_json_invalid_structure")
+            return []
+        except _json.JSONDecodeError:
+            logger.warning("modules_json_parse_failed", snippet=json_part[:200])
+            return []
+
+    async def _execute_draft_modification(self) -> Dict[str, Any]:
+        """Execute a confirmed draft modification plan.
+
+        Supports two modes:
+
+        1. **Chapter-based parallel mode** — when chapter_source_texts are
+           available, each missing chapter is dispatched as an independent
+           WritingAgent task with its own source text.  All tasks run in
+           parallel via ``asyncio.gather`` and results are spliced in order.
+        2. **Module-based mode** — fallback using ---MODULES--- from plan.
+        3. **Single-task fallback** — if no structured modules are found.
         """
         draft_id = self._collected_info.get("draft_id")
         modification_plan = self._collected_info.get("modification_plan", "")
@@ -1665,51 +1904,83 @@ class ProcessOrchestrator:
         material_instruction = self._collected_info.get("material_instruction", "")
         intent = self._collected_info.get("intent", {})
         is_temp_upload = self._collected_info.get("is_temp_upload", False)
+        chapter_source_texts: Dict[str, str] = self._collected_info.get("chapter_source_texts", {})
+        chapter_sub_sources: Dict[str, Dict[str, str]] = self._collected_info.get("chapter_sub_sources", {})
+        modules: List[Dict[str, str]] = []
 
         if not draft_id and not is_temp_upload:
             return {"success": False, "error": "缺少 draft_id"}
 
-        # 1. 任务分解
+        # 1. Task decomposition
         await self.state_machine.transition_to(
             ProcessState.TASK_DECOMPOSITION,
             trigger="draft_plan_confirmed",
         )
 
-        # 2. 构造 Writing Agent 任务 — structured context via params
-        writing_task = {
-            "type": "writing",
-            "action": "generate",
-            "content": modification_plan,
-            "target": "工艺文件完善",
-            "requirements": "请按修改方案，逐章补充缺失内容，输出完整工艺文件。",
-            "params": {
-                "retrieved_context": retrieved_context,
-                "draft_content": draft_content,
-                "modification_plan": modification_plan,
-                "material_instruction": material_instruction,
-                "skip_planning": True,
-            },
-            "generate_doc": False,
-        }
+        # 2. Try chapter-based parallel generation first
+        if chapter_source_texts:
+            new_content = await self._execute_chapters_parallel(
+                chapter_source_texts=chapter_source_texts,
+                chapter_sub_sources=chapter_sub_sources,
+                draft_content=draft_content,
+                material_instruction=material_instruction,
+            )
+            agent_result = {
+                "status": "completed",
+                "result": {"content": new_content},
+            }
+        else:
+            # 3. Fallback: parse structured modules from plan
+            modules = self._parse_modules_from_plan(modification_plan)
 
-        # 3. 执行任务
-        await self.state_machine.transition_to(
-            ProcessState.TASK_EXECUTION,
-            trigger="draft_tasks_decomposed",
-        )
+            if modules:
+                # --- Module-based parallel mode ---
+                new_content = await self._execute_modules_parallel(
+                    modules=modules,
+                    draft_content=draft_content,
+                    retrieved_context=retrieved_context,
+                    material_instruction=material_instruction,
+                    profile_context=profile_context,
+                )
+                agent_result = {
+                    "status": "completed",
+                    "result": {"content": new_content},
+                }
+            else:
+                # --- Single-task fallback (original logic) ---
+                writing_task = {
+                    "type": "writing",
+                    "action": "generate",
+                    "content": modification_plan,
+                    "target": "工艺文件完善",
+                    "requirements": "请按修改方案，逐章补充缺失内容，输出完整工艺文件。",
+                    "params": {
+                        "retrieved_context": retrieved_context,
+                        "draft_content": draft_content,
+                        "modification_plan": modification_plan,
+                        "material_instruction": material_instruction,
+                        "skip_planning": True,
+                    },
+                    "generate_doc": False,
+                }
 
-        agent_result = await self._dispatch_to_sub_agent(writing_task)
+                await self.state_machine.transition_to(
+                    ProcessState.TASK_EXECUTION,
+                    trigger="draft_tasks_decomposed",
+                )
 
-        # 4. 保存结果到初稿
+                agent_result = await self._dispatch_to_sub_agent(writing_task)
+
+        # 3. Extract content from result
         new_content = None
         if agent_result.get("status") == "completed":
             inner = agent_result.get("result", {})
             if isinstance(inner, dict):
                 new_content = inner.get("content") or inner.get("result", {}).get("content")
 
+        # 4. Save result to draft
         if new_content:
             if draft_id and not is_temp_upload:
-                # Save to DB draft
                 try:
                     from app.services.draft_service import DraftService
                     from app.models.database import get_db
@@ -1723,22 +1994,21 @@ class ProcessOrchestrator:
                 except Exception as e:
                     logger.error("draft_save_failed", draft_id=draft_id, error=str(e))
             else:
-                # Temp upload — just return the content, don't save to DB
                 logger.info("draft_complete_temp_upload", content_length=len(new_content))
 
-        # 5. 聚合结果
+        # 5. Aggregate results
         await self.state_machine.transition_to(
             ProcessState.RESULT_AGGREGATION,
             trigger="draft_execution_completed",
         )
 
-        # 6. 完成
+        # 6. Complete
         await self.state_machine.transition_to(
             ProcessState.COMPLETION,
             trigger="draft_aggregation_complete",
         )
 
-        # 清理缓存
+        # Clear cache
         self._collected_info.clear()
 
         return {
@@ -1749,9 +2019,263 @@ class ProcessOrchestrator:
             "result": {
                 "agent_result": agent_result,
                 "content_updated": new_content is not None,
+                "chapters_generated": len(chapter_source_texts),
+                "modules_generated": len(modules) if modules else 0,
             },
             "state": self.state_machine.current_state.value,
         }
+
+    async def _execute_chapters_parallel(
+        self,
+        chapter_source_texts: Dict[str, str],
+        chapter_sub_sources: Dict[str, Dict[str, str]],
+        draft_content: str,
+        material_instruction: str,
+    ) -> str:
+        """Dispatch one WritingAgent task per chapter with source text in parallel.
+
+        Each chapter gets its own source text from the knowledge base,
+        preventing the LLM from fabricating content.
+
+        Large chapters (>5 pages) with sub-chapters are split into
+        per-sub-chapter tasks to avoid LLM token limits.
+
+        Output order follows the knowledge base chapter index.
+
+        Returns the combined content string.
+        """
+        await self.state_machine.transition_to(
+            ProcessState.TASK_EXECUTION,
+            trigger="draft_tasks_decomposed",
+        )
+
+        # Resolve the correct chapter order from the knowledge base index
+        from app.services.hierarchical_context import hierarchical_context
+        ordered_titles: List[str] = []
+        all_indexes = hierarchical_context.get_all_chapter_indexes()
+        for idx in all_indexes:
+            for ch in idx.get("chapters", []):
+                if ch["title"] in chapter_source_texts:
+                    ordered_titles.append(ch["title"])
+
+        # Fall back to dict insertion order if index lookup yields nothing
+        if not ordered_titles:
+            ordered_titles = list(chapter_source_texts.keys())
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_titles: List[str] = []
+        for t in ordered_titles:
+            if t not in seen:
+                seen.add(t)
+                unique_titles.append(t)
+
+        # Build tasks in correct chapter order.
+        # For large chapters with sub-chapters, create one task per sub-chapter.
+        tasks = []
+        task_keys: List[str] = []  # "title" or "title::sub_title"
+        for title in unique_titles:
+            sub_sources = chapter_sub_sources.get(title)
+            if sub_sources:
+                # Split into sub-chapter tasks
+                for sub_title, sub_text in sub_sources.items():
+                    key = f"{title}::{sub_title}"
+                    task = {
+                        "type": "writing",
+                        "action": "generate",
+                        "content": f"生成「{title} - {sub_title}」内容",
+                        "target": f"{title} - {sub_title}",
+                        "requirements": f"基于知识库原文生成「{sub_title}」的完整内容",
+                        "params": {
+                            "chapter_source_text": sub_text,
+                            "module_name": f"{title} ({sub_title})",
+                            "module_instruction": (
+                                f"以下是知识库文档「{title}」中{sub_title}的原文。"
+                                "请将原文内容整理为格式清晰的工艺文件输出。"
+                                "严格使用原文中的参数、代号、材料名称和数量，不要编造。"
+                                "如果原文中引用了其他文件但未提供内容，在末尾用[待确认]标注。"
+                            ),
+                            "skip_planning": True,
+                        },
+                        "generate_doc": False,
+                    }
+                    tasks.append(task)
+                    task_keys.append(key)
+            else:
+                # Normal single chapter task
+                source_text = chapter_source_texts[title]
+                task = {
+                    "type": "writing",
+                    "action": "generate",
+                    "content": f"生成「{title}」章节内容",
+                    "target": title,
+                    "requirements": f"基于知识库原文生成「{title}」章节的完整内容",
+                    "params": {
+                        "chapter_source_text": source_text,
+                        "module_name": title,
+                        "module_instruction": (
+                            f"基于知识库原文生成「{title}」章节的完整内容。"
+                            "严格使用原文中的参数、代号、材料名称和数量，不要编造。"
+                            "如果原文中引用了其他文件但未提供内容，在末尾用[待确认]标注提醒用户上传。"
+                        ),
+                        "skip_planning": True,
+                    },
+                    "generate_doc": False,
+                }
+                tasks.append(task)
+                task_keys.append(title)
+
+        logger.info(
+            "chapter_parallel_dispatching",
+            task_count=len(tasks),
+            tasks=task_keys,
+        )
+
+        coros = [self._dispatch_to_sub_agent(t) for t in tasks]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+
+        # Build output in correct chapter order.
+        # Sub-chapter results are grouped under their parent chapter.
+        parts: List[str] = []
+        splice_log = []
+
+        # Group results by parent chapter
+        current_parent: Optional[str] = None
+        sub_parts: List[str] = []
+
+        for key, result in zip(task_keys, results):
+            # Determine parent title and sub-title
+            if "::" in key:
+                parent_title, sub_title = key.split("::", 1)
+            else:
+                parent_title = key
+                sub_title = None
+
+            # Flush previous parent's sub-chapters if parent changed
+            if parent_title != current_parent:
+                if sub_parts:
+                    parts.append(f"## {current_parent}\n\n" + "\n\n".join(sub_parts))
+                    sub_parts = []
+                current_parent = parent_title
+
+            # Extract content from result
+            content = ""
+            if isinstance(result, BaseException):
+                logger.error("chapter_generation_failed", key=key, error=str(result))
+                content = f"[待确认：{sub_title or parent_title} 生成失败，请手动补充]"
+                splice_log.append({"key": key, "status": "error"})
+            elif isinstance(result, dict) and result.get("status") == "completed":
+                inner = result.get("result", {})
+                if isinstance(inner, dict):
+                    content = inner.get("content") or inner.get("result", {}).get("content", "")
+
+            if content:
+                if sub_title:
+                    sub_parts.append(f"### {sub_title}\n\n{content}")
+                else:
+                    parts.append(f"## {parent_title}\n\n{content}")
+                splice_log.append({"key": key, "status": "ok", "length": len(content)})
+            else:
+                if sub_title:
+                    sub_parts.append(f"### {sub_title}\n\n[待确认：内容未能生成]")
+                else:
+                    parts.append(f"## {parent_title}\n\n[待确认：章节内容未能生成]")
+                splice_log.append({"key": key, "status": "empty"})
+
+        # Flush remaining sub-chapters
+        if sub_parts:
+            parts.append(f"## {current_parent}\n\n" + "\n\n".join(sub_parts))
+
+        final_content = "\n\n---\n\n".join(parts)
+        logger.info(
+            "chapter_parallel_complete",
+            total_tasks=len(task_keys),
+            final_length=len(final_content),
+            splice_detail=splice_log,
+        )
+        return final_content
+
+    async def _execute_modules_parallel(
+        self,
+        modules: List[Dict[str, str]],
+        draft_content: str,
+        retrieved_context: str,
+        material_instruction: str,
+        profile_context: str,
+    ) -> str:
+        """Dispatch one WritingAgent task per module in parallel, then splice.
+
+        Returns the combined content string (existing draft + all module
+        supplements) ready to be saved or returned.
+        """
+        await self.state_machine.transition_to(
+            ProcessState.TASK_EXECUTION,
+            trigger="draft_tasks_decomposed",
+        )
+
+        # Build one task per module
+        tasks = []
+        for mod in modules:
+            task = {
+                "type": "writing",
+                "action": "generate",
+                "content": mod["instruction"],
+                "target": mod["name"],
+                "requirements": f"生成模块「{mod['name']}」的完整内容。{mod['instruction']}",
+                "params": {
+                    "retrieved_context": retrieved_context,
+                    "module_name": mod["name"],
+                    "module_instruction": mod["instruction"],
+                    "skip_planning": True,
+                },
+                "generate_doc": False,
+            }
+            tasks.append(task)
+
+        logger.info(
+            "parallel_modules_dispatching",
+            module_count=len(tasks),
+            modules=[m["name"] for m in modules],
+        )
+
+        # Execute all module tasks in parallel
+        coros = [self._dispatch_to_sub_agent(t) for t in tasks]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+
+        # Splice: existing draft content + each module's output in order
+        parts = [draft_content] if draft_content else []
+        splice_log = []
+        for mod, result in zip(modules, results):
+            if isinstance(result, BaseException):
+                logger.error(
+                    "module_generation_failed",
+                    module=mod["name"],
+                    error=str(result),
+                )
+                parts.append(f"\n\n## {mod['name']}\n\n[待确认：模块生成失败，请手动补充]")
+                splice_log.append({"module": mod["name"], "status": "error", "error": str(result)})
+                continue
+
+            if isinstance(result, dict) and result.get("status") == "completed":
+                inner = result.get("result", {})
+                if isinstance(inner, dict):
+                    content = inner.get("content") or inner.get("result", {}).get("content", "")
+                    if content:
+                        parts.append(f"\n\n## {mod['name']}\n\n{content}")
+                        splice_log.append({"module": mod["name"], "status": "ok", "length": len(content)})
+                        continue
+
+            parts.append(f"\n\n## {mod['name']}\n\n[待确认：模块内容未能生成]")
+            splice_log.append({"module": mod["name"], "status": "empty"})
+
+        final_content = "\n".join(parts)
+        logger.info(
+            "parallel_modules_complete",
+            total_modules=len(modules),
+            final_length=len(final_content),
+            splice_detail=splice_log,
+        )
+        return final_content
 
     async def _execute_confirmed_task(self) -> Dict[str, Any]:
         """执行已确认的任务"""
