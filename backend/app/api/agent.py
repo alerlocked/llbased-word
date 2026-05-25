@@ -939,7 +939,7 @@ async def generate_stream(request: GenerateStreamRequest):
                 yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
                 return
 
-            # Case 1: draft_complete → show plan then auto-confirm and execute
+            # Case 1: draft_complete → show analysis then auto-confirm and execute
             if orch_result.get("requires_response"):
                 plan = orch_result.get("modification_plan", "")
                 missing_chapters = orch_result.get("missing_chapters", [])
@@ -948,7 +948,6 @@ async def generate_stream(request: GenerateStreamRequest):
                 material_status = orch_result.get("material_status", {})
                 if material_status:
                     doc_count = material_status.get("document_count", 0)
-                    doc_names = [d.get("name", "") for d in material_status.get("documents", [])]
                     missing = material_status.get("missing_topics", [])
                     if not material_status.get("has_documents"):
                         mat_msg = "素材状态：知识库暂无参考素材"
@@ -958,21 +957,21 @@ async def generate_stream(request: GenerateStreamRequest):
                         mat_msg = f"素材状态：充足（{doc_count} 个文档）"
                     yield f"data: {json.dumps({'type': 'progress', 'message': mat_msg}, ensure_ascii=False)}\n\n"
 
-                # Show chapter-level diff result
+                # Build structured analysis report as chat content
+                analysis_lines = ["**初稿分析报告**\n"]
                 if missing_chapters:
-                    chapter_msg = f"章节对比完成，发现 {len(missing_chapters)} 个缺失章节：{'、'.join(missing_chapters[:5])}"
-                    if len(missing_chapters) > 5:
-                        chapter_msg += f" 等 {len(missing_chapters)} 个"
-                    yield f"data: {json.dumps({'type': 'progress', 'message': chapter_msg}, ensure_ascii=False)}\n\n"
+                    analysis_lines.append(
+                        f"与知识库文档对比后，发现初稿缺失以下 {len(missing_chapters)} 个章节：\n"
+                    )
+                    for i, ch in enumerate(missing_chapters, 1):
+                        analysis_lines.append(f"{i}. {ch}")
+                    analysis_lines.append(
+                        f"\n将基于知识库原文补充以上 {len(missing_chapters)} 个章节。"
+                    )
+                else:
+                    analysis_lines.append("初稿章节基本完整，将进行内容优化。")
 
-                # Strip the ---MODULES--- JSON block from plan before showing to user
-                display_plan = plan.split("---MODULES---")[0].strip() if plan else ""
-
-                # Build a clean content message with the modification plan
-                plan_content = "已分析初稿与知识库文档，以下是修改方案：\n\n"
-                if display_plan:
-                    plan_content += display_plan
-                yield f"data: {json.dumps({'type': 'content', 'content': plan_content}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'content', 'content': '\\n'.join(analysis_lines)}, ensure_ascii=False)}\n\n"
 
                 # Signal a new message section before execution starts
                 yield f"data: {json.dumps({'type': 'content_section'}, ensure_ascii=False)}\n\n"

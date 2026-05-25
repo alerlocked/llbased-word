@@ -1453,19 +1453,18 @@ class ProcessOrchestrator:
                     if source_text:
                         chapter_source_texts[title] = source_text
 
-            # 8. 生成修改方案（使用章节级上下文）
-            # Build a compact retrieved_context from chapter source texts for the plan generation
+            # 8. Build modification plan from chapter analysis (no extra LLM call needed)
+            # The plan is simply the list of missing chapters — we already know
+            # what to generate from the chapter index + source text extraction.
             retrieved_context_parts = []
             for title, text in chapter_source_texts.items():
                 retrieved_context_parts.append(f"## {title}\n{text}")
             retrieved_context = "\n\n---\n\n".join(retrieved_context_parts) if retrieved_context_parts else ""
 
-            modification_plan = await self._generate_modification_plan(
-                profile_context=profile_context,
-                retrieved_context=retrieved_context,
-                draft_content=draft_content,
-                user_requirement=user_input,
-                material_instruction=material_instruction,
+            missing_titles = [mc.get("title", "") for mc in missing_chapters]
+            modification_plan = (
+                f"基于知识库章节索引分析，初稿缺失以下章节，将从知识库原文补充：\n"
+                + "\n".join(f"- {t}" for t in missing_titles)
             )
 
             # 9. 缓存以便后续确认使用
