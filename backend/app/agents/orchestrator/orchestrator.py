@@ -19,7 +19,22 @@ from dataclasses import dataclass, field
 import asyncio
 import time
 
+import re as _re
+
 from app.shared.logging import get_logger
+
+
+def _strip_duplicate_heading(content: str, parent_title: str) -> str:
+    """Remove a leading ### heading that duplicates the parent ## heading."""
+    stripped = content.lstrip()
+    # Match ### title (possibly with extra text after)
+    m = _re.match(r"^###\s+.*?\n+", stripped)
+    if m:
+        heading_text = stripped[:m.end()]
+        # Check if the heading contains the parent title
+        if parent_title in heading_text:
+            return stripped[m.end():]
+    return content
 from .state_machine import ProcessStateMachine, ProcessState
 from .dialog_manager import DialogManager
 from .intent_recognizer import IntentRecognizer, IntentType
@@ -2082,15 +2097,15 @@ class ProcessOrchestrator:
                     task = {
                         "type": "writing",
                         "action": "generate",
-                        "content": f"生成「{title} - {sub_title}」内容",
-                        "target": f"{title} - {sub_title}",
+                        "content": f"生成「{sub_title}」内容",
+                        "target": f"{sub_title}",
                         "requirements": f"基于知识库原文生成「{sub_title}」的完整内容",
                         "params": {
                             "chapter_source_text": sub_text,
-                            "module_name": f"{title} ({sub_title})",
+                            "module_name": sub_title,
                             "module_instruction": (
-                                f"以下是知识库文档「{title}」中{sub_title}的原文。"
-                                "请将原文内容整理为格式清晰的工艺文件输出。"
+                                f"以下是知识库文档中{sub_title}的原文（包含完整的工序内容、材料和参数）。"
+                                "请将原文内容整理为格式清晰的工艺文件输出，保留所有工序号、工步号。"
                                 "严格使用原文中的参数、代号、材料名称和数量，不要编造。"
                                 "如果原文中引用了其他文件但未提供内容，在末尾用[待确认]标注。"
                             ),
@@ -2169,8 +2184,13 @@ class ProcessOrchestrator:
                     content = inner.get("content") or inner.get("result", {}).get("content", "")
 
             if content:
+                # Strip duplicate heading from WritingAgent output
+                # WritingAgent may start with "### {module_name}" which duplicates
+                # the "## {parent_title}" we prepend
+                content = _strip_duplicate_heading(content, parent_title)
                 if sub_title:
-                    sub_parts.append(f"### {sub_title}\n\n{content}")
+                    # Sub-chapter: let WritingAgent output stand on its own
+                    sub_parts.append(content)
                 else:
                     parts.append(f"## {parent_title}\n\n{content}")
                 splice_log.append({"key": key, "status": "ok", "length": len(content)})

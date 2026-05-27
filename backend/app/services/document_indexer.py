@@ -337,25 +337,52 @@ class DocumentIndexer:
         first_page = sub["pages"][0]
         first_text = page_text_map.get(first_page, "")
 
-        # Try to find a step pattern like "1.1 xxx", "2.1 xxx", "工序内容" etc.
-        # Look for the first substantive step description
+        # Strategy 1: Find a sub-step pattern like "8.1装配隔热套管"
+        # OCR text may have no space between step number and Chinese text
         step_match = re.search(
-            r"(?:^|\n)\s*(\d+\.\d+)\s+(.{4,30}?)(?:\n|$)",
+            r"(?:^|\n)\s*(\d+\.\d+)\s*(.{4,30}?)(?:\n|$)",
             first_text,
         )
         if step_match:
             step_num = step_match.group(1)
             step_desc = step_match.group(2).strip()
             sub["title"] = f"第{first_page}页起 ({step_num} {step_desc})"
+            return
+
+        # Strategy 2: Find process step in table body (after header rows).
+        # G25a table header is typically ~20 lines of column headers.
+        # Skip header by looking past "工时定额" or "总计" which mark end of header.
+        header_end = first_text.find("工时定额")
+        if header_end == -1:
+            header_end = first_text.find("总计")
+        search_text = first_text[header_end:] if header_end > 0 else first_text
+
+        # Pattern: single/double digit (工序号) | 1-2 char name | Chinese description
+        proc_match = re.search(
+            r"(?:^|\n)\s*(\d{1,2})\n\s*([\u4e00-\u9fff]{1,4})\n\s*([\u4e00-\u9fff\(（].{2,25}?)(?:\n|$)",
+            search_text,
+        )
+        if proc_match:
+            proc_num = proc_match.group(1)
+            proc_desc = proc_match.group(3).strip()
+            sub["title"] = f"第{first_page}页起 (工序{proc_num} {proc_desc})"
+            return
+
+        # Strategy 3: Find any Chinese description line after a single-digit line
+        # Simpler fallback for pages with less structured text
+        simple_match = re.search(
+            r"(?:^|\n)\s*(\d{1,2})\n[^\n]*\n\s*([\u4e00-\u9fff].{4,25}?)(?:\n|$)",
+            search_text,
+        )
+        if simple_match:
+            proc_num = simple_match.group(1)
+            proc_desc = simple_match.group(2).strip()
+            sub["title"] = f"第{first_page}页起 (工序{proc_num} {proc_desc})"
+            return
+
+        # Fallback: page range
+        pages = sub["pages"]
+        if len(pages) == 1:
+            sub["title"] = f"第{pages[0]}页"
         else:
-            # Try to find 工序名称 content
-            name_match = re.search(r"工序内容[：:]*\s*\n(.{4,30})", first_text)
-            if name_match:
-                desc = name_match.group(1).strip()[:30]
-                sub["title"] = f"第{first_page}页起 ({desc})"
-            else:
-                pages = sub["pages"]
-                if len(pages) == 1:
-                    sub["title"] = f"第{pages[0]}页"
-                else:
-                    sub["title"] = f"第{pages[0]}-{pages[-1]}页"
+            sub["title"] = f"第{pages[0]}-{pages[-1]}页"
