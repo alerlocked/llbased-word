@@ -1053,7 +1053,8 @@ class HierarchicalContext:
                 html_content = f.read()
 
             soup = BeautifulSoup(html_content, "html.parser")
-            plain_text = soup.get_text(separator="\n")
+            # Convert HTML tables to Markdown tables for structured extraction
+            plain_text = self._html_to_readable(soup)
 
             # Split into pages using same logic as global_keyword_search
             pages = self._split_text_by_pages(plain_text)
@@ -1087,6 +1088,59 @@ class HierarchicalContext:
         except Exception as e:
             logger.error("get_pages_content_failed", doc_dir=doc_dir_name, error=str(e))
             return None
+
+    def _html_to_readable(self, soup: BeautifulSoup) -> str:
+        """Convert HTML to readable text, preserving table structure as Markdown.
+
+        Tables are converted to Markdown pipe tables so LLM receives
+        structured row/column data instead of flattened cell text.
+        """
+        # Replace each <table> with its Markdown representation in-place
+        for table in soup.find_all("table"):
+            md = self._table_to_markdown(table)
+            if md:
+                table.replace_with(md)
+            else:
+                table.decompose()
+
+        # Now extract text — tables are already Markdown strings
+        return soup.get_text(separator="\n")
+
+    def _table_to_markdown(self, table) -> str:
+        """Convert an HTML <table> to a Markdown pipe table string.
+
+        Handles colspan by merging cells. Skips rows where all cells
+        are empty (blank filler rows in QJ 903 tables).
+        """
+        rows: List[List[str]] = []
+        for tr in table.find_all("tr"):
+            cells: List[str] = []
+            for td in tr.find_all("td"):
+                text = td.get_text(strip=True)
+                cells.append(text)
+            # Skip completely empty rows
+            if any(c for c in cells):
+                rows.append(cells)
+
+        if not rows:
+            return ""
+
+        # Normalize column count
+        max_cols = max(len(r) for r in rows) if rows else 0
+        for r in rows:
+            while len(r) < max_cols:
+                r.append("")
+
+        # Build Markdown table
+        lines: List[str] = []
+        for i, row in enumerate(rows):
+            line = "| " + " | ".join(row) + " |"
+            lines.append(line)
+            # Add separator after header row (first row)
+            if i == 0:
+                lines.append("| " + " | ".join(["---"] * max_cols) + " |")
+
+        return "\n".join(lines)
 
     def _split_text_by_pages(self, plain_text: str) -> Dict[int, str]:
         """Split plain text into pages by ## 第 N 页 markers.
