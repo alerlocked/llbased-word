@@ -2206,6 +2206,23 @@ class ProcessOrchestrator:
             parts.append(f"## {current_parent}\n\n" + "\n\n".join(sub_parts))
 
         final_content = "\n\n---\n\n".join(parts)
+
+        # Post-process: strip [待确认] noise from LLM output.
+        # Our structured markers use [待确认：...] (with colon), keep those.
+        # Only remove bare [待确认] lines that the LLM adds as disclaimers.
+        final_content = _re.sub(
+            r"\n*\[待确认\]\s*\n",
+            "\n",
+            final_content,
+        )
+        # Also remove trailing [待确认] at end of content blocks
+        final_content = _re.sub(
+            r"\[待确认\]\s*$",
+            "",
+            final_content,
+            flags=_re.MULTILINE,
+        )
+
         logger.info(
             "chapter_parallel_complete",
             total_tasks=len(task_keys),
@@ -2288,6 +2305,11 @@ class ProcessOrchestrator:
             splice_log.append({"module": mod["name"], "status": "empty"})
 
         final_content = "\n".join(parts)
+
+        # Post-process: strip bare [待确认] noise from LLM output
+        final_content = _re.sub(r"\n*\[待确认\]\s*\n", "\n", final_content)
+        final_content = _re.sub(r"\[待确认\]\s*$", "", final_content, flags=_re.MULTILINE)
+
         logger.info(
             "parallel_modules_complete",
             total_modules=len(modules),
