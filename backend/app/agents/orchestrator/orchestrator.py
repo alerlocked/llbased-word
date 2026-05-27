@@ -25,19 +25,28 @@ from app.shared.logging import get_logger
 
 
 def _strip_duplicate_heading(content: str, parent_title: str) -> str:
-    """Remove a leading ### heading that duplicates the parent ## heading."""
-    # Search first 3 lines for a ### heading containing the parent title
+    """Remove leading ### or #### heading lines that duplicate the parent ## heading.
+
+    The orchestrator already adds ## {parent_title}, so any sub-heading
+    in the first few lines is likely a duplicate from the WritingAgent.
+    """
     lines = content.split("\n")
-    for i, line in enumerate(lines[:5]):
-        stripped_line = line.strip()
-        if stripped_line.startswith("###") and parent_title in stripped_line:
-            # Remove this line and any following blank lines
-            remaining = lines[:i] + lines[i + 1:]
-            # Strip leading blank lines
-            while remaining and not remaining[0].strip():
-                remaining.pop(0)
-            return "\n".join(remaining)
-    return content
+    # Strip any leading blank lines first
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    # Remove up to 2 leading ###/#### heading lines
+    removed = 0
+    while lines and removed < 2:
+        s = lines[0].strip()
+        if s.startswith("###"):
+            lines.pop(0)
+            removed += 1
+            # Also remove blank lines after the heading
+            while lines and not lines[0].strip():
+                lines.pop(0)
+        else:
+            break
+    return "\n".join(lines)
 from .state_machine import ProcessStateMachine, ProcessState
 from .dialog_manager import DialogManager
 from .intent_recognizer import IntentRecognizer, IntentType
