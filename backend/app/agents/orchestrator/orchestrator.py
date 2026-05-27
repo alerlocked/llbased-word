@@ -26,14 +26,17 @@ from app.shared.logging import get_logger
 
 def _strip_duplicate_heading(content: str, parent_title: str) -> str:
     """Remove a leading ### heading that duplicates the parent ## heading."""
-    stripped = content.lstrip()
-    # Match ### title (possibly with extra text after)
-    m = _re.match(r"^###\s+.*?\n+", stripped)
-    if m:
-        heading_text = stripped[:m.end()]
-        # Check if the heading contains the parent title
-        if parent_title in heading_text:
-            return stripped[m.end():]
+    # Search first 3 lines for a ### heading containing the parent title
+    lines = content.split("\n")
+    for i, line in enumerate(lines[:5]):
+        stripped_line = line.strip()
+        if stripped_line.startswith("###") and parent_title in stripped_line:
+            # Remove this line and any following blank lines
+            remaining = lines[:i] + lines[i + 1:]
+            # Strip leading blank lines
+            while remaining and not remaining[0].strip():
+                remaining.pop(0)
+            return "\n".join(remaining)
     return content
 from .state_machine import ProcessStateMachine, ProcessState
 from .dialog_manager import DialogManager
