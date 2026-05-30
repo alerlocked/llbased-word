@@ -1428,8 +1428,10 @@ class ProcessOrchestrator:
 
             # 7. 按缺失章节提取原文（大章节按子章节拆分）
             chapter_source_texts: Dict[str, str] = {}
-            # Track sub-chapters for large chapters
             chapter_sub_sources: Dict[str, Dict[str, str]] = {}
+            # Unified: all chapter titles that have source text (for ordering)
+            available_titles: List[str] = []
+
             for mc in missing_chapters:
                 title = mc.get("title", "")
                 doc_dir = mc.get("_doc_dir", "")
@@ -1439,7 +1441,6 @@ class ProcessOrchestrator:
                 if not doc_dir:
                     continue
 
-                # Large chapters with sub-chapters: split into sub-chapters
                 if page_count > 5 and sub_chapters:
                     sub_sources: Dict[str, str] = {}
                     for sc in sub_chapters:
@@ -1455,21 +1456,22 @@ class ProcessOrchestrator:
                             sub_sources[sc["title"]] = sc_text
                     if sub_sources:
                         chapter_sub_sources[title] = sub_sources
-                        # Do NOT store full chapter text — sub-chapters cover it.
-                        # Storing both causes duplicate output.
+                        available_titles.append(title)
                     else:
-                        # No sub-chapter text extracted, fall back to full chapter
+                        # No sub-chapter text, fall back to full chapter
                         full_text = hierarchical_context.get_chapter_content(
                             doc_dir_name=doc_dir, chapter_title=title,
                         )
                         if full_text:
                             chapter_source_texts[title] = full_text
+                            available_titles.append(title)
                 else:
                     source_text = hierarchical_context.get_chapter_content(
                         doc_dir_name=doc_dir, chapter_title=title,
                     )
                     if source_text:
                         chapter_source_texts[title] = source_text
+                        available_titles.append(title)
 
             # 8. Build modification plan from chapter analysis (no extra LLM call needed)
             # The plan is simply the list of missing chapters — we already know
@@ -2069,20 +2071,19 @@ class ProcessOrchestrator:
             trigger="draft_tasks_decomposed",
         )
 
-        # Resolve the correct chapter order from the knowledge base index
+        # Resolve correct chapter order from knowledge base index
         from app.services.hierarchical_context import hierarchical_context
         ordered_titles: List[str] = []
         all_indexes = hierarchical_context.get_all_chapter_indexes()
-        # Titles from both chapter_source_texts AND chapter_sub_sources
-        all_available_titles = set(chapter_source_texts.keys()) | set(chapter_sub_sources.keys())
+        title_set = set(available_titles)
         for idx in all_indexes:
             for ch in idx.get("chapters", []):
-                if ch["title"] in all_available_titles:
+                if ch["title"] in title_set:
                     ordered_titles.append(ch["title"])
 
-        # Fall back to dict insertion order if index lookup yields nothing
+        # Fall back to available_titles order if index lookup yields nothing
         if not ordered_titles:
-            ordered_titles = list(all_available_titles)
+            ordered_titles = list(available_titles)
 
         # Deduplicate while preserving order
         seen = set()
