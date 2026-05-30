@@ -544,7 +544,7 @@ class ReviewAgent(BaseAgent):
             if gaps:
                 warnings.append({
                     "type": "output_quality",
-                    "severity": "warning",
+                    "severity": "critical",
                     "message": f"工序编号不连续: {gaps}，请按顺序补齐",
                 })
 
