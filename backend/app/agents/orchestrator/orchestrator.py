@@ -25,10 +25,10 @@ from app.shared.logging import get_logger
 
 
 def _strip_duplicate_heading(content: str, parent_title: str) -> str:
-    """Remove a leading ### heading that duplicates the parent ## heading."""
+    """Remove a leading heading that duplicates the parent heading."""
     stripped = content.lstrip()
-    # Match ### title (possibly with extra text after)
-    m = _re.match(r"^###\s+.*?\n+", stripped)
+    # Match ## or ### heading (possibly with extra text after)
+    m = _re.match(r"^#{1,3}\s+.*?\n+", stripped)
     if m:
         heading_text = stripped[:m.end()]
         # Check if the heading contains the parent title
@@ -1455,12 +1455,15 @@ class ProcessOrchestrator:
                             sub_sources[sc["title"]] = sc_text
                     if sub_sources:
                         chapter_sub_sources[title] = sub_sources
-                    # Also try full chapter as fallback
-                    full_text = hierarchical_context.get_chapter_content(
-                        doc_dir_name=doc_dir, chapter_title=title,
-                    )
-                    if full_text:
-                        chapter_source_texts[title] = full_text
+                        # Do NOT store full chapter text — sub-chapters cover it.
+                        # Storing both causes duplicate output.
+                    else:
+                        # No sub-chapter text extracted, fall back to full chapter
+                        full_text = hierarchical_context.get_chapter_content(
+                            doc_dir_name=doc_dir, chapter_title=title,
+                        )
+                        if full_text:
+                            chapter_source_texts[title] = full_text
                 else:
                     source_text = hierarchical_context.get_chapter_content(
                         doc_dir_name=doc_dir, chapter_title=title,
@@ -1518,7 +1521,10 @@ class ProcessOrchestrator:
                 "draft_id": draft_id,
                 "modification_plan": modification_plan,
                 "material_status": material_status,
-                "missing_chapters": [mc.get("title", "") for mc in missing_chapters],
+                "missing_chapters": [
+                    {"title": mc.get("title", ""), "reason": mc.get("reason", "")}
+                    for mc in missing_chapters
+                ],
                 "confirm_options": [
                     {"label": "确认执行", "value": "confirm"},
                     {"label": "需要调整", "value": "modify"},
@@ -2107,7 +2113,8 @@ class ProcessOrchestrator:
                                 f"以下是知识库文档中{sub_title}的原文（包含完整的工序内容、材料和参数）。"
                                 "请将原文内容整理为格式清晰的工艺文件输出，保留所有工序号、工步号。"
                                 "严格使用原文中的参数、代号、材料名称和数量，不要编造。"
-                                "如果原文中引用了其他文件但未提供内容，在末尾用[待确认]标注。"
+                                "不要输出分析过程、来源说明、页码引用或对原文内容的点评。"
+                                "工序必须严格按编号顺序输出，不允许跳跃。"
                             ),
                             "skip_planning": True,
                         },
@@ -2130,7 +2137,8 @@ class ProcessOrchestrator:
                         "module_instruction": (
                             f"基于知识库原文生成「{title}」章节的完整内容。"
                             "严格使用原文中的参数、代号、材料名称和数量，不要编造。"
-                            "如果原文中引用了其他文件但未提供内容，在末尾用[待确认]标注提醒用户上传。"
+                            "不要输出分析过程、来源说明、页码引用或对原文内容的点评。"
+                            "工序必须严格按编号顺序输出，不允许跳跃。"
                         ),
                         "skip_planning": True,
                     },
@@ -2229,6 +2237,34 @@ class ProcessOrchestrator:
             final_length=len(final_content),
             splice_detail=splice_log,
         )
+
+        # Review: run ReviewAgent output_quality check on assembled content
+        try:
+            review_result = await self._dispatch_to_sub_agent({
+                "type": "review",
+                "content": final_content,
+                "params": {"check_type": "output_quality"},
+            })
+            if review_result.get("status") == "completed":
+                inner = review_result.get("result", {})
+                if isinstance(inner, dict) and not inner.get("passed", True):
+                    review_warnings = [
+                        w.get("message", str(w))
+                        for w in inner.get("warnings", [])
+                    ]
+                    logger.warning(
+                        "chapter_review_failed",
+                        warnings=review_warnings,
+                    )
+                    # Append warnings as visible notes (non-blocking for PMF)
+                    if review_warnings:
+                        final_content += "\n\n---\n\n"
+                        final_content += "## 审查提醒\n"
+                        for w in review_warnings:
+                            final_content += f"- {w}\n"
+        except Exception as e:
+            logger.warning("chapter_review_error", error=str(e))
+
         return final_content
 
     async def _execute_modules_parallel(

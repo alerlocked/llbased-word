@@ -33,7 +33,7 @@ class ReviewAgent(BaseAgent):
     tools = ["compliance_checker"]  # 移除 rag_retriever，使用 Search Agent
 
     # 检查类型
-    CHECK_TYPES = ["compliance", "rationality", "risk", "all"]
+    CHECK_TYPES = ["compliance", "rationality", "risk", "output_quality", "all"]
 
     # 标准类型
     STANDARD_TYPES = ["enterprise", "industry", "safety", "quality"]
@@ -222,6 +222,15 @@ class ReviewAgent(BaseAgent):
                     all_passed = False
                 all_warnings.extend(risk_result.get("warnings", []))
                 all_recommendations.extend(risk_result.get("recommendations", []))
+
+            # 4. Output quality check (format, duplication, ordering)
+            if check_type in ["output_quality", "all"]:
+                quality_result = self._check_output_quality(content)
+                results["output_quality"] = quality_result
+                if not quality_result.get("passed"):
+                    all_passed = False
+                all_warnings.extend(quality_result.get("warnings", []))
+                all_recommendations.extend(quality_result.get("recommendations", []))
 
             # 严格模式下，任何问题都不通过
             final_passed = all_passed if self.strict_mode else results.get("compliance", {}).get("passed", True)
@@ -476,4 +485,74 @@ class ReviewAgent(BaseAgent):
             "recommendations": recommendations,
             "risk_level": "critical" if critical_count > 0 else "warning" if warnings else "safe",
             "has_safety_measures": has_safety
+        }
+
+    def _check_output_quality(self, content: str) -> Dict[str, Any]:
+        """Check WritingAgent output for format/structure problems.
+
+        Pure rule-based checks — no LLM calls, fast enough to run on
+        every chapter output.
+
+        Returns:
+            {passed: bool, warnings: [...], recommendations: [...]}
+        """
+        import re as _re
+        warnings: List[Dict[str, Any]] = []
+        recommendations: List[Dict[str, Any]] = []
+
+        # 1. Duplicate section titles
+        headings = _re.findall(r"^#{1,3}\s+(.+)$", content, _re.MULTILINE)
+        seen: dict[str, int] = {}
+        for h in headings:
+            title = h.strip()
+            seen[title] = seen.get(title, 0) + 1
+        dupes = {t: c for t, c in seen.items() if c > 1}
+        if dupes:
+            warnings.append({
+                "type": "output_quality",
+                "severity": "critical",
+                "message": f"存在重复的章节标题: {list(dupes.keys())}，请合并或删除重复项",
+            })
+
+        # 2. AI meta-commentary / page references
+        meta_patterns = [
+            (r"原文中存在.*(?:异常|疑似|笔误|问题)", "原文点评"),
+            (r"第\d+页起", "页码引用"),
+            (r"以下为.*整理.*输出", "AI开头声明"),
+            (r"严格依据知识库原文.*整理", "AI开头声明"),
+            (r"格式清晰、层级明确", "AI自我评价"),
+        ]
+        meta_hits = []
+        for pattern, label in meta_patterns:
+            if _re.search(pattern, content):
+                meta_hits.append(label)
+        if meta_hits:
+            warnings.append({
+                "type": "output_quality",
+                "severity": "critical",
+                "message": f"输出包含AI元描述（{meta_hits}），应只保留工艺文件正文",
+            })
+
+        # 3. Process step ordering gaps
+        step_numbers = [int(m) for m in _re.findall(r"工序\s*(\d+)", content)]
+        if len(step_numbers) >= 2:
+            unique_steps = sorted(set(step_numbers))
+            gaps = []
+            for i in range(len(unique_steps) - 1):
+                if unique_steps[i + 1] - unique_steps[i] > 1:
+                    gaps.append(f"{unique_steps[i]}→{unique_steps[i + 1]}")
+            if gaps:
+                warnings.append({
+                    "type": "output_quality",
+                    "severity": "warning",
+                    "message": f"工序编号不连续: {gaps}，请按顺序补齐",
+                })
+
+        critical_count = len([w for w in warnings if w.get("severity") == "critical"])
+        passed = critical_count == 0
+
+        return {
+            "passed": passed,
+            "warnings": warnings,
+            "recommendations": recommendations,
         }

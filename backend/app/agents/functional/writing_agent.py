@@ -445,6 +445,32 @@ class WritingAgent(BaseAgent):
             "inspection": "使用检验工艺规程格式：标题、检验项目表、判定标准、检验设备清单",
         }
 
+        # Structure rules per template type (condition-based, not hardcoded into every prompt)
+        structure_rules_map = {
+            "assembly": (
+                "\n\n## 结构规范（必须遵守）\n"
+                "### 编号体系\n"
+                "- 工序号: 1, 2, 3...（对应工艺流程图顺序，不可跳号或混编）\n"
+                "- 工步号: 工序号.子序号（如 1.1, 1.2, 2.1, 2.2）\n"
+                "- 子项: 工步号.子序号（如 1.2.1, 1.2.2）\n"
+                "- 检验项: 1) 2) 3)...（紧跟在工序全部工步之后）\n"
+                "- 用户未指定编号时，默认按流程顺序编号\n\n"
+                "### 装配工艺卡片每个工序的结构\n"
+                "工序号N → N.1工步(辅助材料|仪器装备) → N.2工步 → ... → 检验(1)2)3))\n\n"
+                "### 关键规则\n"
+                "1. 辅料和工具归属到具体工步右侧，不是独立段落\n"
+                "2. 检验紧跟在工序全部工步之后，不在其他位置散落\n"
+                "3. 工序间不交叉：工序1全部内容(含检验)完毕后才开始工序2\n"
+                "4. 工艺流程图中每个工序在装配工艺卡片中都要有对应展开\n"
+                "5. 工序必须连续输出：1→2→3→...→N，禁止跳过任何工序号\n"
+                "6. 如果知识库原文只包含部分工序，仍按工艺流程图的顺序列出所有工序，"
+                "有原文的工序列出详细内容，无原文的工序列出工序号+名称+简要说明\n"
+            ),
+            # "welding": "焊接结构规范...",   # TODO: add when needed
+            # "inspection": "检验结构规范...",
+        }
+        structure_rules = structure_rules_map.get(template, "")
+
         format_guide = template_guides.get(template, template_guides["standard"])
 
         # Check for pre-loaded context from orchestrator (skip planning)
@@ -479,14 +505,18 @@ class WritingAgent(BaseAgent):
                     f"- 只输出「{module_name}」模块的内容\n"
                     "- 不要输出章节大标题（如「{module_name}」），外部已经提供\n"
                     "- 直接从内容开始输出（如表格、工步描述等）\n"
-                    "- 不要输出分析过程、推理说明、依据标注\n"
+                    "- 不要输出分析过程、推理说明、依据标注、来源说明\n"
+                    "- 不要输出页码引用（如「第19页起」）\n"
+                    "- 不要对原文内容进行点评（如「疑似笔误」「原文中存在异常」等）\n"
                     "- 不要使用 ✅ ❌ ⚠️ 🔹 等标记符号\n"
-                    "- 表格数据使用 Markdown 表格格式输出\n"
+                    "- 表格数据使用标准 Markdown 表格格式：表头行 | 分隔行(|---|---|) | 数据行，每列用 | 分隔，不要用空格对齐\n"
                     "- 非表格的工步/工序内容使用清晰的分条格式\n"
+                    "- 工序必须严格按编号顺序输出：1, 2, 3... 不允许跳跃或乱序\n"
                     "- 跳过签名栏、日期栏（编制/校对/审核/标检/批准），这些在导出时由模板填充\n"
                     "- 跳过空白行、空行占位符\n"
                     "- 不要添加[待确认]标记，所有内容直接基于原文输出\n"
                     "- 输出就是该模块的最终内容，不是内部草稿"
+                    + structure_rules
                 )
                 if self._writing_preferences:
                     system_msg += self._get_preference_prompt_fragment()
@@ -533,11 +563,16 @@ class WritingAgent(BaseAgent):
                 "- 直接输出完整工艺文件内容，不要输出分析过程、推理说明、依据标注\n"
                 "- 不要使用 ✅ ❌ ⚠️ 🔹 等标记符号\n"
                 "- 不要写「依据来源」「缺失说明」「本次修订严格遵循」等元描述\n"
+                "- 不要对原文内容进行点评（如「疑似笔误」「原文中存在异常」等）\n"
+                "- 不要输出页码引用（如「第19页起」）\n"
                 "- 不要添加[待确认]标记，所有内容直接基于原文输出\n"
                 "- 保持原文档的章节结构和编号体系\n"
+                "- 工序必须严格按编号顺序输出：1, 2, 3... 不允许跳跃或乱序\n"
+                "- 不要重复用户初稿中已有的章节标题，只补充缺失的章节内容\n"
                 "- 跳过签名栏、日期栏（编制/校对/审核/标检/批准及日期），这些在导出时由模板填充\n"
-                "- 使用 Markdown 表格格式输出所有表格内容\n"
+                "- 使用标准 Markdown 表格格式：表头行 | 分隔行(|---|---|) | 数据行，每列用 | 分隔\n"
                 "- 输出就是最终给用户看的完整文件，不是内部草稿"
+                + structure_rules
             )
             if self._writing_preferences:
                 system_msg += self._get_preference_prompt_fragment()
@@ -1077,7 +1112,9 @@ class WritingAgent(BaseAgent):
         """Run lightweight guardrail checks on generated content.
 
         These are fast, rule-based checks that catch common LLM output
-        problems without requiring a full ReviewService call.
+        problems without requiring a full ReviewAgent call.
+        Format/structure checks (duplication, meta-commentary, ordering)
+        are handled by ReviewAgent._check_output_quality() instead.
 
         Returns:
             List of warning messages (empty if all checks pass).

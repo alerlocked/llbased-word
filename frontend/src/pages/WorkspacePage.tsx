@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
-import { Select, Button, Space, message, Modal, Input, Tooltip, Popconfirm, Dropdown } from 'antd'
+import { Select, Button, Space, message, Modal, Input, Tooltip, Popconfirm, Dropdown, Tabs } from 'antd'
 import {
   PlusOutlined, SaveOutlined, UndoOutlined,
   DatabaseOutlined, SettingOutlined, DeleteOutlined, UserOutlined,
@@ -20,6 +20,7 @@ import AIChatPanel from '../components/AICreation/AIChatPanel'
 import { EmptyStateIllustration } from '../components/Illustrations/RecordingAnimation'
 import InlineDiff, { FloatingConfirmBar } from '../components/common/InlineDiff'
 import MarkdownTiptapEditor from '../components/common/MarkdownTiptapEditor'
+import ProcessContentView from '../components/common/ProcessContentView'
 import { markdownToHtml } from '../utils/markdownConverter'
 import { colors } from '../styles/design-tokens'
 import '../styles/global.css'
@@ -65,6 +66,7 @@ const WorkspacePage: React.FC = () => {
   const [previewMode, setPreviewMode] = useState(false)
   const [previewContent, setPreviewContent] = useState('')
   const [originalBeforePreview, setOriginalBeforePreview] = useState('')
+  const [rawEditMode, setRawEditMode] = useState(false)
 
   // 获取项目列表
   const fetchProjects = async () => {
@@ -717,7 +719,7 @@ const WorkspacePage: React.FC = () => {
                   }
                 />
               ) : previewMode ? (
-                /* 预览模式 - 显示 InlineDiff */
+                /* 预览模式 - Tabs: 文本对比 / 卡片预览 */
                 <div style={{
                   width: '100%',
                   minHeight: 'calc(100vh - 160px)',
@@ -741,29 +743,74 @@ const WorkspacePage: React.FC = () => {
                       margin: '0 4px'
                     }}>Esc</kbd> 取消
                   </div>
-                  <InlineDiff
-                    original={originalBeforePreview}
-                    modified={previewContent}
-                    onAccept={handleAcceptPreview}
-                    onReject={handleRejectPreview}
-                    showActions={false}
-                    maxHeight={600}
+                  <Tabs
+                    defaultActiveKey="diff"
+                    items={[
+                      {
+                        key: 'diff',
+                        label: '文本对比',
+                        children: (
+                          <InlineDiff
+                            original={originalBeforePreview}
+                            modified={previewContent}
+                            onAccept={handleAcceptPreview}
+                            onReject={handleRejectPreview}
+                            showActions={false}
+                            maxHeight={600}
+                          />
+                        ),
+                      },
+                      {
+                        key: 'card',
+                        label: '卡片预览',
+                        children: (
+                          <ProcessContentView
+                            markdown={previewContent}
+                            style={{ padding: 8 }}
+                          />
+                        ),
+                      },
+                    ]}
                   />
                 </div>
               ) : (
-                /* 编辑模式 */
-                <MarkdownTiptapEditor
-                  key={currentProjectId || 'no-project'}
-                  ref={editorRef}
-                  value={editorContent}
-                  onChange={handleEditorChange}
-                  placeholder="开始写作...\n\n💡 选中文字后会出现 AI 工具栏"
-                  disabled={!currentProjectId}
-                  style={{
-                    color: colors.textPrimary
-                  }}
-                  onOpenImageDialog={() => setImageModalVisible(true)}
-                />
+                /* 编辑模式 — 卡片视图 (默认) / 源码编辑 (可切换) */
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    padding: '4px 8px',
+                    borderBottom: `1px solid ${colors.borderLight}`,
+                  }}>
+                    <Button
+                      size="small"
+                      onClick={() => setRawEditMode(!rawEditMode)}
+                    >
+                      {rawEditMode ? '卡片视图' : '源码编辑'}
+                    </Button>
+                  </div>
+                  <div style={{ flex: 1, overflow: 'auto' }}>
+                    {rawEditMode ? (
+                      <MarkdownTiptapEditor
+                        key={currentProjectId || 'no-project'}
+                        ref={editorRef}
+                        value={editorContent}
+                        onChange={handleEditorChange}
+                        placeholder="开始写作...\n\n💡 选中文字后会出现 AI 工具栏"
+                        disabled={!currentProjectId}
+                        style={{
+                          color: colors.textPrimary
+                        }}
+                        onOpenImageDialog={() => setImageModalVisible(true)}
+                      />
+                    ) : (
+                      <ProcessContentView
+                        markdown={editorContent}
+                        style={{ padding: 16 }}
+                      />
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
