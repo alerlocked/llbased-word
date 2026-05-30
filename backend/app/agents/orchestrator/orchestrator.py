@@ -2159,6 +2159,71 @@ class ProcessOrchestrator:
         coros = [self._dispatch_to_sub_agent(t) for t in tasks]
         results = await asyncio.gather(*coros, return_exceptions=True)
 
+        # --- Review-Retry (workflow #4: incomplete PDF completion) ---
+        # Check each chapter output with ReviewAgent. Retry once if issues found.
+        from app.agents.functional.review_agent import ReviewAgent
+        _reviewer = ReviewAgent()
+
+        retry_indices: List[int] = []
+        retry_tasks: List[Dict[str, Any]] = []
+        retry_coros = []
+
+        for i, (key, result) in enumerate(zip(task_keys, results)):
+            if isinstance(result, BaseException):
+                continue
+            if not (isinstance(result, dict) and result.get("status") == "completed"):
+                continue
+            inner = result.get("result", {})
+            if not isinstance(inner, dict):
+                continue
+            content = inner.get("content") or inner.get("result", {}).get("content", "")
+            if not content:
+                continue
+
+            quality = _reviewer._check_output_quality(content)
+            if quality.get("passed"):
+                continue
+
+            warnings_text = [w.get("message", str(w)) for w in quality.get("warnings", [])]
+            logger.info("chapter_quality_retry", key=key, warnings=warnings_text)
+
+            module_name = tasks[i]["params"].get("module_name", key)
+            source_text = tasks[i]["params"].get("chapter_source_text", "")
+            correction = (
+                "你上一次输出存在以下问题，请修正后重新输出（只输出修正后的内容，不要解释）：\n"
+                + "\n".join(f"- {w}" for w in warnings_text)
+            )
+
+            retry_task = {
+                "type": "writing",
+                "action": "generate",
+                "content": f"修正「{module_name}」内容",
+                "target": module_name,
+                "params": {
+                    **tasks[i]["params"],
+                    "module_instruction": correction,
+                    "retry_context": content,
+                },
+                "generate_doc": False,
+            }
+            retry_indices.append(i)
+            retry_tasks.append(retry_task)
+            retry_coros.append(self._dispatch_to_sub_agent(retry_task))
+
+        if retry_coros:
+            logger.info("chapter_retries_dispatching", count=len(retry_coros))
+            retry_results = await asyncio.gather(*retry_coros, return_exceptions=True)
+            for j, orig_idx in enumerate(retry_indices):
+                rr = retry_results[j]
+                if isinstance(rr, dict) and rr.get("status") == "completed":
+                    inner = rr.get("result", {})
+                    retry_content = ""
+                    if isinstance(inner, dict):
+                        retry_content = inner.get("content") or inner.get("result", {}).get("content", "")
+                    if retry_content:
+                        results[orig_idx] = rr
+                        logger.info("chapter_retry_success", key=task_keys[orig_idx], length=len(retry_content))
+
         # Build output in correct chapter order.
         # Sub-chapter results are grouped under their parent chapter.
         parts: List[str] = []
@@ -2268,32 +2333,16 @@ class ProcessOrchestrator:
             splice_detail=splice_log,
         )
 
-        # Review: run ReviewAgent output_quality check on assembled content
+        # Final quality stats (chapters already reviewed individually above)
         try:
-            review_result = await self._dispatch_to_sub_agent({
-                "type": "review",
-                "content": final_content,
-                "params": {"check_type": "output_quality"},
-            })
-            if review_result.get("status") == "completed":
-                inner = review_result.get("result", {})
-                if isinstance(inner, dict) and not inner.get("passed", True):
-                    review_warnings = [
-                        w.get("message", str(w))
-                        for w in inner.get("warnings", [])
-                    ]
-                    logger.warning(
-                        "chapter_review_failed",
-                        warnings=review_warnings,
-                    )
-                    # Append warnings as visible notes (non-blocking for PMF)
-                    if review_warnings:
-                        final_content += "\n\n---\n\n"
-                        final_content += "## 审查提醒\n"
-                        for w in review_warnings:
-                            final_content += f"- {w}\n"
+            final_quality = _reviewer._check_output_quality(final_content)
+            logger.info(
+                "final_quality_check",
+                passed=final_quality.get("passed"),
+                warnings_count=len(final_quality.get("warnings", [])),
+            )
         except Exception as e:
-            logger.warning("chapter_review_error", error=str(e))
+            logger.warning("final_quality_check_error", error=str(e))
 
         return final_content
 

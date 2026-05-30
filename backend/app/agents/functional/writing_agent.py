@@ -487,6 +487,7 @@ class WritingAgent(BaseAgent):
             material_instr = task.get("material_instruction", "")
             module_name = task.get("module_name", "")
             module_instruction = task.get("module_instruction", "")
+            retry_context = task.get("retry_context", "")
 
             # Single-module focus mode: only output content for this one module
             if module_name:
@@ -527,11 +528,22 @@ class WritingAgent(BaseAgent):
                 if source_text:
                     user_parts.append(f"## {source_label}（从中提取 {module_name} 相关内容）\n{source_text}")
 
-                result = await llm_service.generate_with_messages(
-                    messages=[
+                # Retry: include previous output as assistant message + correction as new user message
+                if retry_context:
+                    messages = [
                         {"role": "system", "content": system_msg},
                         {"role": "user", "content": "\n\n".join(user_parts)},
-                    ],
+                        {"role": "assistant", "content": retry_context},
+                        {"role": "user", "content": module_instruction},
+                    ]
+                else:
+                    messages = [
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": "\n\n".join(user_parts)},
+                    ]
+
+                result = await llm_service.generate_with_messages(
+                    messages=messages,
                     temperature=0.3,
                     max_tokens=8000,
                     tier="complex",
