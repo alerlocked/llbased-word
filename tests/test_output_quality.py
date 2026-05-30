@@ -94,6 +94,16 @@ class TestOutputQualityCheck:
 
     # --- combined ---
 
+    def test_signature_fields_detected(self):
+        content = "编制 牛一凡 20240826\n审核 崔兴斌 20240827\n共1页第1页\n"
+        result = self.agent._check_output_quality(content)
+        assert any("签名栏" in w["message"] or "模板" in w["message"] for w in result["warnings"])
+
+    def test_no_signature_passes(self):
+        content = "## 工序1：电缆下料\n1.1 截取电缆\n"
+        result = self.agent._check_output_quality(content)
+        assert result["passed"] is True
+
     def test_multiple_issues_all_reported(self):
         content = (
             "以下为严格依据知识库原文整理的输出\n"

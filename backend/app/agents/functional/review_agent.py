@@ -548,6 +548,19 @@ class ReviewAgent(BaseAgent):
                     "message": f"工序编号不连续: {gaps}，请按顺序补齐",
                 })
 
+        # 4. Signature/date fields that belong in export template, not content
+        sig_patterns = [
+            r"(?:编制|校对|审核|标检|批准|会签)\s+\S+",
+            r"共\d+页\s*第\d+页",
+        ]
+        sig_hits = [p for p in sig_patterns if _re.search(p, content)]
+        if sig_hits:
+            warnings.append({
+                "type": "output_quality",
+                "severity": "warning",
+                "message": "输出包含签名栏/日期/页码等导出模板字段，应由模板填充",
+            })
+
         critical_count = len([w for w in warnings if w.get("severity") == "critical"])
         passed = critical_count == 0
 

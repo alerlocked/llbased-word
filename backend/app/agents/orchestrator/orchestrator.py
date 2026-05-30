@@ -2073,14 +2073,16 @@ class ProcessOrchestrator:
         from app.services.hierarchical_context import hierarchical_context
         ordered_titles: List[str] = []
         all_indexes = hierarchical_context.get_all_chapter_indexes()
+        # Titles from both chapter_source_texts AND chapter_sub_sources
+        all_available_titles = set(chapter_source_texts.keys()) | set(chapter_sub_sources.keys())
         for idx in all_indexes:
             for ch in idx.get("chapters", []):
-                if ch["title"] in chapter_source_texts:
+                if ch["title"] in all_available_titles:
                     ordered_titles.append(ch["title"])
 
         # Fall back to dict insertion order if index lookup yields nothing
         if not ordered_titles:
-            ordered_titles = list(chapter_source_texts.keys())
+            ordered_titles = list(all_available_titles)
 
         # Deduplicate while preserving order
         seen = set()
@@ -2230,6 +2232,33 @@ class ProcessOrchestrator:
             final_content,
             flags=_re.MULTILINE,
         )
+
+        # Strip signature/date rows — these are template fields filled on export.
+        # Patterns: "编制 牛一凡 20240826", "审核 崔兴斌 20240827",
+        # "校对/审核/标检/批准/会签 ... date", "共N页第N页",
+        # standalone lines with just a name + date stamp.
+        final_content = _re.sub(
+            r"^[ \t]*(?:编制|校对|审核|标检|批准|会签)[ \t]+\S+.*$",
+            "",
+            final_content,
+            flags=_re.MULTILINE,
+        )
+        # "阶段标记 S2" lines
+        final_content = _re.sub(
+            r"^[ \t]*阶段标记.*$",
+            "",
+            final_content,
+            flags=_re.MULTILINE,
+        )
+        # "共N页第N页" footer lines
+        final_content = _re.sub(
+            r"^[ \t]*共\d+页[ \t]*第\d+页.*$",
+            "",
+            final_content,
+            flags=_re.MULTILINE,
+        )
+        # Collapse excessive blank lines (3+ → 2)
+        final_content = _re.sub(r"\n{3,}", "\n\n", final_content)
 
         logger.info(
             "chapter_parallel_complete",
