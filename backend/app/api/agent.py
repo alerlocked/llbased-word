@@ -964,7 +964,12 @@ async def generate_stream(request: GenerateStreamRequest):
                         f"与知识库文档对比后，发现初稿缺失以下 {len(missing_chapters)} 个章节：\n"
                     )
                     for i, ch in enumerate(missing_chapters, 1):
-                        analysis_lines.append(f"{i}. {ch}")
+                        if isinstance(ch, dict):
+                            title = ch.get("title", "")
+                            reason = ch.get("reason", "")
+                            analysis_lines.append(f"{i}. {title}（{reason}）" if reason else f"{i}. {title}")
+                        else:
+                            analysis_lines.append(f"{i}. {ch}")
                     analysis_lines.append(
                         f"\n将基于知识库原文补充以上 {len(missing_chapters)} 个章节。"
                     )
@@ -1014,7 +1019,7 @@ async def generate_stream(request: GenerateStreamRequest):
                                 "修改方案已执行完成。\n\n"
                                 f"基于知识库原文补充了 {len(missing_chapters)} 个缺失章节，"
                                 f"生成内容 {len(new_content)} 字已输出到编辑器。\n\n"
-                                f"补充章节：{'、'.join(missing_chapters)}"
+                                f"补充章节：{'、'.join(ch.get('title', str(ch)) if isinstance(ch, dict) else str(ch) for ch in missing_chapters)}"
                             )
                         elif modules_generated > 0:
                             summary = (
