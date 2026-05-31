@@ -2075,15 +2075,15 @@ class ProcessOrchestrator:
         from app.services.hierarchical_context import hierarchical_context
         ordered_titles: List[str] = []
         all_indexes = hierarchical_context.get_all_chapter_indexes()
-        title_set = set(available_titles)
+        title_set = set(chapter_source_texts.keys())
         for idx in all_indexes:
             for ch in idx.get("chapters", []):
                 if ch["title"] in title_set:
                     ordered_titles.append(ch["title"])
 
-        # Fall back to available_titles order if index lookup yields nothing
+        # Fall back to chapter_source_texts order if index lookup yields nothing
         if not ordered_titles:
-            ordered_titles = list(available_titles)
+            ordered_titles = list(chapter_source_texts.keys())
 
         # Deduplicate while preserving order
         seen = set()
