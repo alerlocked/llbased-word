@@ -1,0 +1,75 @@
+/* HTML Table Editor — VLM table styles */
+
+.vlm-table-editor {
+  padding: 12px 16px;
+  min-height: 100%;
+}
+
+.vlm-page-container {
+  margin-bottom: 24px;
+}
+
+.vlm-page-label {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+
+/* Apply styles to all tables inside the editor */
+.vlm-table-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  table-layout: fixed;
+}
+
+.vlm-table-editor td,
+.vlm-table-editor th {
+  border: 1px solid #d1d5db;
+  padding: 4px 8px;
+  vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  min-height: 24px;
+}
+
+/* Locked header cells */
+.vlm-table-editor td.locked,
+.vlm-table-editor th.locked {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 500;
+  user-select: none;
+  cursor: default;
+}
+
+/* Editable data cells */
+.vlm-table-editor td.editable {
+  background: #ffffff;
+  cursor: text;
+}
+
+/* Focus state for editable cells */
+.vlm-table-editor td[contenteditable="true"]:focus,
+.vlm-table-editor th[contenteditable="true"]:focus {
+  outline: 2px solid #1890ff;
+  outline-offset: -2px;
+  background: #fafafa;
+}
+
+/* Hover state for editable cells */
+.vlm-table-editor td[contenteditable="true"]:hover {
+  background: #f8fafc;
+}
+
+/* Row striping for readability */
+.vlm-table-editor tr:nth-child(even) td.editable {
+  background: #fcfcfd;
+}
+
+.vlm-table-editor tr:nth-child(even) td.editable:hover {
+  background: #f1f5f9;
+}
