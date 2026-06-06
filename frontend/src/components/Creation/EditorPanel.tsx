@@ -1,21 +1,18 @@
+/**
+ * EditorPanel — unified template-driven editor
+ *
+ * All content is rendered as structured tables via TemplateContentEditor.
+ * No Tiptap / HtmlTableEditor fallback.
+ */
 import { useEffect, useRef, useState } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
-import { Statistic, Space, Upload, Button, message } from 'antd'
+import { Upload, Button, message, Empty } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import { useTheme } from '../../contexts/ThemeContext'
 import { draftApi } from '../../services/draftApi'
 import ExportButton from './ExportButton'
-import HtmlTableEditor from '../editor/HtmlTableEditor'
 import TemplateContentEditor from '../editor/TemplateContentEditor'
 import { useCreationStore } from '../../stores/creationStore'
 import type { TemplateSection } from '../../types/template'
-
-/**
- * 编辑器面板组件
- * 使用Tiptap实现基础文本编辑功能,支持拖拽、右键菜单、自动保存
- */
 
 interface EditorPanelProps {
   content: string
@@ -26,29 +23,20 @@ interface EditorPanelProps {
 }
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
-  content,
   onChange,
-  onContextMenu,
-  placeholder = '开始撰写...',
   projectId
 }) => {
   const { colors } = useTheme()
-  const editorRef = useRef<HTMLDivElement>(null)
-  const autoSaveTimerRef = useRef<NodeJS.Timeout>()
   const [currentDraftId, setCurrentDraftId] = useState<number | undefined>(undefined)
   const [uploading, setUploading] = useState(false)
 
   // Template editor state
-  const editorContentFormat = useCreationStore((s) => s.editorContentFormat)
   const editorTemplateData = useCreationStore((s) => s.editorTemplateData)
-  const setEditorContentFormat = useCreationStore((s) => s.setEditorContentFormat)
-  const setEditorTemplateData = useCreationStore((s) => s.setEditorTemplateData)
   const [templateSections, setTemplateSections] = useState<TemplateSection[]>([])
 
-  // Initialize template sections from store data
+  // Convert ChapterData[] to TemplateSection[]
   useEffect(() => {
-    if (editorTemplateData && editorContentFormat === 'template') {
-      // Convert ChapterData[] to TemplateSection[] for the editor
+    if (editorTemplateData) {
       const sections: TemplateSection[] = editorTemplateData.chapters.map((ch) => ({
         section_id: ch.chapter_code,
         title: ch.chapter_title,
@@ -65,147 +53,24 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         table_type: ch.table_type,
       }))
       setTemplateSections(sections)
+    } else {
+      setTemplateSections([])
     }
-  }, [editorTemplateData, editorContentFormat])
+  }, [editorTemplateData])
 
-  /**
-   * 初始化编辑器
-   */
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // 禁用不需要的功能,保持简洁
-        heading: {
-          levels: [1, 2, 3]
-        }
-      }),
-      Placeholder.configure({
-        placeholder
-      })
-    ],
-    content,
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML()
-      onChange(html)
-      
-      // 自动保存 - 3秒后保存
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current)
-      }
-      autoSaveTimerRef.current = setTimeout(() => {
-        autoSave(html)
-      }, 3000)
-    },
-    editorProps: {
-      attributes: {
-        class: 'tiptap-editor',
-        style: `
-          min-height: 100%;
-          padding: 24px;
-          outline: none;
-          color: ${colors.textPrimary};
-          background-color: ${colors.bgPrimary};
-          line-height: 1.8;
-          font-size: 16px;
-        `
-      },
-      // 处理拖拽放置
-      handleDrop: (view, event, slice, moved) => {
-        // 检查是否有自定义数据
-        const jsonData = event.dataTransfer?.getData('application/json')
-        if (jsonData) {
-          try {
-            const data = JSON.parse(jsonData)
-            if (data.type === 'segment') {
-              // 插入段落文本
-              const { tr } = view.state
-              const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })
-              if (pos) {
-                tr.insertText(data.data.text, pos.pos)
-                view.dispatch(tr)
-                return true
-              }
-            }
-          } catch (e) {
-            console.error('解析拖拽数据失败:', e)
-          }
-        }
-        return false
-      }
-    }
-  })
-
-  /**
-   * 自动保存
-   */
-  const autoSave = async (html: string) => {
-    if (!projectId) return
-    
-    try {
-      // 保存到localStorage作为草稿
-      localStorage.setItem(`draft_${projectId}`, html)
-      console.log('✅ 草稿已自动保存')
-    } catch (error) {
-      console.error('❌ 自动保存失败:', error)
-    }
-  }
-
-  /**
-   * 上传初稿文件
-   */
   const handleUploadDraft = async (file: File) => {
     setUploading(true)
     try {
       const result = await draftApi.uploadDraft(file, projectId)
       setCurrentDraftId(result.id)
-      // 将解析内容加载到编辑器
-      if (editor && result.content) {
-        editor.commands.setContent(result.content)
-      }
       message.success(`初稿「${result.title}」上传成功`)
     } catch (error) {
       console.error('上传初稿失败:', error)
     } finally {
       setUploading(false)
     }
-    // 阻止 antd Upload 默认上传行为
     return false
   }
-
-  /**
-   * 处理右键菜单
-   */
-  const handleContextMenu = (e: React.MouseEvent) => {
-    if (!editor || !onContextMenu) return
-    
-    e.preventDefault()
-    const selectedText = editor.state.doc.textBetween(
-      editor.state.selection.from,
-      editor.state.selection.to
-    )
-    onContextMenu(e, selectedText)
-  }
-
-  /**
-   * 计算字数
-   */
-  const getWordCount = () => {
-    if (!editor) return 0
-    const text = editor.getText()
-    // 中文字符 + 英文单词
-    const chineseChars = text.match(/[\u4e00-\u9fa5]/g)?.length || 0
-    const englishWords = text.match(/[a-zA-Z]+/g)?.length || 0
-    return chineseChars + englishWords
-  }
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current)
-      }
-    }
-  }, [])
 
   return (
     <div
@@ -217,7 +82,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         overflow: 'hidden'
       }}
     >
-      {/* 工具栏 - 字数统计 + 上传 + 导出 */}
+      {/* Toolbar */}
       <div style={{
         padding: '12px 24px',
         borderBottom: `1px solid ${colors.borderColor}`,
@@ -226,12 +91,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <Space>
-          <Statistic 
-            title="字数" 
-            value={getWordCount()} 
-            valueStyle={{ fontSize: 16, color: colors.textPrimary }}
-          />
+        <div>
           <Upload
             accept=".pdf"
             showUploadList={false}
@@ -245,93 +105,36 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
               上传初稿
             </Button>
           </Upload>
-        </Space>
-        <Space>
-          <ExportButton draftId={currentDraftId} projectId={projectId} />
-        </Space>
+        </div>
+        <ExportButton draftId={currentDraftId} projectId={projectId} />
       </div>
 
-      {/* 编辑器 — route based on content format */}
-      <div
-        ref={editorRef}
-        onContextMenu={handleContextMenu}
-        style={{ flex: 1, overflow: 'auto' }}
-      >
-        {editorContentFormat === 'template' && templateSections.length > 0 ? (
+      {/* Editor area */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {templateSections.length > 0 ? (
           <TemplateContentEditor
             sections={templateSections}
-            onChange={(sections) => setTemplateSections(sections)}
-          />
-        ) : content && /<table/i.test(content) ? (
-          <HtmlTableEditor
-            projectId={projectId ?? null}
-            value={content}
-            onChange={onChange}
-            onSave={(html) => {
-              if (projectId) {
-                localStorage.setItem(`draft_${projectId}`, html)
-              }
+            onChange={(sections) => {
+              setTemplateSections(sections)
+              // Serialize back for auto-save consumers
+              onChange(JSON.stringify(sections))
             }}
           />
         ) : (
-          <EditorContent editor={editor} />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+          }}>
+            <Empty description="上传初稿后，AI 将自动生成结构化表格内容" />
+          </div>
         )}
       </div>
-
-      <style>{`
-        .tiptap-editor {
-          flex: 1;
-          overflow-y: auto;
-        }
-        .tiptap-editor p.is-editor-empty:first-child::before {
-          content: attr(data-placeholder);
-          float: left;
-          color: ${colors.textSecondary};
-          pointer-events: none;
-          height: 0;
-        }
-        .tiptap-editor h1 {
-          font-size: 2em;
-          font-weight: bold;
-          margin: 0.67em 0;
-        }
-        .tiptap-editor h2 {
-          font-size: 1.5em;
-          font-weight: bold;
-          margin: 0.75em 0;
-        }
-        .tiptap-editor h3 {
-          font-size: 1.17em;
-          font-weight: bold;
-          margin: 0.83em 0;
-        }
-        .tiptap-editor p {
-          margin: 1em 0;
-        }
-        .tiptap-editor strong {
-          font-weight: bold;
-        }
-        .tiptap-editor em {
-          font-style: italic;
-        }
-        .tiptap-editor ul, .tiptap-editor ol {
-          padding-left: 2em;
-          margin: 1em 0;
-        }
-        .tiptap-editor blockquote {
-          border-left: 4px solid ${colors.borderColor};
-          padding-left: 1em;
-          margin: 1em 0;
-          color: ${colors.textSecondary};
-        }
-      `}</style>
     </div>
   )
 }
 
-export default EditorPanel
-
-/** Map backend table_type to frontend content_type */
 function mapTableType(tableType: string): TemplateSection['content_type'] {
   const mapping: Record<string, TemplateSection['content_type']> = {
     single_row_list: 'table',
@@ -342,3 +145,5 @@ function mapTableType(tableType: string): TemplateSection['content_type'] {
   }
   return mapping[tableType] || 'text'
 }
+
+export default EditorPanel

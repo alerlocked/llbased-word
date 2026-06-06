@@ -827,17 +827,20 @@ class WritingAgent(BaseAgent):
             )
 
         system_msg = (
-            "你是一位专业的工艺文件编写助手。根据提供的参考文档和模板要求，"
-            "填写指定章节的结构化数据。\n\n"
+            "你是一位专业的航天工艺文件编写助手。你的任务是从参考文档中提取所有相关数据，"
+            "填写到指定的结构化表格中。\n\n"
             f"章节代码：{chapter_code}\n"
+            f"章节标题：{task.get('chapter_title', '')}\n"
             f"表格类型：{chapter_type}\n"
             f"{fill_instruction}\n"
             "硬约束：\n"
-            "- 只输出 JSON，不要输出 Markdown 表格\n"
-            "- 不要输出解释、分析过程或注释\n"
+            "- 只输出 JSON，不要输出 Markdown 表格或任何解释文字\n"
             "- 不要使用 ```json``` 代码块包裹\n"
-            "- 具体数值基于参考文档，不得编造\n"
-            "- 不确定的值用空字符串\n"
+            "- 必须从参考文档中提取所有相关条目，不要遗漏\n"
+            "- 参数、代号、材料名称、数量必须与参考文档完全一致\n"
+            "- 如果参考文档中某个字段没有对应信息，用空字符串\n"
+            "- 不要编造不存在的数据\n"
+            "- 每一行/每一个条目都必须是完整的，不要用省略号\n"
         )
         if ai_guidance:
             system_msg += f"\n指导：{ai_guidance}\n"
@@ -848,20 +851,25 @@ class WritingAgent(BaseAgent):
         user_parts = []
         if knowledge_context:
             user_parts.append(
-                f"## 参考文档（基于此内容填写）\n{knowledge_context[:6000]}"
+                f"## 参考文档（完整原文，逐条提取）\n{knowledge_context[:8000]}"
             )
+            user_parts.append(
+                "请仔细阅读参考文档，从中提取该章节所需的全部数据。"
+                "每一条记录都必须完整，不得省略参考文档中出现的任何条目。"
+            )
+        else:
+            user_parts.append(f"请填写章节 {chapter_code}（{task.get('chapter_title', '')}）的数据。")
+
         if task.get("requirements"):
             user_parts.append(f"## 用户要求\n{task['requirements']}")
-
-        user_parts.append(f"请填写章节 {chapter_code} 的数据。")
 
         result = await llm_service.generate_with_messages(
             messages=[
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": "\n\n".join(user_parts)},
             ],
-            temperature=0.3,
-            max_tokens=4000,
+            temperature=0.2,
+            max_tokens=6000,
             tier="complex",
         )
 
@@ -918,6 +926,38 @@ class WritingAgent(BaseAgent):
             chapter_data.filled_data = filled if isinstance(filled, list) else [filled]
 
         self._save_version(_json.dumps(filled, ensure_ascii=False))
+
+        # Retry once if output is suspiciously sparse
+        item_count = (
+            len(chapter_data.filled_data)
+            or len(chapter_data.left_data or [])
+            or len(chapter_data.flow_steps or [])
+        )
+        if item_count == 0 and knowledge_context and len(knowledge_context) > 100:
+            logger.warning("template_fill_retry_sparse", chapter_code=chapter_code)
+            retry_result = await llm_service.generate_with_messages(
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": (
+                        "上一次输出为空，请重新提取。参考文档中有大量数据，"
+                        "请确保每一条都提取为完整的 JSON 条目。\n\n"
+                        + "\n\n".join(user_parts)
+                    )},
+                ],
+                temperature=0.1,
+                max_tokens=6000,
+                tier="complex",
+            )
+            if retry_result["status"] != "error":
+                retry_filled = _parse_llm_json(retry_result["content"].strip())
+                if retry_filled is not None:
+                    if chapter_type in ("single_row_list", "process_card"):
+                        chapter_data.filled_data = retry_filled if isinstance(retry_filled, list) else [retry_filled]
+                    elif chapter_type == "flow_chart":
+                        chapter_data.flow_steps = retry_filled if isinstance(retry_filled, list) else []
+                    elif chapter_type == "dual_list":
+                        chapter_data.left_data = retry_filled.get("left", [])
+                        chapter_data.right_data = retry_filled.get("right", [])
 
         return {
             "success": True,

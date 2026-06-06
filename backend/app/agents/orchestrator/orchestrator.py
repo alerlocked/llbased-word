@@ -659,6 +659,12 @@ class ProcessOrchestrator:
                     **task.get("params", {})
                 }
 
+                # Pass template fields for structured JSON output
+                for key in ("template_slots", "chapter_code", "chapter_type",
+                            "chapter_title", "ai_guidance"):
+                    if key in task:
+                        agent_task[key] = task[key]
+
                 # Load domain profile for review-related tasks
                 if agent_name in ("review", "proofread"):
                     domain = task.get("domain", "assembly")
@@ -2425,6 +2431,16 @@ class ProcessOrchestrator:
                 elif inner.get("result", {}).get("chapter_code"):
                     structured_results[inner["result"]["chapter_code"]] = inner["result"]
 
+        # Template mode: skip Markdown assembly, return structured data only
+        if structured_results:
+            logger.info(
+                "template_results_only",
+                chapters=len(structured_results),
+                total_tasks=len(task_keys),
+            )
+            return "", structured_results
+
+        # Fallback: build Markdown output (no template matched)
         # Build output in correct chapter order.
         # Sub-chapter results are grouped under their parent chapter.
         parts: List[str] = []
