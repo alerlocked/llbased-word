@@ -958,10 +958,10 @@ async def generate_stream(request: GenerateStreamRequest):
                     yield f"data: {json.dumps({'type': 'progress', 'message': mat_msg}, ensure_ascii=False)}\n\n"
 
                 # Build structured analysis report as chat content
-                analysis_lines = ["**初稿分析报告**\n"]
+                analysis_lines = ["**初稿分析报告**", ""]
                 if missing_chapters:
                     analysis_lines.append(
-                        f"与知识库文档对比后，发现初稿缺失以下 {len(missing_chapters)} 个章节：\n"
+                        f"与知识库文档对比后，发现初稿缺失以下 {len(missing_chapters)} 个章节："
                     )
                     for i, ch in enumerate(missing_chapters, 1):
                         if isinstance(ch, dict):
@@ -970,13 +970,21 @@ async def generate_stream(request: GenerateStreamRequest):
                             analysis_lines.append(f"{i}. {title}（{reason}）" if reason else f"{i}. {title}")
                         else:
                             analysis_lines.append(f"{i}. {ch}")
-                    analysis_lines.append(
-                        f"\n将基于知识库原文补充以上 {len(missing_chapters)} 个章节。"
-                    )
+                    # Material status note
+                    if material_status and material_status.get("has_documents"):
+                        analysis_lines.append("")
+                        analysis_lines.append(f"当前知识库有 {material_status.get('document_count', 0)} 个参考文档，可直接用于生成。无需补充新材料。")
+                    elif material_status and not material_status.get("has_documents"):
+                        analysis_lines.append("")
+                        analysis_lines.append("⚠ 知识库暂无参考素材，生成内容可能不够准确。建议先上传相关标准文档到素材库。")
+                    # Implementation plan
+                    analysis_lines.append("")
+                    analysis_lines.append(f"**实施计划**：将逐章从知识库原文中提取对应内容，并行生成 {len(missing_chapters)} 个缺失章节，确保参数、代号、材料名称与原文一致。")
                 else:
                     analysis_lines.append("初稿章节基本完整，将进行内容优化。")
 
-                yield f"data: {json.dumps({'type': 'content', 'content': '\\n'.join(analysis_lines)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'content', 'content': chr(10).join(analysis_lines)}, ensure_ascii=False)}\n\n"
+                logger.info(f"[draft_complete] 分析报告已发送, missing_chapters={len(missing_chapters)}")
 
                 # Signal a new message section before execution starts
                 yield f"data: {json.dumps({'type': 'content_section'}, ensure_ascii=False)}\n\n"
@@ -987,6 +995,7 @@ async def generate_stream(request: GenerateStreamRequest):
                 else:
                     exec_msg = "正在执行修改方案..."
                 yield f"data: {json.dumps({'type': 'progress', 'message': exec_msg}, ensure_ascii=False)}\n\n"
+                logger.info(f"[draft_complete] 进度消息已发送: {exec_msg}")
 
                 # Auto-confirm: tell orchestrator to execute the plan
                 from app.agents.orchestrator.interaction_models import UserResponse, InputType
@@ -997,20 +1006,26 @@ async def generate_stream(request: GenerateStreamRequest):
                     content="确认执行",
                     selected_option="confirm",
                 )
+                logger.info("[draft_complete] 开始自动确认，调用 continue_conversation")
                 exec_result = await orchestrator.continue_conversation(
                     user_response=confirm_response,
                 )
+                logger.info(f"[draft_complete] continue_conversation 返回: success={exec_result.get('success')}, keys={list(exec_result.keys())}")
 
                 if exec_result.get("success"):
                     # Extract generated content from _execute_draft_modification result
                     result_wrapper = exec_result.get("result", {})
                     agent_result = result_wrapper.get("agent_result", {})
                     modules_generated = result_wrapper.get("modules_generated", 0)
+                    logger.info(f"[draft_complete] result_wrapper keys={list(result_wrapper.keys()) if isinstance(result_wrapper, dict) else 'not-dict'}")
+                    logger.info(f"[draft_complete] agent_result type={type(agent_result).__name__}, keys={list(agent_result.keys()) if isinstance(agent_result, dict) else 'not-dict'}")
                     new_content = ""
                     if isinstance(agent_result, dict):
                         inner = agent_result.get("result", {})
+                        logger.info(f"[draft_complete] inner type={type(inner).__name__}, keys={list(inner.keys()) if isinstance(inner, dict) else str(inner)[:100]}")
                         if isinstance(inner, dict):
                             new_content = inner.get("content") or inner.get("result", {}).get("content", "")
+                            logger.info(f"[draft_complete] 提取到 new_content 长度={len(new_content)}")
 
                     if new_content:
                         # Build completion summary with chapter info
@@ -1031,13 +1046,16 @@ async def generate_stream(request: GenerateStreamRequest):
                             summary = f"内容生成完成，共 {len(new_content)} 字已输出到编辑器。"
                         yield f"data: {json.dumps({'type': 'content', 'content': summary}, ensure_ascii=False)}\n\n"
                         # Send generated content to editor
+                        logger.info(f"[draft_complete] 发送 editor_content SSE: 长度={len(new_content)}")
                         yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': new_content}, ensure_ascii=False)}\n\n"
                         _save_memory(session_id, user_input, new_content)
                     else:
+                        logger.warning(f"[draft_complete] new_content 为空! agent_result={str(agent_result)[:200]}")
                         yield f"data: {json.dumps({'type': 'content', 'content': '执行完成但未生成内容。'}, ensure_ascii=False)}\n\n"
                         yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
                 else:
                     error_msg = exec_result.get("error", "执行失败")
+                    logger.error(f"[draft_complete] exec_result success=False: {error_msg}")
                     yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
 
                 logger.info("[AI助手] draft_complete auto-confirm 执行完成")
@@ -1538,4 +1556,62 @@ async def complete_todo(session_id: str, todo_id: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"完成待办失败: {str(e)}"
+        )
+
+
+# ==================== Template Export ====================
+
+class TemplateExportRequest(BaseModel):
+    """Template PDF export request."""
+    template_id: str = Field(..., description="Template ID")
+    structured_doc: Dict[str, Any] = Field(..., description="Structured document data")
+    footer_values: Optional[Dict[str, Any]] = Field(default=None, description="Footer field values")
+    project_id: Optional[int] = Field(None, description="Project ID")
+
+
+@router.post("/export/template-pdf")
+async def export_template_pdf(request: TemplateExportRequest):
+    """Export a template-driven document as PDF.
+
+    Generates a complete PDF with cover page, structured tables,
+    and footer signatures based on the template definition.
+    """
+    import tempfile
+    from fastapi.responses import FileResponse
+
+    from app.services.template_loader import load_template
+    from app.services.template_pdf_export import export_template_pdf as do_export
+
+    try:
+        template = load_template(request.template_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template not found: {request.template_id}",
+        )
+
+    footer_values = request.footer_values or {}
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            output_path = tmp.name
+
+        result_path = do_export(
+            template=template,
+            structured_doc=request.structured_doc,
+            footer_values=footer_values,
+            output_path=output_path,
+        )
+
+        return FileResponse(
+            path=result_path,
+            media_type="application/pdf",
+            filename=f"{template.get('template_name', 'document')}.pdf",
+        )
+
+    except Exception as e:
+        logger.error(f"Template PDF export failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PDF export failed: {str(e)}",
         )

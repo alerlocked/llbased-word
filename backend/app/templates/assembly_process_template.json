@@ -1,0 +1,304 @@
+{
+  "template_id": "assembly_process_cable",
+  "template_name": "装配工艺规程（电缆装配）",
+  "source_document": "全弹设备电缆装配规程.pdf",
+  "doc_type": "装配工艺规程",
+  "version": "1.0",
+
+  "footer_fields": {
+    "_comment": "These fields are NOT shown in editor, only rendered in PDF export",
+    "fields": [
+      {"key": "editor", "label": "编制", "type": "text"},
+      {"key": "editor_date", "label": "编制日期", "type": "date"},
+      {"key": "reviewer", "label": "审核", "type": "text"},
+      {"key": "reviewer_date", "label": "审核日期", "type": "date"},
+      {"key": "checker", "label": "校对", "type": "text"},
+      {"key": "checker_date", "label": "校对日期", "type": "date"},
+      {"key": "inspector", "label": "标检", "type": "text"},
+      {"key": "inspector_date", "label": "标检日期", "type": "date"},
+      {"key": "approver", "label": "批准", "type": "text"},
+      {"key": "approver_date", "label": "批准日期", "type": "date"},
+      {"key": "change_mark", "label": "更改标记", "type": "text"},
+      {"key": "change_order_no", "label": "更改单号", "type": "text"},
+      {"key": "stage_mark", "label": "阶段标记", "type": "text", "default": "S2"}
+    ]
+  },
+
+  "chapters": [
+    {
+      "code": "G1a",
+      "title": "封面",
+      "pages": 1,
+      "editor_visible": false,
+      "_comment": "Cover page is PDF-only, not shown in editor",
+      "fields": [
+        {"key": "product_code", "label": "产品工号", "type": "text", "required": true},
+        {"key": "classification", "label": "密级", "type": "select", "options": ["非密", "秘密", "机密"], "default": "非密"},
+        {"key": "stage_mark", "label": "阶段标记", "type": "text", "default": "S2"},
+        {"key": "doc_number", "label": "工艺文件编号", "type": "text", "required": true},
+        {"key": "doc_name", "label": "工艺文件名称", "type": "text", "required": true},
+        {"key": "component_code", "label": "零、部、组(整)件代号", "type": "text", "required": true},
+        {"key": "component_name", "label": "零、部、组(整)件名称", "type": "text", "required": true},
+        {"key": "department", "label": "编制单位", "type": "text"},
+        {"key": "total_volumes", "label": "共几册", "type": "number"},
+        {"key": "current_volume", "label": "第几册", "type": "number"}
+      ]
+    },
+
+    {
+      "code": "G4a",
+      "title": "工艺文件目录",
+      "pages": 1,
+      "table_type": "single_row_list",
+      "columns": [
+        {"key": "seq", "label": "序号", "type": "number", "required": true},
+        {"key": "doc_name", "label": "文件名称", "type": "text", "required": true, "ai_filled": true},
+        {"key": "doc_number", "label": "文件编号", "type": "text"},
+        {"key": "component_code", "label": "零部组件代号", "type": "text"},
+        {"key": "component_name", "label": "零部组件名称", "type": "text"},
+        {"key": "pages", "label": "页数", "type": "number", "ai_filled": true},
+        {"key": "volume", "label": "册数", "type": "text"},
+        {"key": "remarks", "label": "备注", "type": "text"}
+      ],
+      "ai_guidance": "List all document sections with their page counts"
+    },
+
+    {
+      "code": "G5a",
+      "title": "引(借)用文件目录",
+      "pages": 1,
+      "table_type": "single_row_list",
+      "columns": [
+        {"key": "seq", "label": "序号", "type": "number", "required": true},
+        {"key": "ref_code", "label": "代号", "type": "text"},
+        {"key": "ref_name", "label": "文件名称", "type": "text", "required": true, "ai_filled": true},
+        {"key": "pages", "label": "页数", "type": "number"},
+        {"key": "remarks", "label": "备注", "type": "text"}
+      ],
+      "ai_guidance": "List all referenced standards and documents"
+    },
+
+    {
+      "code": "G10a",
+      "title": "专用工艺装备明细表",
+      "pages": 1,
+      "table_type": "single_row_list",
+      "columns": [
+        {"key": "seq", "label": "序号", "type": "number", "required": true},
+        {"key": "equipment_code", "label": "编号", "type": "text", "required": true, "ai_filled": true},
+        {"key": "equipment_name", "label": "名称", "type": "text", "required": true, "ai_filled": true},
+        {"key": "category", "label": "类别", "type": "text", "default": "III"},
+        {"key": "quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true},
+        {"key": "for_component_code", "label": "用于零部组件代号", "type": "text"},
+        {"key": "for_component_name", "label": "用于零部组件名称", "type": "text"},
+        {"key": "usage_unit", "label": "使用单位", "type": "text"},
+        {"key": "remarks", "label": "备注", "type": "text"}
+      ],
+      "ai_guidance": "List all special tooling equipment with codes, names and quantities"
+    },
+
+    {
+      "code": "B12a",
+      "title": "专用工具、量具明细表",
+      "pages": 1,
+      "table_type": "dual_list",
+      "_comment": "Left half = tools, Right half = gauges",
+      "left_section": {
+        "title": "专用工具",
+        "columns": [
+          {"key": "tool_seq", "label": "序号", "type": "number", "required": true},
+          {"key": "tool_name", "label": "名称", "type": "text", "required": true, "ai_filled": true},
+          {"key": "tool_spec", "label": "型号或规格", "type": "text", "required": true, "ai_filled": true},
+          {"key": "tool_quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true}
+        ]
+      },
+      "right_section": {
+        "title": "专用量具",
+        "columns": [
+          {"key": "gauge_seq", "label": "序号", "type": "number", "required": true},
+          {"key": "gauge_name", "label": "名称", "type": "text", "required": true, "ai_filled": true},
+          {"key": "gauge_spec", "label": "型号或规格", "type": "text", "required": true, "ai_filled": true},
+          {"key": "gauge_quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true}
+        ]
+      },
+      "shared_columns": [
+        {"key": "remarks", "label": "备注", "type": "text"}
+      ],
+      "ai_guidance": "List all special tools (left) and gauges (right) with specs and quantities"
+    },
+
+    {
+      "code": "G12a",
+      "title": "主要材料消耗工艺定额明细表",
+      "pages": 1,
+      "table_type": "single_row_list",
+      "columns": [
+        {"key": "seq", "label": "序号", "type": "number", "required": true},
+        {"key": "part_code", "label": "零件代号", "type": "text"},
+        {"key": "part_name", "label": "零件名称", "type": "text"},
+        {"key": "per_set_qty", "label": "单套数量", "type": "number"},
+        {"key": "batch_qty", "label": "本批数量", "type": "number"},
+        {"key": "material_desc", "label": "材料名称、牌号、状态、品种、规格及标准号", "type": "text", "required": true, "ai_filled": true},
+        {"key": "blank_size", "label": "坯料尺寸", "type": "text"},
+        {"key": "blank_count", "label": "坯料件数", "type": "number"},
+        {"key": "unit", "label": "计量单位", "type": "text", "required": true, "ai_filled": true},
+        {"key": "net_weight", "label": "净重", "type": "text"},
+        {"key": "quota", "label": "定额", "type": "text", "required": true, "ai_filled": true},
+        {"key": "utilization", "label": "材利用率%", "type": "text"},
+        {"key": "destination", "label": "交往何处", "type": "text"}
+      ],
+      "ai_guidance": "List all primary materials with specifications, units and quotas"
+    },
+
+    {
+      "code": "G14a",
+      "title": "辅助材料消耗工艺定额明细表",
+      "pages": 1,
+      "table_type": "single_row_list",
+      "columns": [
+        {"key": "seq", "label": "序号", "type": "number", "required": true},
+        {"key": "component_code", "label": "零部组件代号", "type": "text"},
+        {"key": "component_name", "label": "零部组件名称", "type": "text"},
+        {"key": "per_set_qty", "label": "单套数量", "type": "number"},
+        {"key": "batch_qty", "label": "本批数量", "type": "number"},
+        {"key": "material_desc", "label": "材料名称、牌号、状态、品种规格及标准号", "type": "text", "required": true, "ai_filled": true},
+        {"key": "unit", "label": "计量单位", "type": "text", "required": true, "ai_filled": true},
+        {"key": "per_set_quota", "label": "单套定额", "type": "text", "required": true, "ai_filled": true},
+        {"key": "batch_quota", "label": "本批定额", "type": "text"},
+        {"key": "remarks", "label": "备注", "type": "text"}
+      ],
+      "ai_guidance": "List all auxiliary materials with specifications and quotas"
+    },
+
+    {
+      "code": "G19a",
+      "title": "工艺流程图",
+      "pages": 1,
+      "table_type": "flow_chart",
+      "_comment": "Not a table, but an ordered list of process steps forming a flow",
+      "fields": [
+        {"key": "steps", "label": "工序流程", "type": "ordered_list", "item_type": "text", "required": true, "ai_filled": true}
+      ],
+      "ai_guidance": "Define the ordered sequence of all assembly process steps"
+    },
+
+    {
+      "code": "G18a",
+      "title": "配套明细表",
+      "continuation_code": "G18b",
+      "continuation_title": "配套明细表(续)",
+      "pages": "variable",
+      "table_type": "single_row_list",
+      "header_extra": [
+        {"key": "assembly_qty_per_set", "label": "单套产品中装配件数量", "type": "number"},
+        {"key": "assembly_batch_total", "label": "本批装配件生产总数", "type": "number"}
+      ],
+      "columns": [
+        {"key": "seq", "label": "序号", "type": "number", "required": true},
+        {"key": "part_code", "label": "零部组件代号", "type": "text", "required": true, "ai_filled": true},
+        {"key": "part_name", "label": "零部组件名称", "type": "text", "required": true, "ai_filled": true},
+        {"key": "qty_per_assembly", "label": "每装配件数量", "type": "number", "required": true, "ai_filled": true},
+        {"key": "qty_total", "label": "总计数量", "type": "number"},
+        {"key": "source", "label": "来自何处", "type": "text", "ai_filled": true},
+        {"key": "remarks", "label": "备注", "type": "text"}
+      ],
+      "ai_guidance": "List all parts and components with codes, names, quantities and sources"
+    },
+
+    {
+      "code": "G22a",
+      "title": "工艺过程卡",
+      "continuation_code": "G22b",
+      "continuation_title": "工艺过程卡(续)",
+      "pages": "variable",
+      "table_type": "single_row_list",
+      "row_per_step": true,
+      "columns": [
+        {"key": "workshop", "label": "车间", "type": "text", "ai_filled": true},
+        {"key": "step_no", "label": "工序号", "type": "number", "required": true, "ai_filled": true},
+        {"key": "step_name", "label": "工序名称", "type": "text", "default": "钳"},
+        {"key": "step_desc", "label": "工序内容简述", "type": "text", "required": true, "ai_filled": true},
+        {"key": "equipment", "label": "设备", "type": "text"},
+        {"key": "tooling", "label": "工艺装备及专用刀、量具", "type": "text"},
+        {"key": "time_setup", "label": "工时-准结", "type": "text"},
+        {"key": "time_per_piece", "label": "工时-单件", "type": "text"},
+        {"key": "time_total", "label": "工时-总计", "type": "text"}
+      ],
+      "ai_guidance": "Summarize each process step in one row: step number, name, brief description, equipment, tooling"
+    },
+
+    {
+      "code": "G25a",
+      "title": "装配工艺卡片",
+      "continuation_code": "G25b",
+      "continuation_title": "装配工艺卡片(续)",
+      "pages": "variable",
+      "table_type": "process_card",
+      "row_per_step": true,
+      "header_extra": [
+        {"key": "assembly_qty_per_set", "label": "单套产品中装配件数量", "type": "number"},
+        {"key": "assembly_batch_total", "label": "本批装配件生产总数", "type": "number"},
+        {"key": "destination", "label": "交往何处", "type": "text"}
+      ],
+      "columns": [
+        {"key": "workshop", "label": "车间", "type": "text", "ai_filled": true},
+        {"key": "step_no", "label": "工序号", "type": "number", "required": true, "ai_filled": true},
+        {"key": "step_name", "label": "工序名称", "type": "text", "default": "钳"},
+        {"key": "content", "label": "工序内容", "type": "long_text", "required": true, "ai_filled": true,
+         "_comment": "Main body - detailed operation steps, inspection points, safety notes"},
+        {"key": "inspection", "label": "检验", "type": "long_text", "ai_filled": true,
+         "_comment": "Inspection checkpoints for this step"},
+        {"key": "aux_materials", "label": "辅助材料", "type": "text", "ai_filled": true},
+        {"key": "instruments", "label": "专用仪器、仪表及工艺装备", "type": "text", "ai_filled": true},
+        {"key": "time_setup", "label": "工时-准结", "type": "text"},
+        {"key": "time_per_piece", "label": "工时-单件", "type": "text"},
+        {"key": "time_total", "label": "工时-总计", "type": "text"}
+      ],
+      "sub_sections": [
+        {
+          "key": "references",
+          "label": "参考设计文件",
+          "type": "list",
+          "ai_filled": true,
+          "_comment": "Referenced design documents for this process step"
+        },
+        {
+          "key": "tech_notes",
+          "label": "技术状态说明",
+          "type": "long_text",
+          "ai_filled": true
+        },
+        {
+          "key": "requirements",
+          "label": "装配要求",
+          "type": "long_text",
+          "ai_filled": true,
+          "_comment": "Personnel, gauge, component requirements, safety notes"
+        }
+      ],
+      "ai_guidance": "For each process step: fill detailed operation content, inspection points, auxiliary materials and instruments. Content is the main body with sub-steps like 1.1, 1.2, etc."
+    }
+  ],
+
+  "chapter_order": [
+    "G1a", "G4a", "G5a", "G10a", "B12a", "G12a", "G14a", "G19a", "G18a", "G22a", "G25a"
+  ],
+
+  "process_steps": {
+    "_comment": "Pre-defined steps from the template, each G25a card corresponds to one step",
+    "steps": [
+      {"step_no": 1, "title": "装前准备", "pages": "15-18"},
+      {"step_no": 2, "title": "安装密封圈2", "pages": "19-21"},
+      {"step_no": 3, "title": "安装行程延时开关组合", "pages": "22"},
+      {"step_no": 4, "title": "四五舱对接", "pages": "23-24"},
+      {"step_no": 5, "title": "五舱装配", "pages": "25-28"},
+      {"step_no": 6, "title": "五六舱对接及电缆安装", "pages": "29-32"},
+      {"step_no": 7, "title": "六舱设备及电缆安装", "pages": "33-35"},
+      {"step_no": 8, "title": "安装密封圈1", "pages": "36-38"},
+      {"step_no": 9, "title": "安装数据链射频前端", "pages": "39-41"},
+      {"step_no": 10, "title": "电缆整流罩端头装配", "pages": "42"},
+      {"step_no": 11, "title": "完整产品翻转", "pages": "43"},
+      {"step_no": 12, "title": "全弹外观检查", "pages": "44"}
+    ]
+  }
+}

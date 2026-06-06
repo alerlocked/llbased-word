@@ -7,6 +7,10 @@ import { UploadOutlined } from '@ant-design/icons'
 import { useTheme } from '../../contexts/ThemeContext'
 import { draftApi } from '../../services/draftApi'
 import ExportButton from './ExportButton'
+import HtmlTableEditor from '../editor/HtmlTableEditor'
+import TemplateContentEditor from '../editor/TemplateContentEditor'
+import { useCreationStore } from '../../stores/creationStore'
+import type { TemplateSection } from '../../types/template'
 
 /**
  * 编辑器面板组件
@@ -21,9 +25,9 @@ interface EditorPanelProps {
   projectId?: number
 }
 
-const EditorPanel: React.FC<EditorPanelProps> = ({ 
-  content, 
-  onChange, 
+const EditorPanel: React.FC<EditorPanelProps> = ({
+  content,
+  onChange,
   onContextMenu,
   placeholder = '开始撰写...',
   projectId
@@ -33,6 +37,36 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   const autoSaveTimerRef = useRef<NodeJS.Timeout>()
   const [currentDraftId, setCurrentDraftId] = useState<number | undefined>(undefined)
   const [uploading, setUploading] = useState(false)
+
+  // Template editor state
+  const editorContentFormat = useCreationStore((s) => s.editorContentFormat)
+  const editorTemplateData = useCreationStore((s) => s.editorTemplateData)
+  const setEditorContentFormat = useCreationStore((s) => s.setEditorContentFormat)
+  const setEditorTemplateData = useCreationStore((s) => s.setEditorTemplateData)
+  const [templateSections, setTemplateSections] = useState<TemplateSection[]>([])
+
+  // Initialize template sections from store data
+  useEffect(() => {
+    if (editorTemplateData && editorContentFormat === 'template') {
+      // Convert ChapterData[] to TemplateSection[] for the editor
+      const sections: TemplateSection[] = editorTemplateData.chapters.map((ch) => ({
+        section_id: ch.chapter_code,
+        title: ch.chapter_title,
+        content_type: mapTableType(ch.table_type),
+        columns: [],
+        column_keys: [],
+        rows: ch.filled_data || [],
+        left_data: ch.left_data,
+        right_data: ch.right_data,
+        flow_steps: ch.flow_steps,
+        field_values: ch.field_values,
+        review_passed: true,
+        source: 'template_generated',
+        table_type: ch.table_type,
+      }))
+      setTemplateSections(sections)
+    }
+  }, [editorTemplateData, editorContentFormat])
 
   /**
    * 初始化编辑器
@@ -217,13 +251,31 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         </Space>
       </div>
 
-      {/* 编辑器 */}
+      {/* 编辑器 — route based on content format */}
       <div
         ref={editorRef}
         onContextMenu={handleContextMenu}
-        style={{ flex: 1, overflow: 'hidden' }}
+        style={{ flex: 1, overflow: 'auto' }}
       >
-        <EditorContent editor={editor} />
+        {editorContentFormat === 'template' && templateSections.length > 0 ? (
+          <TemplateContentEditor
+            sections={templateSections}
+            onChange={(sections) => setTemplateSections(sections)}
+          />
+        ) : content && /<table/i.test(content) ? (
+          <HtmlTableEditor
+            projectId={projectId ?? null}
+            value={content}
+            onChange={onChange}
+            onSave={(html) => {
+              if (projectId) {
+                localStorage.setItem(`draft_${projectId}`, html)
+              }
+            }}
+          />
+        ) : (
+          <EditorContent editor={editor} />
+        )}
       </div>
 
       <style>{`
@@ -279,3 +331,14 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
 export default EditorPanel
 
+/** Map backend table_type to frontend content_type */
+function mapTableType(tableType: string): TemplateSection['content_type'] {
+  const mapping: Record<string, TemplateSection['content_type']> = {
+    single_row_list: 'table',
+    process_card: 'table',
+    dual_list: 'dual_table',
+    flow_chart: 'flow_chart',
+    fields: 'fields',
+  }
+  return mapping[tableType] || 'text'
+}

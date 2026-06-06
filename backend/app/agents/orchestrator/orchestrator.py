@@ -1432,13 +1432,21 @@ class ProcessOrchestrator:
             # Unified: all chapter titles that have source text (for ordering)
             available_titles: List[str] = []
 
+            # Track chapters without source text for context-based generation
+            no_source_titles: List[str] = []
+
             for mc in missing_chapters:
                 title = mc.get("title", "")
                 doc_dir = mc.get("_doc_dir", "")
                 pages = mc.get("pages", [])
                 page_count = mc.get("page_count", 0)
                 sub_chapters = mc.get("sub_chapters", [])
+
+                # Chapters without doc_dir: generate from overall context
                 if not doc_dir:
+                    no_source_titles.append(title)
+                    chapter_source_texts[title] = ""
+                    available_titles.append(title)
                     continue
 
                 if page_count > 5 and sub_chapters:
@@ -1473,7 +1481,14 @@ class ProcessOrchestrator:
                         chapter_source_texts[title] = source_text
                         available_titles.append(title)
 
-            # 8. Build modification plan from chapter analysis (no extra LLM call needed)
+            # 8. Match section schemas for missing chapters
+            from app.services.section_schemas import match_section_schema, SectionSchema
+            chapter_schemas: Dict[str, Optional[SectionSchema]] = {}
+            for mc in missing_chapters:
+                title = mc.get("title", "")
+                chapter_schemas[title] = match_section_schema(title)
+
+            # 9. Build modification plan from chapter analysis (no extra LLM call needed)
             # The plan is simply the list of missing chapters — we already know
             # what to generate from the chapter index + source text extraction.
             retrieved_context_parts = []
@@ -1502,6 +1517,43 @@ class ProcessOrchestrator:
             self._collected_info["missing_chapters"] = missing_chapters
             self._collected_info["chapter_source_texts"] = chapter_source_texts
             self._collected_info["chapter_sub_sources"] = chapter_sub_sources
+            self._collected_info["chapter_schemas"] = chapter_schemas
+
+            # 9b. Load template and build chapter→template mapping
+            template_data = None
+            chapter_template_map: Dict[str, Dict[str, Any]] = {}
+            try:
+                from app.services.template_loader import (
+                    load_template, match_chapter_by_title, get_fillable_slots,
+                    get_chapter_by_code,
+                )
+                template_data = load_template("assembly_process_cable")
+                for mc in missing_chapters:
+                    title = mc.get("title", "")
+                    tmpl_ch = match_chapter_by_title(title, template_data)
+                    if tmpl_ch:
+                        slots = get_fillable_slots(tmpl_ch)
+                        chapter_template_map[title] = {
+                            "chapter_code": tmpl_ch.code,
+                            "chapter_type": tmpl_ch.table_type,
+                            "template_slots": [
+                                {"key": s.key, "label": s.label, "type": s.col_type}
+                                for s in slots
+                            ],
+                            "ai_guidance": tmpl_ch.ai_guidance,
+                        }
+                logger.info(
+                    "template_matched",
+                    matched=len(chapter_template_map),
+                    total=len(missing_chapters),
+                )
+            except FileNotFoundError:
+                logger.info("no_template_found, using markdown mode")
+            except Exception as e:
+                logger.warning("template_load_failed", error=str(e))
+
+            self._collected_info["template"] = template_data
+            self._collected_info["chapter_template_map"] = chapter_template_map
 
             # 10. 转到用户确认
             await self.state_machine.transition_to(
@@ -1928,6 +1980,9 @@ class ProcessOrchestrator:
         is_temp_upload = self._collected_info.get("is_temp_upload", False)
         chapter_source_texts: Dict[str, str] = self._collected_info.get("chapter_source_texts", {})
         chapter_sub_sources: Dict[str, Dict[str, str]] = self._collected_info.get("chapter_sub_sources", {})
+        chapter_schemas: Dict[str, Any] = self._collected_info.get("chapter_schemas", {})
+        template = self._collected_info.get("template")
+        chapter_template_map: Dict[str, Dict[str, Any]] = self._collected_info.get("chapter_template_map", {})
         modules: List[Dict[str, str]] = []
 
         if not draft_id and not is_temp_upload:
@@ -1941,11 +1996,14 @@ class ProcessOrchestrator:
 
         # 2. Try chapter-based parallel generation first
         if chapter_source_texts:
-            new_content = await self._execute_chapters_parallel(
+            new_content, structured_results = await self._execute_chapters_parallel(
                 chapter_source_texts=chapter_source_texts,
                 chapter_sub_sources=chapter_sub_sources,
                 draft_content=draft_content,
                 material_instruction=material_instruction,
+                chapter_schemas=chapter_schemas,
+                template=template,
+                chapter_template_map=chapter_template_map,
             )
             agent_result = {
                 "status": "completed",
@@ -2001,7 +2059,63 @@ class ProcessOrchestrator:
                 new_content = inner.get("content") or inner.get("result", {}).get("content")
 
         # 4. Save result to draft
+        # Also assemble structured content.json v2 + content.html when
+        # chapter-based parallel mode was used.
+        structured_result = None
         if new_content:
+            # Assemble structured JSON v2 from Markdown output
+            if chapter_source_texts:
+                try:
+                    from app.services.content_assembler import (
+                        assemble_content_json,
+                        generate_content_html,
+                    )
+                    material_id = str(draft_id) if draft_id else "temp"
+                    # Determine chapters generated without reference source
+                    missing_chs = self._collected_info.get("missing_chapters", [])
+                    no_src_titles = [
+                        mc.get("title", "") for mc in missing_chs
+                        if not mc.get("_doc_dir", "")
+                    ]
+                    content_json = assemble_content_json(
+                        new_content, material_id, no_source_titles=no_src_titles,
+                    )
+                    structured_result = content_json
+
+                    # Generate HTML from structured JSON
+                    content_html = generate_content_html(content_json)
+
+                    # Save structured files alongside the draft
+                    if draft_id and not is_temp_upload:
+                        try:
+                            from app.services.content_assembler import save_content_files
+                            paths = save_content_files(content_json, material_id)
+                            logger.info(
+                                "structured_content_saved",
+                                json_path=paths.get("json_path"),
+                                html_path=paths.get("html_path"),
+                            )
+                        except Exception as e:
+                            logger.warning("structured_content_save_failed", error=str(e))
+
+                    # Also update draft with the HTML version
+                    if draft_id and not is_temp_upload:
+                        try:
+                            from app.services.draft_service import DraftService
+                            from app.models.database import get_db
+
+                            db = next(get_db())
+                            try:
+                                ds = DraftService(db)
+                                ds.update_content(draft_id, content_html, source="ai_structured")
+                            finally:
+                                db.close()
+                        except Exception as e:
+                            logger.error("structured_draft_save_failed", draft_id=draft_id, error=str(e))
+
+                except Exception as e:
+                    logger.warning("content_assembly_failed", error=str(e))
+
             if draft_id and not is_temp_upload:
                 try:
                     from app.services.draft_service import DraftService
@@ -2043,6 +2157,7 @@ class ProcessOrchestrator:
                 "content_updated": new_content is not None,
                 "chapters_generated": len(chapter_source_texts),
                 "modules_generated": len(modules) if modules else 0,
+                "structured_content": structured_result,
             },
             "state": self.state_machine.current_state.value,
         }
@@ -2053,18 +2168,21 @@ class ProcessOrchestrator:
         chapter_sub_sources: Dict[str, Dict[str, str]],
         draft_content: str,
         material_instruction: str,
-    ) -> str:
+        chapter_schemas: Optional[Dict[str, Any]] = None,
+        template: Optional[Dict[str, Any]] = None,
+        chapter_template_map: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> tuple:
         """Dispatch one WritingAgent task per chapter with source text in parallel.
 
         Each chapter gets its own source text from the knowledge base,
         preventing the LLM from fabricating content.
 
-        Large chapters (>5 pages) with sub-chapters are split into
-        per-sub-chapter tasks to avoid LLM token limits.
+        When template + chapter_template_map are provided, matching chapters
+        use _do_template_fill for structured JSON output instead of Markdown.
 
-        Output order follows the knowledge base chapter index.
-
-        Returns the combined content string.
+        Returns:
+            Tuple of (markdown_content, structured_results_dict).
+            structured_results_dict maps chapter_code to filled data.
         """
         await self.state_machine.transition_to(
             ProcessState.TASK_EXECUTION,
@@ -2085,6 +2203,12 @@ class ProcessOrchestrator:
         if not ordered_titles:
             ordered_titles = list(chapter_source_texts.keys())
 
+        # Append any chapters not found in the index (e.g. no-source chapters)
+        index_set = set(ordered_titles)
+        for t in chapter_source_texts:
+            if t not in index_set:
+                ordered_titles.append(t)
+
         # Deduplicate while preserving order
         seen = set()
         unique_titles: List[str] = []
@@ -2098,6 +2222,9 @@ class ProcessOrchestrator:
         tasks = []
         task_keys: List[str] = []  # "title" or "title::sub_title"
         for title in unique_titles:
+            # Resolve schema for this chapter (if any)
+            schema = chapter_schemas.get(title) if chapter_schemas else None
+
             sub_sources = chapter_sub_sources.get(title)
             if sub_sources:
                 # Split into sub-chapter tasks
@@ -2108,16 +2235,24 @@ class ProcessOrchestrator:
                         "action": "generate",
                         "content": f"生成「{sub_title}」内容",
                         "target": f"{sub_title}",
-                        "requirements": f"基于知识库原文生成「{sub_title}」的完整内容",
+                        "requirements": f"参考知识库文档生成「{sub_title}」的完整内容",
                         "params": {
                             "chapter_source_text": sub_text,
                             "module_name": sub_title,
+                            "section_schema": schema,
                             "module_instruction": (
-                                f"以下是知识库文档中{sub_title}的原文（包含完整的工序内容、材料和参数）。"
-                                "请将原文内容整理为格式清晰的工艺文件输出，保留所有工序号、工步号。"
-                                "严格使用原文中的参数、代号、材料名称和数量，不要编造。"
-                                "不要输出分析过程、来源说明、页码引用或对原文内容的点评。"
-                                "工序必须严格按编号顺序输出，不允许跳跃。"
+                                f"你是工艺文件编写专家。以下是知识库文档中「{sub_title}」的参考文档"
+                                "（包含完整的工序内容、材料和参数）。\n"
+                                "\n"
+                                "要求：\n"
+                                "1. 参考知识库文档的格式和术语体系，根据工艺要求整理为规范的工艺文件\n"
+                                "2. 保留原文中的关键参数、代号、材料名称和数量，不得编造不存在的数据\n"
+                                "3. 如果原文包含表格数据（工艺参数表、材料清单等），以表格形式完整输出\n"
+                                "4. 如果原文包含技术条件、公差要求、表面粗糙度等数值，必须保留\n"
+                                "5. 每道工序应包含：工序名称、设备/工具、操作内容、检验要求（如原文有）\n"
+                                "6. 工序必须严格按编号顺序输出，不允许跳跃或省略\n"
+                                "7. 内容必须详实完整，不得因篇幅原因省略或概括原文中的具体内容\n"
+                                "8. 不要输出分析过程、来源说明、页码引用或对原文内容的点评"
                             ),
                             "skip_planning": True,
                         },
@@ -2128,25 +2263,65 @@ class ProcessOrchestrator:
             else:
                 # Normal single chapter task
                 source_text = chapter_source_texts[title]
+                has_source = bool(source_text and source_text.strip())
+
+                if has_source:
+                    instruction = (
+                        f"你是工艺文件编写专家。请参考以下知识库文档，生成「{title}」章节的完整、详细的工艺文件内容。\n"
+                        "\n"
+                        "要求：\n"
+                        "1. 参考知识库文档的格式和术语体系，根据工艺要求生成内容\n"
+                        "2. 保留原文中的关键参数、代号、材料名称和数量，不得编造不存在的数据\n"
+                        "3. 保留原文中所有工序号、工步号，按编号顺序输出，不允许跳跃或省略\n"
+                        "4. 如果原文包含表格数据（如工艺参数表、材料清单等），以表格形式完整输出\n"
+                        "5. 如果原文包含技术条件、公差要求、表面粗糙度等数值，必须保留\n"
+                        "6. 每道工序应包含：工序名称、设备/工具、操作内容、检验要求（如原文有）\n"
+                        "7. 内容必须详实完整，不得因篇幅原因省略或概括原文中的具体内容\n"
+                        "8. 不要输出分析过程、来源说明、页码引用或对原文内容的点评\n"
+                        "9. 格式要求：标题用粗体，工序号独立成行，参数和数值用等宽格式"
+                    )
+                else:
+                    # No source text — generate from overall draft context
+                    instruction = (
+                        f"你是工艺文件编写专家。请根据已有的工艺文件上下文，生成「{title}」章节的完整内容。\n"
+                        "\n"
+                        f"该章节在知识库中没有对应的原文，但根据工艺文件的标准结构，"
+                        f"「{title}」是工艺文件的必要组成部分。\n"
+                        "\n"
+                        "要求：\n"
+                        "1. 参考已有章节的格式、术语和参数风格，保持全文一致\n"
+                        "2. 如果能从上下文推断出相关参数，直接使用；不确定的用 [待确认] 标注\n"
+                        "3. 如果包含工序内容，每道工序应包含：工序名称、设备/工具、操作内容、检验要求\n"
+                        "4. 如果包含表格数据，以表格形式输出\n"
+                        "5. 内容要详实具体，不要写空泛的描述，宁可标注[待确认]也不要写无意义的填充内容\n"
+                        "6. 不要输出分析过程或说明性文字，直接输出工艺文件正文"
+                    )
+
                 task = {
                     "type": "writing",
                     "action": "generate",
                     "content": f"生成「{title}」章节内容",
                     "target": title,
-                    "requirements": f"基于知识库原文生成「{title}」章节的完整内容",
+                    "requirements": f"参考知识库文档生成「{title}」章节的完整内容",
                     "params": {
-                        "chapter_source_text": source_text,
+                        "chapter_source_text": source_text if has_source else draft_content,
                         "module_name": title,
-                        "module_instruction": (
-                            f"基于知识库原文生成「{title}」章节的完整内容。"
-                            "严格使用原文中的参数、代号、材料名称和数量，不要编造。"
-                            "不要输出分析过程、来源说明、页码引用或对原文内容的点评。"
-                            "工序必须严格按编号顺序输出，不允许跳跃。"
-                        ),
+                        "section_schema": schema,
+                        "module_instruction": instruction,
                         "skip_planning": True,
                     },
                     "generate_doc": False,
                 }
+
+                # Inject template slots for structured JSON output
+                tmpl_info = (chapter_template_map or {}).get(title)
+                if tmpl_info and tmpl_info.get("template_slots"):
+                    task["template_slots"] = tmpl_info["template_slots"]
+                    task["chapter_code"] = tmpl_info["chapter_code"]
+                    task["chapter_type"] = tmpl_info["chapter_type"]
+                    task["chapter_title"] = title
+                    task["ai_guidance"] = tmpl_info.get("ai_guidance", "")
+
                 tasks.append(task)
                 task_keys.append(title)
 
@@ -2180,7 +2355,14 @@ class ProcessOrchestrator:
             if not content:
                 continue
 
-            quality = _reviewer._check_output_quality(content)
+            # Resolve schema for this chapter to enable table structure validation
+            chapter_schema = tasks[i]["params"].get("section_schema")
+            # Lenient mode for chapters generated without reference source
+            chapter_source = tasks[i]["params"].get("chapter_source_text", "")
+            is_no_source = not bool(chapter_source and chapter_source.strip())
+            quality = _reviewer._check_output_quality(
+                content, section_schema=chapter_schema, lenient=is_no_source,
+            )
             if quality.get("passed"):
                 continue
 
@@ -2223,6 +2405,23 @@ class ProcessOrchestrator:
                     if retry_content:
                         results[orig_idx] = rr
                         logger.info("chapter_retry_success", key=task_keys[orig_idx], length=len(retry_content))
+
+        # Collect structured template results before building Markdown
+        structured_results: Dict[str, Any] = {}
+        if template and chapter_template_map:
+            for i, (key, result) in enumerate(zip(task_keys, results)):
+                if isinstance(result, BaseException):
+                    continue
+                if not (isinstance(result, dict) and result.get("status") == "completed"):
+                    continue
+                inner = result.get("result", {})
+                if not isinstance(inner, dict):
+                    continue
+                # Check if this was a template_fill result
+                if inner.get("chapter_code"):
+                    structured_results[inner["chapter_code"]] = inner
+                elif inner.get("result", {}).get("chapter_code"):
+                    structured_results[inner["result"]["chapter_code"]] = inner["result"]
 
         # Build output in correct chapter order.
         # Sub-chapter results are grouped under their parent chapter.
@@ -2344,7 +2543,7 @@ class ProcessOrchestrator:
         except Exception as e:
             logger.warning("final_quality_check_error", error=str(e))
 
-        return final_content
+        return final_content, structured_results
 
     async def _execute_modules_parallel(
         self,

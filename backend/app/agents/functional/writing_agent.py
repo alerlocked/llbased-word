@@ -417,6 +417,9 @@ class WritingAgent(BaseAgent):
         (from orchestrator), skips the planning phase and uses the
         provided context directly.
 
+        When task contains `template_slots`, routes to _do_template_fill
+        for structured JSON output instead of free Markdown.
+
         Args:
             task: 任务描述
             knowledge: 检索到的知识
@@ -425,6 +428,10 @@ class WritingAgent(BaseAgent):
         Returns:
             生成结果
         """
+        # Template-driven fill route: structured JSON output
+        if task.get("template_slots"):
+            return await self._do_template_fill(task, knowledge, context)
+
         requirements = task.get("requirements", "")
         template = task.get("template", "standard")
 
@@ -487,21 +494,42 @@ class WritingAgent(BaseAgent):
             material_instr = task.get("material_instruction", "")
             module_name = task.get("module_name", "")
             module_instruction = task.get("module_instruction", "")
+            section_schema = task.get("section_schema")  # SectionSchema dataclass or None
             retry_context = task.get("retry_context", "")
 
             # Single-module focus mode: only output content for this one module
             if module_name:
                 # Use chapter source text when available, fallback to retrieved_context
                 source_text = chapter_source_text or retrieved_ctx
-                source_label = "知识库该章节原文" if chapter_source_text else "知识库完整文档"
+                source_label = "知识库参考文档" if chapter_source_text else "知识库完整文档"
+                has_source = bool(source_text and source_text.strip())
+
+                # Build schema constraint if available
+                schema_instruction = ""
+                if section_schema:
+                    from app.services.section_schemas import build_schema_prompt
+                    schema_instruction = build_schema_prompt(section_schema)
 
                 system_msg = (
                     f"你是一位专业的工艺文件编写助手。任务：生成「{module_name}」模块的完整内容。\n\n"
                     "工作方法：\n"
-                    f"1. 从「{source_label}」中提取与该模块相关的所有内容\n"
-                    "2. 严格按照工艺术语和格式要求，整理为规范的工艺文件\n"
-                    "3. 严格基于原文内容输出，不要编造参数和材料名称\n"
-                    "4. 严格基于原文输出，不要遗漏已有的参数和数据\n\n"
+                )
+                if has_source:
+                    system_msg += (
+                        f"1. 参考「{source_label}」的格式和术语体系，根据工艺要求生成内容\n"
+                        "2. 具体数值（尺寸、公差、材料牌号等）应基于实际工艺要求\n"
+                        "3. 描述性文字用自己的语言组织，不要直接复制原文段落\n"
+                        "4. 保留原文中的关键参数、代号和数量，不得编造不存在的数据\n\n"
+                    )
+                else:
+                    system_msg += (
+                        "1. 根据工艺文件的标准结构生成该章节内容\n"
+                        "2. 参考已有章节的格式、术语和参数风格，保持全文一致\n"
+                        "3. 如果能从上下文推断出相关参数，直接使用；不确定的用 [待确认] 标注\n"
+                        "4. 内容要详实具体，不要写空泛的描述\n\n"
+                    )
+
+                system_msg += (
                     "输出规则（必须遵守）：\n"
                     f"- 只输出「{module_name}」模块的内容\n"
                     "- 不要输出章节大标题（如「{module_name}」），外部已经提供\n"
@@ -515,9 +543,10 @@ class WritingAgent(BaseAgent):
                     "- 工序必须严格按编号顺序输出：1, 2, 3... 不允许跳跃或乱序\n"
                     "- 跳过签名栏、日期栏（编制/校对/审核/标检/批准），这些在导出时由模板填充\n"
                     "- 跳过空白行、空行占位符\n"
-                    "- 不要添加[待确认]标记，所有内容直接基于原文输出\n"
+                    "- 不要添加[待确认]标记（除非确实无法确定具体参数）\n"
                     "- 输出就是该模块的最终内容，不是内部草稿"
                     + structure_rules
+                    + schema_instruction
                 )
                 if self._writing_preferences:
                     system_msg += self._get_preference_prompt_fragment()
@@ -526,7 +555,9 @@ class WritingAgent(BaseAgent):
                 if material_instr:
                     user_parts.append(material_instr)
                 if source_text:
-                    user_parts.append(f"## {source_label}（从中提取 {module_name} 相关内容）\n{source_text}")
+                    user_parts.append(
+                        f"## {source_label}（仅供参考，作为格式和术语参考，不要照抄原文）\n{source_text}"
+                    )
 
                 # Retry: include previous output as assistant message + correction as new user message
                 if retry_context:
@@ -718,6 +749,185 @@ class WritingAgent(BaseAgent):
             "template": template,
             "plan": plan,
             "guardrail_warnings": guardrail_warnings,
+        }
+
+    async def _do_template_fill(
+        self,
+        task: Dict[str, Any],
+        knowledge: Optional[Dict[str, Any]],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Fill template slots with structured JSON output.
+
+        Instead of free Markdown, this method asks LLM to fill specific
+        columns in a template chapter, returning structured data that
+        the frontend can render as editable tables.
+
+        Args:
+            task: Must contain template_slots, chapter_code, chapter_type.
+            knowledge: Pre-loaded knowledge context.
+            context: Execution context.
+
+        Returns:
+            {"success": True, "filled_data": [...], "chapter_code": "..."}
+        """
+        import json as _json
+
+        from app.services.template_types import ChapterData
+        from app.services.template_loader import build_fill_prompt
+
+        chapter_code = task.get("chapter_code", "")
+        chapter_type = task.get("chapter_type", "single_row_list")
+        template_slots = task.get("template_slots", [])
+        chapter_source_text = task.get("chapter_source_text", "")
+        ai_guidance = task.get("ai_guidance", "")
+
+        # Build knowledge context
+        knowledge_context = ""
+        if knowledge and knowledge.get("success"):
+            results = knowledge.get("results", [])
+            knowledge_context = "\n".join(r.get("content", "") for r in results[:3])
+
+        # Also accept pre-loaded context
+        if chapter_source_text:
+            knowledge_context = chapter_source_text
+
+        from app.services.llm_service import llm_service
+
+        # Build fill prompt from slots
+        slot_desc = ", ".join(
+            f'"{s.get("key", "")}"({s.get("label", "")})'
+            for s in template_slots
+        )
+
+        if chapter_type == "single_row_list":
+            fill_instruction = (
+                f"输出格式：JSON 数组，每个元素是一行数据，键为列 key。\n"
+                f"AI 需填充的列：{slot_desc}\n"
+            )
+        elif chapter_type == "process_card":
+            fill_instruction = (
+                f"输出格式：JSON 数组，每个元素是一道工序数据，键为列 key。\n"
+                f"AI 需填充的列：{slot_desc}\n"
+                f'"content" 列是工序主体内容，包含详细操作步骤。\n'
+            )
+        elif chapter_type == "dual_list":
+            fill_instruction = (
+                f'输出格式：JSON 对象 {{\"left\": [...], \"right\": [...]}}\n'
+                f"AI 需填充的列：{slot_desc}\n"
+            )
+        elif chapter_type == "flow_chart":
+            fill_instruction = (
+                "输出格式：有序字符串数组，每个元素是一个工序步骤名称。\n"
+            )
+        else:
+            fill_instruction = (
+                f"输出格式：JSON 对象，键为字段 key。\n"
+                f"字段：{slot_desc}\n"
+            )
+
+        system_msg = (
+            "你是一位专业的工艺文件编写助手。根据提供的参考文档和模板要求，"
+            "填写指定章节的结构化数据。\n\n"
+            f"章节代码：{chapter_code}\n"
+            f"表格类型：{chapter_type}\n"
+            f"{fill_instruction}\n"
+            "硬约束：\n"
+            "- 只输出 JSON，不要输出 Markdown 表格\n"
+            "- 不要输出解释、分析过程或注释\n"
+            "- 不要使用 ```json``` 代码块包裹\n"
+            "- 具体数值基于参考文档，不得编造\n"
+            "- 不确定的值用空字符串\n"
+        )
+        if ai_guidance:
+            system_msg += f"\n指导：{ai_guidance}\n"
+
+        if self._writing_preferences:
+            system_msg += self._get_preference_prompt_fragment()
+
+        user_parts = []
+        if knowledge_context:
+            user_parts.append(
+                f"## 参考文档（基于此内容填写）\n{knowledge_context[:6000]}"
+            )
+        if task.get("requirements"):
+            user_parts.append(f"## 用户要求\n{task['requirements']}")
+
+        user_parts.append(f"请填写章节 {chapter_code} 的数据。")
+
+        result = await llm_service.generate_with_messages(
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": "\n\n".join(user_parts)},
+            ],
+            temperature=0.3,
+            max_tokens=4000,
+            tier="complex",
+        )
+
+        if result["status"] == "error":
+            return {
+                "success": False,
+                "error": result.get("error", "LLM调用失败"),
+                "chapter_code": chapter_code,
+            }
+
+        # Parse JSON from LLM output
+        raw = result["content"].strip()
+        filled = _parse_llm_json(raw)
+
+        if filled is None:
+            logger.warning(
+                "template_fill_json_parse_failed",
+                chapter_code=chapter_code,
+                raw_preview=raw[:200],
+            )
+            return {
+                "success": False,
+                "error": "Failed to parse LLM JSON output",
+                "chapter_code": chapter_code,
+                "raw_output": raw[:500],
+            }
+
+        # Normalize output based on table_type
+        chapter_data = ChapterData(
+            chapter_code=chapter_code,
+            chapter_title=task.get("chapter_title", ""),
+            table_type=chapter_type,
+        )
+
+        if chapter_type == "dual_list":
+            chapter_data.left_data = filled.get("left", [])
+            chapter_data.right_data = filled.get("right", [])
+        elif chapter_type == "flow_chart":
+            if isinstance(filled, list):
+                chapter_data.flow_steps = filled
+            elif isinstance(filled, dict):
+                # LLM may wrap in {"data": [...]} or {"steps": [...]}
+                chapter_data.flow_steps = (
+                    filled.get("data")
+                    or filled.get("steps")
+                    or filled.get("flow_steps")
+                    or []
+                )
+            else:
+                chapter_data.flow_steps = []
+        elif chapter_type in ("fields",):
+            chapter_data.field_values = filled if isinstance(filled, dict) else {}
+        else:
+            chapter_data.filled_data = filled if isinstance(filled, list) else [filled]
+
+        self._save_version(_json.dumps(filled, ensure_ascii=False))
+
+        return {
+            "success": True,
+            "chapter_code": chapter_code,
+            "filled_data": chapter_data.filled_data,
+            "left_data": chapter_data.left_data,
+            "right_data": chapter_data.right_data,
+            "flow_steps": chapter_data.flow_steps,
+            "field_values": chapter_data.field_values,
+            "table_type": chapter_type,
         }
 
     def _looks_complete(self, content: str) -> bool:
@@ -1159,3 +1369,39 @@ class WritingAgent(BaseAgent):
             logger.warning("output_guardrail_triggered", warnings=warnings)
 
         return warnings
+
+
+def _parse_llm_json(raw: str) -> Any:
+    """Parse JSON from LLM output, handling common formatting issues.
+
+    Strips markdown code blocks, leading/trailing whitespace, and
+    attempts multiple parse strategies.
+    """
+    import json as _json
+
+    text = raw.strip()
+
+    # Strip markdown code block wrapper
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # Remove first line (```json) and last line (```)
+        lines = [l for l in lines[1:] if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+
+    # Direct parse
+    try:
+        return _json.loads(text)
+    except _json.JSONDecodeError:
+        pass
+
+    # Try to find JSON array or object boundaries
+    for start_char, end_char in [("[", "]"), ("{", "}")]:
+        start = text.find(start_char)
+        end = text.rfind(end_char)
+        if start != -1 and end > start:
+            try:
+                return _json.loads(text[start : end + 1])
+            except _json.JSONDecodeError:
+                continue
+
+    return None
