@@ -30,6 +30,7 @@ class IndexingService:
 
     def __init__(self, data_dir: Optional[Path] = None):
         self._data_dir = data_dir or settings.EXPORTS_VLM_DIR
+        self._documents_dir = settings.DOCUMENTS_DIR
         self._vector_store: Optional[VectorStore] = None
 
     @property
@@ -43,18 +44,19 @@ class IndexingService:
         """
         Index a single document into ChromaDB.
 
+        Searches both exports_vlm_full/ and documents/ dirs for the
+        content_list_v2.json file.
+
         Args:
-            doc_name: Document directory name under exports_vlm_full/
+            doc_name: Document name (filename stem, e.g. "全单电缆装配规程")
 
         Returns:
             Indexing result with counts
         """
-        doc_dir = self._data_dir / doc_name
-        vlm_dir = doc_dir / self.VLM_SUBDIR
-        content_path = vlm_dir / f"{doc_name}{self.CONTENT_LIST_SUFFIX}"
+        content_path = self._resolve_content_list(doc_name)
 
-        if not content_path.exists():
-            return {"success": False, "error": f"Content file not found: {content_path}"}
+        if not content_path:
+            return {"success": False, "error": f"Content file not found for: {doc_name}"}
 
         try:
             with open(content_path, "r", encoding="utf-8") as f:
@@ -125,31 +127,45 @@ class IndexingService:
 
     async def index_all(self) -> Dict[str, Any]:
         """
-        Index all documents in exports_vlm_full.
+        Index all documents from both exports_vlm_full/ and documents/ dirs.
 
         Returns:
             Summary of indexing results
         """
-        if not self._data_dir.exists():
-            return {"success": False, "error": f"Data directory not found: {self._data_dir}"}
-
         results = []
         errors = []
         total_indexed = 0
+        seen: set[str] = set()
 
-        for doc_dir in sorted(self._data_dir.iterdir()):
-            if not doc_dir.is_dir():
-                continue
-            vlm_dir = doc_dir / self.VLM_SUBDIR
-            if not vlm_dir.exists():
-                continue
+        scan_dirs = []
+        if self._data_dir.exists():
+            scan_dirs.append(self._data_dir)
+        if self._documents_dir.exists():
+            scan_dirs.append(self._documents_dir)
 
-            result = await self.index_document(doc_dir.name)
-            if result.get("success"):
-                total_indexed += result.get("indexed_count", 0)
-                results.append(result)
-            else:
-                errors.append({"doc_name": doc_dir.name, "error": result.get("error")})
+        for base_dir in scan_dirs:
+            for doc_dir in sorted(base_dir.iterdir()):
+                if not doc_dir.is_dir():
+                    continue
+                vlm_dir = doc_dir / self.VLM_SUBDIR
+                if not vlm_dir.exists():
+                    continue
+
+                content_files = list(vlm_dir.glob(f"*{self.CONTENT_LIST_SUFFIX}"))
+                if not content_files:
+                    continue
+
+                doc_name = content_files[0].stem.replace(self.CONTENT_LIST_SUFFIX, "") or doc_dir.name
+                if doc_name in seen:
+                    continue
+                seen.add(doc_name)
+
+                result = await self.index_document(doc_name)
+                if result.get("success"):
+                    total_indexed += result.get("indexed_count", 0)
+                    results.append(result)
+                else:
+                    errors.append({"doc_name": doc_name, "error": result.get("error")})
 
         logger.info("all_documents_indexed", total=total_indexed, errors=len(errors))
         return {
@@ -217,3 +233,26 @@ class IndexingService:
         """Generate deterministic document ID."""
         raw = f"{doc_name}:{page}:{item_type}:{index}"
         return hashlib.md5(raw.encode()).hexdigest()[:16]
+
+    def _resolve_content_list(self, doc_name: str) -> Optional[Path]:
+        """Find content_list_v2.json across static and live doc dirs."""
+        # 1. Static path
+        static = self._data_dir / doc_name / self.VLM_SUBDIR / f"{doc_name}{self.CONTENT_LIST_SUFFIX}"
+        if static.exists():
+            return static
+
+        # 2. Live upload pipeline path
+        if self._documents_dir.exists():
+            for doc_dir in self._documents_dir.iterdir():
+                if not doc_dir.is_dir():
+                    continue
+                vlm_dir = doc_dir / self.VLM_SUBDIR
+                if not vlm_dir.exists():
+                    continue
+                for f in vlm_dir.glob(f"*{self.CONTENT_LIST_SUFFIX}"):
+                    if f.stem.replace(self.CONTENT_LIST_SUFFIX, "") == doc_name:
+                        return f
+                    if doc_dir.name == doc_name:
+                        return f
+
+        return None

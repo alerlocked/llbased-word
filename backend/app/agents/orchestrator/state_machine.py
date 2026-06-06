@@ -89,10 +89,16 @@ class ProcessStateMachine:
         StateTransition(ProcessState.INTENT_RECOGNITION, ProcessState.TASK_DECOMPOSITION),
         StateTransition(ProcessState.INFO_ASSESSMENT, ProcessState.TASK_DECOMPOSITION),
 
+        # intent_recognition → draft_complete shortcuts
+        StateTransition(ProcessState.INTENT_RECOGNITION, ProcessState.DRAFT_ANALYSIS),
+        StateTransition(ProcessState.INTENT_RECOGNITION, ProcessState.USER_CONFIRMATION),
+        StateTransition(ProcessState.INTENT_RECOGNITION, ProcessState.PAUSED),
+
         # 任务执行流程
         StateTransition(ProcessState.TASK_DECOMPOSITION, ProcessState.TASK_EXECUTION),
         StateTransition(ProcessState.TASK_EXECUTION, ProcessState.RESULT_AGGREGATION),
         StateTransition(ProcessState.RESULT_AGGREGATION, ProcessState.USER_REVIEW),
+        StateTransition(ProcessState.RESULT_AGGREGATION, ProcessState.COMPLETION),
         StateTransition(ProcessState.USER_REVIEW, ProcessState.COMPLETION),
 
         # 错误状态可以从任何状态转换

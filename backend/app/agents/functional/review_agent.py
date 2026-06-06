@@ -487,11 +487,97 @@ class ReviewAgent(BaseAgent):
             "has_safety_measures": has_safety
         }
 
-    def _check_output_quality(self, content: str) -> Dict[str, Any]:
+    def _check_table_structure(
+        self,
+        content: str,
+        section_schema,
+        lenient: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Validate table column structure against a SectionSchema.
+
+        Checks:
+        1. Column count matches schema definition.
+        2. Required columns are not empty in data rows.
+
+        Args:
+            content: Generated content to check.
+            section_schema: SectionSchema dataclass defining expected structure.
+            lenient: When True (e.g. no reference source), lower severity from
+                critical to warning for structural issues.
+
+        Returns a list of warning dicts (may be empty).
+        """
+        import re as _re
+        warnings: List[Dict[str, Any]] = []
+
+        if section_schema.content_type != "table":
+            return warnings
+
+        expected_cols = section_schema.columns
+        required_cols = section_schema.required_columns
+        if not expected_cols:
+            return warnings
+
+        # Find all Markdown table rows (lines starting with |)
+        table_rows = [
+            line for line in content.split("\n")
+            if line.strip().startswith("|") and line.strip().endswith("|")
+        ]
+
+        # Filter out separator rows (|---|---|...)
+        data_rows = [
+            row for row in table_rows
+            if not _re.match(r"^\|[\s\-:|]+\|$", row.strip())
+        ]
+
+        if not data_rows:
+            severity = "warning" if lenient else "critical"
+            warnings.append({
+                "type": "table_structure",
+                "severity": severity,
+                "message": (
+                    f"Schema expects a table ({len(expected_cols)} columns: "
+                    f"{', '.join(expected_cols)})，但输出中未检测到 Markdown 表格"
+                ),
+            })
+            return warnings
+
+        # Check column count on the header row (first data row)
+        header_cells = [c.strip() for c in data_rows[0].strip().strip("|").split("|")]
+
+        # Check column count on data rows (skip header)
+        col_mismatches = []
+        for i, row in enumerate(data_rows[1:], start=2):
+            cells = row.strip().strip("|").split("|")
+            if len(cells) != len(expected_cols):
+                col_mismatches.append(i)
+
+        if col_mismatches:
+            severity = "warning" if lenient else "critical"
+            warnings.append({
+                "type": "table_structure",
+                "severity": severity,
+                "message": (
+                    f"表格列数不匹配 schema（期望 {len(expected_cols)} 列），"
+                    f"第 {col_mismatches[:5]} 行列数不符"
+                ),
+            })
+
+        return warnings
+
+    def _check_output_quality(self, content: str, section_schema=None, lenient: bool = False) -> Dict[str, Any]:
         """Check WritingAgent output for format/structure problems.
 
         Pure rule-based checks — no LLM calls, fast enough to run on
         every chapter output.
+
+        Args:
+            content: The generated content to check.
+            section_schema: Optional SectionSchema dataclass for table structure
+                validation. When provided, validates column count and required
+                columns against the schema definition.
+            lenient: When True, lower severity of structural checks to warning
+                (useful for chapters generated without reference source).
 
         Returns:
             {passed: bool, warnings: [...], recommendations: [...]}
@@ -499,6 +585,11 @@ class ReviewAgent(BaseAgent):
         import re as _re
         warnings: List[Dict[str, Any]] = []
         recommendations: List[Dict[str, Any]] = []
+
+        # 0. Schema-based table structure check
+        if section_schema is not None:
+            schema_warnings = self._check_table_structure(content, section_schema, lenient=lenient)
+            warnings.extend(schema_warnings)
 
         # 1. Duplicate section titles
         headings = _re.findall(r"^#{1,3}\s+(.+)$", content, _re.MULTILINE)

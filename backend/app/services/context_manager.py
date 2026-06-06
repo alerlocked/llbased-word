@@ -64,6 +64,8 @@ class ContextManager:
         if data_dir is None:
             data_dir = str(settings.EXPORTS_VLM_DIR)
         self.data_dir = Path(data_dir)
+        # Also scan live upload pipeline output: data/documents/*/vlm/
+        self._documents_dir = settings.DOCUMENTS_DIR
         self._document_cache: Dict[str, List[Any]] = {}
         self._summary_cache: Optional[Dict[str, Any]] = None
 
@@ -73,46 +75,62 @@ class ContextManager:
         """
         获取已解析文档列表
 
+        Scans both the static exports_vlm_full/ and the live upload
+        pipeline output (data/documents/*/vlm/) directories.
+
         Returns:
             文档信息列表
         """
         documents = []
+        seen_names: set[str] = set()
 
-        for doc_dir in self.data_dir.iterdir():
-            if not doc_dir.is_dir():
-                continue
+        scan_dirs = [self.data_dir]
+        if self._documents_dir.exists():
+            scan_dirs.append(self._documents_dir)
 
-            vlm_dir = doc_dir / self.VLM_SUBDIR
-            if not vlm_dir.exists():
-                continue
+        for base_dir in scan_dirs:
+            for doc_dir in base_dir.iterdir():
+                if not doc_dir.is_dir():
+                    continue
 
-            # 查找content_list文件
-            content_files = list(vlm_dir.glob(f"*{self.CONTENT_LIST_SUFFIX}"))
-            if not content_files:
-                continue
+                vlm_dir = doc_dir / self.VLM_SUBDIR
+                if not vlm_dir.exists():
+                    continue
 
-            # 读取文档内容获取表格数量
-            content_path = content_files[0]
-            try:
-                with open(content_path, "r", encoding="utf-8") as f:
-                    pages = json.load(f)
+                content_files = list(vlm_dir.glob(f"*{self.CONTENT_LIST_SUFFIX}"))
+                if not content_files:
+                    continue
 
-                table_count = 0
-                page_count = len(pages)
-                for page in pages:
-                    for item in page:
-                        if item.get("type") == "table":
-                            table_count += 1
+                # Use material name from JSON filename for live docs
+                doc_name = content_files[0].stem.replace(self.CONTENT_LIST_SUFFIX, "")
+                if not doc_name:
+                    doc_name = doc_dir.name
 
-                documents.append(DocumentInfo(
-                    name=doc_dir.name,
-                    path=doc_dir,
-                    table_count=table_count,
-                    page_count=page_count,
-                ))
+                if doc_name in seen_names:
+                    continue
+                seen_names.add(doc_name)
 
-            except Exception as e:
-                logger.warning("document_load_failed", doc_name=doc_dir.name, error=str(e))
+                content_path = content_files[0]
+                try:
+                    with open(content_path, "r", encoding="utf-8") as f:
+                        pages = json.load(f)
+
+                    table_count = 0
+                    page_count = len(pages)
+                    for page in pages:
+                        for item in page:
+                            if item.get("type") == "table":
+                                table_count += 1
+
+                    documents.append(DocumentInfo(
+                        name=doc_name,
+                        path=doc_dir,
+                        table_count=table_count,
+                        page_count=page_count,
+                    ))
+
+                except Exception as e:
+                    logger.warning("document_load_failed", doc_name=doc_name, error=str(e))
 
         logger.info("document_list_loaded", count=len(documents))
         return documents
@@ -286,15 +304,15 @@ class ContextManager:
     def _load_document_content(self, doc_name: str) -> Optional[List[List[Dict]]]:
         """
         加载文档内容（带缓存）
+
+        Searches both static exports_vlm_full/ and live documents/ dirs.
         """
         if doc_name in self._document_cache:
             return self._document_cache[doc_name]
 
-        doc_dir = self.data_dir / doc_name
-        vlm_dir = doc_dir / self.VLM_SUBDIR
-        content_path = vlm_dir / f"{doc_name}{self.CONTENT_LIST_SUFFIX}"
+        content_path = self._resolve_content_list_path(doc_name)
 
-        if not content_path.exists():
+        if not content_path:
             logger.warning("document_content_not_found", doc_name=doc_name)
             return None
 
@@ -307,6 +325,31 @@ class ContextManager:
         except Exception as e:
             logger.error("document_content_load_failed", doc_name=doc_name, error=str(e))
             return None
+
+    def _resolve_content_list_path(self, doc_name: str) -> Optional[Path]:
+        """Find content_list_v2.json across both static and live dirs."""
+        # 1. Static path: exports_vlm_full/{doc_name}/vlm/{doc_name}_content_list_v2.json
+        static_path = self.data_dir / doc_name / self.VLM_SUBDIR / f"{doc_name}{self.CONTENT_LIST_SUFFIX}"
+        if static_path.exists():
+            return static_path
+
+        # 2. Live path: scan documents/*/vlm/ for matching content_list
+        if self._documents_dir.exists():
+            for doc_dir in self._documents_dir.iterdir():
+                if not doc_dir.is_dir():
+                    continue
+                vlm_dir = doc_dir / self.VLM_SUBDIR
+                if not vlm_dir.exists():
+                    continue
+                for f in vlm_dir.glob(f"*{self.CONTENT_LIST_SUFFIX}"):
+                    # Match by doc_name in filename
+                    if f.stem.replace(self.CONTENT_LIST_SUFFIX, "") == doc_name:
+                        return f
+                    # Fallback: match by directory name (material_id)
+                    if doc_dir.name == doc_name:
+                        return f
+
+        return None
 
     def _convert_to_markdown(self, doc_name: str) -> str:
         """

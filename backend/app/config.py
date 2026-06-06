@@ -4,7 +4,7 @@
 工艺文件辅助编辑系统
 """
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -191,16 +191,28 @@ class Settings(BaseSettings):
     def resolve_doc_content_html(doc_dir: Path) -> Path:
         """Resolve the best HTML content file for a document directory.
 
-        Priority: content.html (raw parsed) > document.html (styled display).
-        Returns the first existing file, or content.html as default.
+        Priority: document.html (VLM styled) > content.html (raw fallback).
+        Returns the first existing file, or document.html as default.
         """
-        content = doc_dir / "content.html"
-        if content.exists():
-            return content
         display = doc_dir / "document.html"
         if display.exists():
             return display
-        return content  # default, even if missing
+        content = doc_dir / "content.html"
+        if content.exists():
+            return content
+        return display  # default, even if missing
+
+    @staticmethod
+    def resolve_content_list_json(doc_dir: Path) -> Optional[Path]:
+        """Find content_list_v2.json in the vlm/ subdirectory.
+
+        Scans vlm/ for *_content_list_v2.json. Returns path or None.
+        """
+        vlm_dir = doc_dir / "vlm"
+        if not vlm_dir.exists():
+            return None
+        matches = list(vlm_dir.glob("*_content_list_v2.json"))
+        return matches[0] if matches else None
 
     # 结构化提取配置
     CONTEXT_STRUCTURED_EXTRACTION_ENABLED: bool = True  # 是否启用结构化提取
