@@ -2010,6 +2010,7 @@ class ProcessOrchestrator:
                 "result": {"content": new_content},
             }
         else:
+            structured_results = {}
             # 3. Fallback: parse structured modules from plan
             modules = self._parse_modules_from_plan(modification_plan)
 
@@ -2158,6 +2159,7 @@ class ProcessOrchestrator:
                 "chapters_generated": len(chapter_source_texts),
                 "modules_generated": len(modules) if modules else 0,
                 "structured_content": structured_result,
+                "structured_results": structured_results,
             },
             "state": self.state_machine.current_state.value,
         }

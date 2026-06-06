@@ -674,6 +674,14 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 // Stream finished — only extract editor content, don't overwrite accumulated text
                 if (data.has_editor && data.editor_content) {
                   editorContentRef.current = data.editor_content
+
+                  // Template-driven result: switch editor to template mode
+                  if (data.content_format === 'template' && data.template_data) {
+                    const { useCreationStore } = await import('../../stores/creationStore')
+                    const store = useCreationStore.getState()
+                    store.setEditorContentFormat('template')
+                    store.setEditorTemplateData(data.template_data)
+                  }
                 } else {
                   editorContentRef.current = ''
                 }

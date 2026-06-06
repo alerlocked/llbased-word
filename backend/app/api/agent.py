@@ -1017,6 +1017,7 @@ async def generate_stream(request: GenerateStreamRequest):
                     result_wrapper = exec_result.get("result", {})
                     agent_result = result_wrapper.get("agent_result", {})
                     modules_generated = result_wrapper.get("modules_generated", 0)
+                    structured_results = result_wrapper.get("structured_results", {})
                     logger.info(f"[draft_complete] result_wrapper keys={list(result_wrapper.keys()) if isinstance(result_wrapper, dict) else 'not-dict'}")
                     logger.info(f"[draft_complete] agent_result type={type(agent_result).__name__}, keys={list(agent_result.keys()) if isinstance(agent_result, dict) else 'not-dict'}")
                     new_content = ""
@@ -1047,7 +1048,60 @@ async def generate_stream(request: GenerateStreamRequest):
                         yield f"data: {json.dumps({'type': 'content', 'content': summary}, ensure_ascii=False)}\n\n"
                         # Send generated content to editor
                         logger.info(f"[draft_complete] 发送 editor_content SSE: 长度={len(new_content)}")
-                        yield f"data: {json.dumps({'type': 'result', 'has_editor': True, 'editor_content': new_content}, ensure_ascii=False)}\n\n"
+
+                        # Check if template-driven generation produced structured results
+                        if structured_results and isinstance(structured_results, dict) and len(structured_results) > 0:
+                            from app.services.template_types import StructuredDocument
+                            from app.services.content_assembler import assemble_from_template
+
+                            # Try to load template for structured assembly
+                            try:
+                                from app.services.template_loader import load_template
+                                template = load_template("assembly_process_cable")
+                                tmpl_name = template.get("template_name", "")
+
+                                # Build StructuredDocument from results
+                                from app.services.template_types import ChapterData
+                                chapters = []
+                                for code, data in structured_results.items():
+                                    if isinstance(data, dict):
+                                        chapters.append(ChapterData(
+                                            chapter_code=code,
+                                            chapter_title=data.get("chapter_title", ""),
+                                            table_type=data.get("table_type", ""),
+                                            filled_data=data.get("filled_data", []),
+                                            left_data=data.get("left_data"),
+                                            right_data=data.get("right_data"),
+                                            flow_steps=data.get("flow_steps"),
+                                            field_values=data.get("field_values"),
+                                        ))
+
+                                doc = StructuredDocument(
+                                    template_id="assembly_process_cable",
+                                    template_name=tmpl_name,
+                                    chapters=chapters,
+                                )
+                                template_json = doc.to_dict()
+                                logger.info(f"[draft_complete] template structured: {len(chapters)} chapters")
+                            except Exception as e:
+                                logger.warning(f"[draft_complete] template assembly failed: {e}")
+                                template_json = None
+
+                            sse_result = {
+                                'type': 'result',
+                                'has_editor': True,
+                                'editor_content': new_content,
+                                'content_format': 'template',
+                                'template_data': template_json,
+                            }
+                        else:
+                            sse_result = {
+                                'type': 'result',
+                                'has_editor': True,
+                                'editor_content': new_content,
+                                'content_format': 'markdown',
+                            }
+                        yield f"data: {json.dumps(sse_result, ensure_ascii=False)}\n\n"
                         _save_memory(session_id, user_input, new_content)
                     else:
                         logger.warning(f"[draft_complete] new_content 为空! agent_result={str(agent_result)[:200]}")
