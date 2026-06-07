@@ -116,7 +116,7 @@ class PDFQueueManager:
         """
         self.max_concurrent = max_concurrent
         # 使用统一的配置路径
-        self.output_base_path = Path(output_base_path) if output_base_path else settings.DATA_DIR / "parsed_pdfs"
+        self.output_base_path = Path(output_base_path) if output_base_path else settings.DATA_DIR / "documents"
         self.state_file = Path(state_file) if state_file else settings.DATA_DIR / "pdf_queue_state.json"
 
         # 并发控制信号量

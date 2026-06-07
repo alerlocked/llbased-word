@@ -757,11 +757,13 @@ class WritingAgent(BaseAgent):
         knowledge: Optional[Dict[str, Any]],
         context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Fill template slots with structured JSON output.
+        """Fill template slots with slot-based structured + unstructured output.
 
-        Instead of free Markdown, this method asks LLM to fill specific
-        columns in a template chapter, returning structured data that
-        the frontend can render as editable tables.
+        Flow:
+          1. Group columns by fill_type (structured / unstructured)
+          2. Extract structured fields from source text (no LLM)
+          3. Send only unstructured slots to LLM
+          4. Merge structured + unstructured into final rows
 
         Args:
             task: Must contain template_slots, chapter_code, chapter_type.
@@ -769,12 +771,17 @@ class WritingAgent(BaseAgent):
             context: Execution context.
 
         Returns:
-            {"success": True, "filled_data": [...], "chapter_code": "..."}
+            {"success": True, "filled_data": [...], "chapter_code": "...",
+             "fill_sources": {...}}
         """
         import json as _json
 
-        from app.services.template_types import ChapterData
-        from app.services.template_loader import build_fill_prompt
+        from app.services.template_types import TemplateColumn, ChapterData
+        from app.services.template_loader import get_columns_by_fill_type
+        from app.services.structured_extractor import (
+            extract_structured_fields,
+            merge_structured_with_unstructured,
+        )
 
         chapter_code = task.get("chapter_code", "")
         chapter_type = task.get("chapter_type", "single_row_list")
@@ -792,112 +799,147 @@ class WritingAgent(BaseAgent):
         if chapter_source_text:
             knowledge_context = chapter_source_text
 
+        # --- Step 1: Classify columns by fill_type ---
+        slot_cols = [TemplateColumn.from_dict(s) for s in template_slots]
+        grouped = _group_slots_by_fill_type(slot_cols)
+        structured_cols: List[TemplateColumn] = grouped["structured"]
+        unstructured_cols: List[TemplateColumn] = grouped["unstructured"]
+
+        fill_sources = {
+            "structured": [c.key for c in structured_cols],
+            "unstructured": [c.key for c in unstructured_cols],
+        }
+
+        # --- Step 2: Extract structured fields from source ---
+        structured_values: Dict[str, List[str]] = {}
+        if structured_cols and knowledge_context:
+            structured_values = extract_structured_fields(
+                chapter_code=chapter_code,
+                structured_cols=structured_cols,
+                source_text=knowledge_context,
+            )
+
+        # Determine row count from structured extraction
+        struct_row_count = 0
+        if structured_values:
+            struct_row_count = max(
+                (len(v) for v in structured_values.values()), default=0
+            )
+
+        # --- Step 3: Generate unstructured fields via LLM ---
         from app.services.llm_service import llm_service
 
-        # Build fill prompt from slots
-        slot_desc = ", ".join(
-            f'"{s.get("key", "")}"({s.get("label", "")})'
-            for s in template_slots
-        )
+        unstructured_slots: List[Dict[str, Any]] = []
+        llm_row_count = 0
+        parsed = None
 
-        if chapter_type == "single_row_list":
-            fill_instruction = (
-                f"输出格式：JSON 数组，每个元素是一行数据，键为列 key。\n"
-                f"AI 需填充的列：{slot_desc}\n"
-            )
-        elif chapter_type == "process_card":
-            fill_instruction = (
-                f"输出格式：JSON 数组，每个元素是一道工序数据，键为列 key。\n"
-                f"AI 需填充的列：{slot_desc}\n"
-                f'"content" 列是工序主体内容，包含详细操作步骤。\n'
-            )
-        elif chapter_type == "dual_list":
-            fill_instruction = (
-                f'输出格式：JSON 对象 {{\"left\": [...], \"right\": [...]}}\n'
-                f"AI 需填充的列：{slot_desc}\n"
-            )
-        elif chapter_type == "flow_chart":
-            fill_instruction = (
-                "输出格式：有序字符串数组，每个元素是一个工序步骤名称。\n"
-            )
-        else:
-            fill_instruction = (
-                f"输出格式：JSON 对象，键为字段 key。\n"
-                f"字段：{slot_desc}\n"
+        if unstructured_cols:
+            slot_desc = ", ".join(
+                f'"{c.key}"({c.label})' for c in unstructured_cols
             )
 
-        system_msg = (
-            "你是一位专业的航天工艺文件编写助手。你的任务是从参考文档中提取所有相关数据，"
-            "填写到指定的结构化表格中。\n\n"
-            f"章节代码：{chapter_code}\n"
-            f"章节标题：{task.get('chapter_title', '')}\n"
-            f"表格类型：{chapter_type}\n"
-            f"{fill_instruction}\n"
-            "硬约束：\n"
-            "- 只输出 JSON，不要输出 Markdown 表格或任何解释文字\n"
-            "- 不要使用 ```json``` 代码块包裹\n"
-            "- 必须从参考文档中提取所有相关条目，不要遗漏\n"
-            "- 参数、代号、材料名称、数量必须与参考文档完全一致\n"
-            "- 如果参考文档中某个字段没有对应信息，用空字符串\n"
-            "- 不要编造不存在的数据\n"
-            "- 每一行/每一个条目都必须是完整的，不要用省略号\n"
-        )
-        if ai_guidance:
-            system_msg += f"\n指导：{ai_guidance}\n"
+            row_hint = ""
+            if struct_row_count > 0:
+                row_hint = f"参考文档中共有 {struct_row_count} 道工序/条目，请为每道工序/条目都生成内容。\n"
 
-        if self._writing_preferences:
-            system_msg += self._get_preference_prompt_fragment()
+            if chapter_type == "process_card":
+                fill_instruction = (
+                    f"输出格式：JSON 数组，每个元素包含 row（行号，从1开始）、slot（列key）、value（值）三个字段。\n"
+                    f"需要生成内容的列：{slot_desc}\n"
+                    f"{row_hint}"
+                    f"示例：[{{\"row\": 1, \"slot\": \"content\", \"value\": \"详细工序描述...\"}}, "
+                    f"{{\"row\": 1, \"slot\": \"inspection\", \"value\": \"检查要点...\"}}]\n"
+                )
+            elif chapter_type == "single_row_list":
+                fill_instruction = (
+                    f"输出格式：JSON 数组，每个元素包含 row、slot、value。\n"
+                    f"需要生成内容的列：{slot_desc}\n"
+                    f"{row_hint}"
+                )
+            else:
+                fill_instruction = (
+                    f"输出格式：JSON 数组，每个元素包含 row、slot、value。\n"
+                    f"字段：{slot_desc}\n"
+                )
 
-        user_parts = []
-        if knowledge_context:
-            user_parts.append(
-                f"## 参考文档（完整原文，逐条提取）\n{knowledge_context[:8000]}"
+            system_msg = (
+                "你是一位专业的航天工艺文件编写助手。你的任务是为指定的表格位置生成内容。\n\n"
+                f"章节代码：{chapter_code}\n"
+                f"章节标题：{task.get('chapter_title', '')}\n"
+                f"表格类型：{chapter_type}\n"
+                f"{fill_instruction}\n"
+                "硬约束：\n"
+                "- 只输出 JSON 数组\n"
+                "- 不要使用 ```json``` 代码块包裹\n"
+                "- 每一行/每一个条目都必须是完整的\n"
+                "- 不要编造不存在的数据\n"
             )
-            user_parts.append(
-                "请仔细阅读参考文档，从中提取该章节所需的全部数据。"
-                "每一条记录都必须完整，不得省略参考文档中出现的任何条目。"
+            if ai_guidance:
+                system_msg += f"\n指导：{ai_guidance}\n"
+
+            if self._writing_preferences:
+                system_msg += self._get_preference_prompt_fragment()
+
+            user_parts = []
+            if knowledge_context:
+                user_parts.append(
+                    f"## 参考文档（完整原文）\n{knowledge_context[:8000]}"
+                )
+                user_parts.append(
+                    "请仔细阅读参考文档，为每个条目/工序生成上述指定列的内容。"
+                )
+            else:
+                user_parts.append(
+                    f"请填写章节 {chapter_code}（{task.get('chapter_title', '')}）的指定列内容。"
+                )
+
+            if task.get("requirements"):
+                user_parts.append(f"## 用户要求\n{task['requirements']}")
+
+            result = await llm_service.generate_with_messages(
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": "\n\n".join(user_parts)},
+                ],
+                temperature=0.2,
+                max_tokens=6000,
+                tier="complex",
             )
-        else:
-            user_parts.append(f"请填写章节 {chapter_code}（{task.get('chapter_title', '')}）的数据。")
 
-        if task.get("requirements"):
-            user_parts.append(f"## 用户要求\n{task['requirements']}")
+            if result["status"] == "error":
+                return {
+                    "success": False,
+                    "error": result.get("error", "LLM调用失败"),
+                    "chapter_code": chapter_code,
+                }
 
-        result = await llm_service.generate_with_messages(
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": "\n\n".join(user_parts)},
-            ],
-            temperature=0.2,
-            max_tokens=6000,
-            tier="complex",
-        )
+            raw = result["content"].strip()
+            parsed = _parse_llm_json(raw)
 
-        if result["status"] == "error":
-            return {
-                "success": False,
-                "error": result.get("error", "LLM调用失败"),
-                "chapter_code": chapter_code,
-            }
+            if parsed is not None and isinstance(parsed, list):
+                if parsed and "slot" in parsed[0] and "row" in parsed[0]:
+                    unstructured_slots = parsed
+                else:
+                    unstructured_slots = _legacy_to_slots(parsed, unstructured_cols)
 
-        # Parse JSON from LLM output
-        raw = result["content"].strip()
-        filled = _parse_llm_json(raw)
+                if unstructured_slots:
+                    llm_row_count = max(
+                        s.get("row", 0) for s in unstructured_slots
+                    )
 
-        if filled is None:
-            logger.warning(
-                "template_fill_json_parse_failed",
-                chapter_code=chapter_code,
-                raw_preview=raw[:200],
-            )
-            return {
-                "success": False,
-                "error": "Failed to parse LLM JSON output",
-                "chapter_code": chapter_code,
-                "raw_output": raw[:500],
-            }
+        # --- Step 4: Merge structured + unstructured ---
+        total_rows = max(struct_row_count, llm_row_count, 1)
 
-        # Normalize output based on table_type
+        merged_rows: List[Dict[str, Any]] = []
+        if chapter_type in ("single_row_list", "process_card"):
+            if structured_values or unstructured_slots:
+                merged_rows = merge_structured_with_unstructured(
+                    structured_values, unstructured_slots, total_rows
+                )
+            if not structured_values and not unstructured_slots and parsed is not None:
+                merged_rows = parsed if isinstance(parsed, list) else [parsed]
+
+        # --- Step 5: Build output ---
         chapter_data = ChapterData(
             chapter_code=chapter_code,
             chapter_title=task.get("chapter_title", ""),
@@ -905,27 +947,41 @@ class WritingAgent(BaseAgent):
         )
 
         if chapter_type == "dual_list":
-            chapter_data.left_data = filled.get("left", [])
-            chapter_data.right_data = filled.get("right", [])
+            if parsed is not None:
+                chapter_data.left_data = parsed.get("left", []) if isinstance(parsed, dict) else []
+                chapter_data.right_data = parsed.get("right", []) if isinstance(parsed, dict) else []
+            else:
+                chapter_data.left_data = []
+                chapter_data.right_data = []
         elif chapter_type == "flow_chart":
-            if isinstance(filled, list):
-                chapter_data.flow_steps = filled
-            elif isinstance(filled, dict):
-                # LLM may wrap in {"data": [...]} or {"steps": [...]}
-                chapter_data.flow_steps = (
-                    filled.get("data")
-                    or filled.get("steps")
-                    or filled.get("flow_steps")
-                    or []
-                )
+            if parsed is not None:
+                if isinstance(parsed, list):
+                    if parsed and isinstance(parsed[0], str):
+                        chapter_data.flow_steps = parsed
+                    elif parsed and "slot" in parsed[0]:
+                        chapter_data.flow_steps = [s.get("value", "") for s in parsed]
+                    else:
+                        chapter_data.flow_steps = []
+                elif isinstance(parsed, dict):
+                    chapter_data.flow_steps = (
+                        parsed.get("data")
+                        or parsed.get("steps")
+                        or parsed.get("flow_steps")
+                        or []
+                    )
+                else:
+                    chapter_data.flow_steps = []
             else:
                 chapter_data.flow_steps = []
         elif chapter_type in ("fields",):
-            chapter_data.field_values = filled if isinstance(filled, dict) else {}
+            if parsed is not None and isinstance(parsed, dict):
+                chapter_data.field_values = parsed
+            else:
+                chapter_data.field_values = {}
         else:
-            chapter_data.filled_data = filled if isinstance(filled, list) else [filled]
+            chapter_data.filled_data = merged_rows
 
-        self._save_version(_json.dumps(filled, ensure_ascii=False))
+        self._save_version(_json.dumps(merged_rows or parsed or {}, ensure_ascii=False))
 
         # Retry once if output is suspiciously sparse
         item_count = (
@@ -935,39 +991,45 @@ class WritingAgent(BaseAgent):
         )
         if item_count == 0 and knowledge_context and len(knowledge_context) > 100:
             logger.warning("template_fill_retry_sparse", chapter_code=chapter_code)
-            retry_result = await llm_service.generate_with_messages(
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": (
-                        "上一次输出为空，请重新提取。参考文档中有大量数据，"
-                        "请确保每一条都提取为完整的 JSON 条目。\n\n"
-                        + "\n\n".join(user_parts)
-                    )},
-                ],
-                temperature=0.1,
-                max_tokens=6000,
-                tier="complex",
-            )
-            if retry_result["status"] != "error":
-                retry_filled = _parse_llm_json(retry_result["content"].strip())
-                if retry_filled is not None:
-                    if chapter_type in ("single_row_list", "process_card"):
-                        chapter_data.filled_data = retry_filled if isinstance(retry_filled, list) else [retry_filled]
-                    elif chapter_type == "flow_chart":
-                        chapter_data.flow_steps = retry_filled if isinstance(retry_filled, list) else []
-                    elif chapter_type == "dual_list":
-                        chapter_data.left_data = retry_filled.get("left", [])
-                        chapter_data.right_data = retry_filled.get("right", [])
+            if unstructured_cols:
+                retry_result = await llm_service.generate_with_messages(
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": (
+                            "上一次输出为空，请重新提取。参考文档中有大量数据，"
+                            "请确保每一条都提取为完整的 JSON 条目。\n\n"
+                            + "\n\n".join(user_parts)
+                        )},
+                    ],
+                    temperature=0.1,
+                    max_tokens=6000,
+                    tier="complex",
+                )
+                if retry_result["status"] != "error":
+                    retry_filled = _parse_llm_json(retry_result["content"].strip())
+                    if retry_filled is not None:
+                        if chapter_type in ("single_row_list", "process_card"):
+                            if isinstance(retry_filled, list):
+                                chapter_data.filled_data = retry_filled
+                            else:
+                                chapter_data.filled_data = [retry_filled]
+                        elif chapter_type == "flow_chart":
+                            chapter_data.flow_steps = retry_filled if isinstance(retry_filled, list) else []
+                        elif chapter_type == "dual_list":
+                            chapter_data.left_data = retry_filled.get("left", [])
+                            chapter_data.right_data = retry_filled.get("right", [])
 
         return {
             "success": True,
             "chapter_code": chapter_code,
+            "chapter_title": task.get("chapter_title", ""),
             "filled_data": chapter_data.filled_data,
             "left_data": chapter_data.left_data,
             "right_data": chapter_data.right_data,
             "flow_steps": chapter_data.flow_steps,
             "field_values": chapter_data.field_values,
             "table_type": chapter_type,
+            "fill_sources": fill_sources,
         }
 
     def _looks_complete(self, content: str) -> bool:
@@ -1445,3 +1507,34 @@ def _parse_llm_json(raw: str) -> Any:
                 continue
 
     return None
+
+
+def _group_slots_by_fill_type(
+    cols: List["TemplateColumn"],
+) -> Dict[str, List["TemplateColumn"]]:
+    """Group TemplateColumn list by fill_type field."""
+    structured: List["TemplateColumn"] = []
+    unstructured: List["TemplateColumn"] = []
+    for col in cols:
+        if col.fill_type == "unstructured":
+            unstructured.append(col)
+        else:
+            structured.append(col)
+    return {"structured": structured, "unstructured": unstructured}
+
+
+def _legacy_to_slots(
+    rows: List[Dict[str, Any]],
+    cols: List["TemplateColumn"],
+) -> List[Dict[str, Any]]:
+    """Convert legacy full-row format [{key: value}] to slot-based [{row, slot, value}]."""
+    slots: List[Dict[str, Any]] = []
+    for row_idx, row in enumerate(rows, start=1):
+        for col in cols:
+            if col.key in row:
+                slots.append({
+                    "row": row_idx,
+                    "slot": col.key,
+                    "value": row[col.key],
+                })
+    return slots

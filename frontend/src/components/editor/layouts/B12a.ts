@@ -26,7 +26,7 @@ export const B12a: ProcessTableLayout = {
   ],
   headerRows: [
     [
-      { label: '会签', colspan: 2, rowspan: 7 },
+      { label: '会签', colspan: 2 },
       { label: '序号', rowspan: 2 },
       { label: '专用工具', colspan: 5 },
       { label: '序号', rowspan: 2 },
@@ -45,6 +45,7 @@ export const B12a: ProcessTableLayout = {
     ],
   ],
   dataColumns: [
+    { key: '', label: '', colspan: 3 },
     { key: 'tool_seq', label: '序号' },
     { key: 'tool_name', label: '名称' },
     { key: 'tool_spec', label: '型号或规格', colspan: 2 },

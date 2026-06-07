@@ -528,7 +528,7 @@ async def get_material_content(
 
         # Fallback: check legacy format
             # 检查旧格式
-            legacy_path = Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / f"{Path(material.name).stem}.html"
+            legacy_path = Path(settings.DATA_DIR) / "documents" / str(material_id) / f"{Path(material.name).stem}.html"
             if legacy_path.exists():
                 with open(legacy_path, "r", encoding="utf-8") as f:
                     content = f.read()
@@ -627,28 +627,21 @@ async def get_material_detail(
             with open(content_json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             content = data.get("content", "")
-            return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
-        elif content_html_path.exists():
+            if content:
+                return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
+
+        if content_html_path.exists():
             with open(content_html_path, "r", encoding="utf-8") as f:
                 content = f.read()
+            # Check if document.html has actual table content; fallback to content.html
+            if "<table" not in content:
+                raw_html_path = doc_dir / "content.html"
+                if raw_html_path.exists() and raw_html_path != content_html_path:
+                    with open(raw_html_path, "r", encoding="utf-8") as f2:
+                        raw_content = f2.read()
+                    if "<table" in raw_content:
+                        content = raw_content
             return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
-
-        # Check materials directory (pre-parsed by PDF pipeline)
-        materials_dir = Path(settings.DATA_DIR) / "materials"
-        if materials_dir.exists():
-            for d in materials_dir.iterdir():
-                if d.is_dir() and d.name.startswith(f"{material_id}_"):
-                    full_html = d / "full.html"
-                    summary_json = d / "summary.json"
-                    if full_html.exists():
-                        with open(full_html, "r", encoding="utf-8") as f:
-                            content = f.read()
-                        return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
-                    elif summary_json.exists():
-                        with open(summary_json, "r", encoding="utf-8") as f:
-                            data = json.load(f)
-                        return {"id": material.id, "name": material.name, "type": material.material_type, "content": json.dumps(data, ensure_ascii=False, indent=2), "content_type": "json"}
-                    break
 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="素材内容文件不存在")
     except HTTPException:
@@ -680,12 +673,10 @@ async def delete_material(
                 if d.is_dir() and d.name.startswith(f"{material_id}_"):
                     shutil.rmtree(d, ignore_errors=True)
 
-        # Remove parsed_pdfs output
-        parsed_dir = Path(settings.DATA_DIR) / "parsed_pdfs"
+        # Remove documents output
+        parsed_dir = Path(settings.DATA_DIR) / "documents" / str(material_id)
         if parsed_dir.exists():
-            import glob
-            for f in glob.glob(str(parsed_dir / "**" / f"*{material.name}*"), recursive=True):
-                Path(f).unlink(missing_ok=True)
+            shutil.rmtree(parsed_dir, ignore_errors=True)
 
         # Remove from all projects' material_ids
         projects = db.query(CreationProject).all()
@@ -1255,13 +1246,8 @@ async def upload_document(
         # 添加到 PDF 解析队列（异步处理）
         manager = get_pdf_queue_manager()
 
-        # 计算输出路径（保持文件夹结构）
-        output_path = Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id)
-        if relative_path:
-            # 保持相对路径结构
-            output_path = output_path / Path(relative_path).with_suffix(".html")
-        else:
-            output_path = output_path / f"{file.filename}.html"
+        # 计算输出路径（统一存到 documents/{material_id}/）
+        output_path = Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html"
 
         task_id = await manager.add_task(
             source_path=str(file_path),
@@ -1938,7 +1924,7 @@ async def generate_material_index(
                 # 准备输出路径
                 for pdf, source_path in zip(pdf_files, copied_paths):
                     output_path = str(
-                        Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / Path(pdf["relative_path"]).with_suffix(".html")
+                        Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
                     )
 
                     task_id = await manager.add_task(
@@ -2169,7 +2155,7 @@ async def batch_upload_materials(
 
             for pdf in pdf_files:
                 source_path = str(upload_base_dir / pdf["path"])
-                output_path = str(Path(settings.DATA_DIR) / "parsed_pdfs" / str(project_id) / Path(pdf["path"]).with_suffix(".html"))
+                output_path = str(Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html")
 
                 source_paths.append(source_path)
                 output_paths.append(output_path)
@@ -2207,6 +2193,52 @@ async def batch_upload_materials(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"批量上传失败: {str(e)}"
         )
+
+
+# ==================== 模板 API ====================
+
+@router.get("/template")
+async def get_template_structure(
+    template_id: str = "assembly_process_cable",
+):
+    """
+    Return template as StructuredDocument with empty rows.
+    Frontend uses this to display table structure immediately.
+    """
+    from app.services.template_loader import load_template, get_editor_chapters
+
+    template = load_template(template_id)
+    chapters = get_editor_chapters(template)
+
+    result = {
+        "template_id": template["template_id"],
+        "template_name": template["template_name"],
+        "chapters": [],
+        "footer_values": {},
+    }
+
+    for ch in chapters:
+        chapter_data: dict = {
+            "chapter_code": ch.code,
+            "chapter_title": ch.title,
+            "table_type": ch.table_type,
+            "filled_data": [],
+        }
+
+        if ch.table_type == "flow_chart":
+            chapter_data["flow_steps"] = []
+        elif ch.table_type == "dual_list":
+            chapter_data["left_data"] = []
+            chapter_data["right_data"] = []
+        elif ch.table_type == "fields" or not ch.columns:
+            chapter_data["field_values"] = {
+                f["key"]: "" for f in ch.fields
+            }
+            chapter_data["filled_data"] = []
+
+        result["chapters"].append(chapter_data)
+
+    return result
 
 
 # ==================== 素材文件夹 API ====================

@@ -107,6 +107,25 @@ def get_fillable_slots(chapter: TemplateChapter) -> List[TemplateColumn]:
     return [col for col in chapter.columns if col.ai_filled]
 
 
+def get_columns_by_fill_type(chapter: TemplateChapter) -> Dict[str, List[TemplateColumn]]:
+    """Group chapter columns by fill_type.
+
+    Args:
+        chapter: Parsed chapter object.
+
+    Returns:
+        {"structured": [...cols], "unstructured": [...cols]}
+    """
+    structured: List[TemplateColumn] = []
+    unstructured: List[TemplateColumn] = []
+    for col in chapter.columns:
+        if col.fill_type == "unstructured":
+            unstructured.append(col)
+        else:
+            structured.append(col)
+    return {"structured": structured, "unstructured": unstructured}
+
+
 def get_editor_chapters(template: Dict[str, Any]) -> List[TemplateChapter]:
     """Return chapters visible in the editor (editor_visible != False)."""
     result = []

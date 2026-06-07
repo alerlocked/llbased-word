@@ -1423,20 +1423,30 @@ class ProcessOrchestrator:
             material_instruction = self._build_material_status_instruction(material_status)
 
             # 5. 读取初稿内容
+            # For generate mode (force_all), draft_content is optional since
+            # all chapters will be treated as missing regardless.
+            force_all = context.get("force_all_chapters", False)
             draft_content, draft_id = await self._load_draft_content(context)
             if draft_content is None:
                 draft_content = context.get("uploaded_file_content", "")
-                if not draft_content:
-                    return {
-                        "success": False,
-                        "error": "未找到初稿，请先上传工艺文件初稿，或在上下文中提供 draft_id",
-                        "state": self.state_machine.current_state.value,
-                    }
-                draft_id = context.get("draft_id")
-                logger.info("draft_loaded_from_temp_upload", content_length=len(draft_content))
+                if draft_content:
+                    draft_id = context.get("draft_id")
+                    logger.info("draft_loaded_from_temp_upload", content_length=len(draft_content))
+                elif not force_all:
+                    # fill mode without draft: fall back to generate (treat all as missing)
+                    gen_mode = context.get("generation_mode")
+                    if gen_mode == "fill":
+                        logger.info("fill_mode_no_draft_fallback_to_generate")
+                        force_all = True
+                    else:
+                        return {
+                            "success": False,
+                            "error": "未找到初稿，请先上传工艺文件初稿，或在上下文中提供 draft_id",
+                            "state": self.state_machine.current_state.value,
+                        }
 
             # 6. 结构对比 Agent：章节索引 vs 初稿 → 缺失章节
-            force_all = context.get("force_all_chapters", False)
+            # (force_all already determined above, may be overridden for fill-no-draft fallback)
             if force_all:
                 # generate mode: treat ALL indexed chapters as missing
                 missing_chapters = []
@@ -1446,7 +1456,7 @@ class ProcessOrchestrator:
                             "title": ch["title"],
                             "pages": ch["pages"],
                             "page_count": ch["page_count"],
-                            "_doc_dir": idx.get("doc_dir", ""),
+                            "_doc_dir": idx.get("_doc_dir", ""),
                             "reason": "full generation",
                         })
                 logger.info("force_all_chapters", count=len(missing_chapters))
@@ -1511,14 +1521,22 @@ class ProcessOrchestrator:
                         )
                         if full_text:
                             chapter_source_texts[title] = full_text
-                            available_titles.append(title)
+                        else:
+                            # Fallback: ensure chapter enters parallel mode
+                            chapter_source_texts[title] = ""
+                            no_source_titles.append(title)
+                        available_titles.append(title)
                 else:
                     source_text = hierarchical_context.get_chapter_content(
                         doc_dir_name=doc_dir, chapter_title=title,
                     )
                     if source_text:
                         chapter_source_texts[title] = source_text
-                        available_titles.append(title)
+                    else:
+                        # Fallback: ensure chapter enters parallel mode
+                        chapter_source_texts[title] = ""
+                        no_source_titles.append(title)
+                    available_titles.append(title)
 
             # 8. Match section schemas for missing chapters
             from app.services.section_schemas import match_section_schema, SectionSchema
@@ -1551,7 +1569,10 @@ class ProcessOrchestrator:
             self._collected_info["retrieved_context"] = retrieved_context
             self._collected_info["material_status"] = material_status
             self._collected_info["material_instruction"] = material_instruction
-            self._collected_info["is_temp_upload"] = draft_id is None and bool(context.get("uploaded_file_content"))
+            self._collected_info["is_temp_upload"] = (
+                draft_id is None
+                and (bool(context.get("uploaded_file_content")) or force_all)
+            )
             # Store chapter-level data for execution phase
             self._collected_info["missing_chapters"] = missing_chapters
             self._collected_info["chapter_source_texts"] = chapter_source_texts
@@ -1597,6 +1618,12 @@ class ProcessOrchestrator:
             self._collected_info["chapter_template_map"] = chapter_template_map
 
             # 10. 转到用户确认
+            logger.info(
+                "draft_complete_before_user_confirmation",
+                current_state=self.state_machine.current_state.value,
+                chapter_source_texts_count=len(chapter_source_texts),
+                template_map_size=len(chapter_template_map),
+            )
             await self.state_machine.transition_to(
                 ProcessState.USER_CONFIRMATION,
                 context_update={"modification_plan": modification_plan},
@@ -1608,6 +1635,7 @@ class ProcessOrchestrator:
                 ProcessState.PAUSED,
                 trigger="awaiting_draft_plan_confirmation",
             )
+            logger.info("draft_complete_now_paused", state=self.state_machine.current_state.value)
 
             return {
                 "success": True,
@@ -2030,12 +2058,30 @@ class ProcessOrchestrator:
             return {"success": False, "error": "缺少 draft_id"}
 
         # 1. Task decomposition
-        await self.state_machine.transition_to(
+        logger.info(
+            "execute_draft_modification_entry",
+            current_state=self.state_machine.current_state.value,
+            chapter_source_texts_count=len(chapter_source_texts),
+            has_template=template is not None,
+            template_map_size=len(chapter_template_map or {}),
+        )
+        transition_ok = await self.state_machine.transition_to(
             ProcessState.TASK_DECOMPOSITION,
             trigger="draft_plan_confirmed",
         )
+        logger.info("task_decomposition_transition", success=transition_ok, state_after=self.state_machine.current_state.value)
 
         # 2. Try chapter-based parallel generation first
+        # Fallback: when template_map has entries but source_texts is empty,
+        # populate from template_map keys so we still enter parallel + template fill path
+        if not chapter_source_texts and chapter_template_map:
+            logger.info(
+                "chapter_source_texts_empty_using_template_fallback",
+                template_chapters=list(chapter_template_map.keys()),
+            )
+            for title in chapter_template_map:
+                chapter_source_texts[title] = ""
+
         if chapter_source_texts:
             logger.info("executing_chapters_parallel", chapters=list(chapter_source_texts.keys()), template=bool(template), template_map_size=len(chapter_template_map or {}))
             new_content, structured_results = await self._execute_chapters_parallel(

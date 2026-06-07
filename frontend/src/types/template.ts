@@ -10,6 +10,7 @@ export interface TemplateColumn {
   type: 'text' | 'number' | 'long_text' | 'select' | 'ordered_list'
   required: boolean
   ai_filled: boolean
+  fill_type?: 'structured' | 'unstructured'
   default?: string
   options?: string[]
 }
@@ -46,6 +47,10 @@ export interface ChapterData {
   right_data?: Array<Record<string, unknown>>
   flow_steps?: string[]
   field_values?: Record<string, unknown>
+  fill_sources?: {
+    structured: string[]
+    unstructured: string[]
+  }
 }
 
 export interface StructuredDocument {
@@ -70,6 +75,10 @@ export interface TemplateSection {
   right_columns?: string[]
   flow_steps?: string[]
   field_values?: Record<string, unknown>
+  fill_sources?: {
+    structured: string[]
+    unstructured: string[]
+  }
   review_passed: boolean
   source: string
 }

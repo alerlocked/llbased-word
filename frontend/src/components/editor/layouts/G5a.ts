@@ -26,7 +26,7 @@ export const G5a: ProcessTableLayout = {
   ],
   headerRows: [
     [
-      { label: '会签', colspan: 2, rowspan: 7 },
+      { label: '会签', colspan: 2 },
       { label: '序号' },
       { label: '代号', colspan: 3 },
       { label: '文件名称', colspan: 7 },
@@ -36,6 +36,7 @@ export const G5a: ProcessTableLayout = {
     ],
   ],
   dataColumns: [
+    { key: '', label: '', colspan: 3 },
     { key: 'seq', label: '序号' },
     { key: 'ref_code', label: '代号', colspan: 3 },
     { key: 'ref_name', label: '文件名称', colspan: 7 },

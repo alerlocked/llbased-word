@@ -716,6 +716,82 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
           </div>
         </div>
 
+        {/* file preview modal — also needed in inline mode */}
+        <Modal
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FileTextOutlined style={{ color: colors.primary }} />
+              <span>{previewFile?.name || '文件预览'}</span>
+            </div>
+          }
+          open={previewVisible}
+          onCancel={() => setPreviewVisible(false)}
+          footer={[
+            <Button key="close" onClick={() => setPreviewVisible(false)}>
+              关闭
+            </Button>,
+            <Button
+              key="learn-profile"
+              icon={<UserOutlined />}
+              loading={learningFileId === previewFile?.id}
+              onClick={() => {
+                if (previewFile) {
+                  handleLearnProfile(previewFile)
+                }
+              }}
+            >
+              学习为画像
+            </Button>,
+            <Button
+              key="insert"
+              type="primary"
+              onClick={() => {
+                if (previewFile) {
+                  handleFileInsert(previewFile)
+                  setPreviewVisible(false)
+                }
+              }}
+            >
+              添加引用
+            </Button>
+          ]}
+          width={700}
+        >
+          {previewLoading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <Spin size="large" />
+            </div>
+          ) : (
+            <div style={{
+              maxHeight: 400,
+              overflow: 'auto',
+              padding: 16,
+              background: colors.bgSecondary,
+              borderRadius: 8,
+              fontSize: 13,
+              lineHeight: 1.6
+            }}>
+              {previewContent?.startsWith('<') || previewContent?.includes('</') || previewContent?.includes('<table') ? (
+                <>
+                  <style>{`
+                    .html-preview table { border-collapse: collapse; width: 100%; margin-bottom: 16px; font-size: 12px; }
+                    .html-preview td, .html-preview th { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
+                    .html-preview h2 { font-size: 16px; margin: 16px 0 8px; color: #333; }
+                    .html-preview p { margin: 8px 0; }
+                  `}</style>
+                  <div
+                    className="html-preview"
+                    dangerouslySetInnerHTML={{ __html: previewContent }}
+                  />
+                </>
+              ) : (
+                <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+                  {previewContent || '无内容'}
+                </pre>
+              )}
+            </div>
+          )}
+        </Modal>
       </>
     )
   }

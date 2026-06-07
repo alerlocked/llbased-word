@@ -1,48 +1,78 @@
 /**
  * Process document table layout — G25a
  *
- * Auto-generated from data/documents/1/content.html
+ * 装配工艺卡片 — 22 physical columns
+ * Source: data/documents/1/content.html page 15
  */
 import type { ProcessTableLayout } from '../processDocumentLayouts'
 
 export const G25a: ProcessTableLayout = {
   chapterCode: 'G25a',
   titleRow0: [
-    { label: '配套明细表(续)', colspan: 6, rowspan: 2 },
+    { label: '产品工号', colspan: 2 },
+    { label: '装配工艺卡片', colspan: 6, rowspan: 2 },
     { label: '产品数字', colspan: 2 },
-    { label: '零、部、组(整)件代号', colspan: 2 },
-    { label: '零、部、组(整)件名称', colspan: 2 },
-    { label: '工艺文件编号', colspan: 2 },
+    { label: '零、部、组(整)件代号', colspan: 3 },
+    { label: '零、部、组(整)件名称', colspan: 3 },
+    { label: '工艺文件编号', colspan: 5 },
+    { label: '' },
   ],
   titleRow1: [
     { label: '', colspan: 2 },
     { label: '', colspan: 2 },
-    { label: '', colspan: 2 },
-    { label: '', colspan: 2 },
+    { label: '', colspan: 3 },
+    { label: '', colspan: 3 },
+    { label: '', colspan: 5 },
+    { label: '' },
+  ],
+  infoRows: [
+    [
+      { label: '会签', colspan: 2 },
+      { label: '单套产品中装配件数量', colspan: 3 },
+      { label: '1', colspan: 2 },
+      { label: '本批装配件生产总数', colspan: 3 },
+      { label: '', colspan: 3 },
+      { label: '交往何处', colspan: 2 },
+      { label: '33', colspan: 5 },
+      { label: '' },
+      { label: '' },
+    ],
   ],
   headerRows: [
     [
-      { label: '号序', rowspan: 2 },
-      { label: '装配件中零、部、组(整)件', colspan: 5 },
-      { label: '数量', colspan: 3 },
-      { label: '来自何处', rowspan: 2 },
-      { label: '备注', colspan: 4, rowspan: 2 },
+      { label: '车间', rowspan: 2 },
+      { label: '工序号', rowspan: 2 },
+      { label: '工序名称', rowspan: 2 },
+      { label: '工序内容', colspan: 6, rowspan: 2 },
+      { label: '辅助材料', colspan: 2, rowspan: 2 },
+      { label: '专用仪器、仪表及工艺装备', colspan: 4, rowspan: 2 },
+      { label: '工时定额h', colspan: 4 },
+      { label: '' },
+      { label: '' },
+      { label: '' },
     ],
     [
-      { label: '代号', colspan: 2 },
-      { label: '名称', colspan: 3 },
-      { label: '每装配件' },
-      { label: '总计', colspan: 2 },
+      { label: '准结' },
+      { label: '单件' },
+      { label: '总计' },
+      { label: '' },
+      { label: '' },
+      { label: '' },
+      { label: '' },
     ],
   ],
   dataColumns: [
-    { key: 'seq', label: '序号' },
-    { key: 'part_code', label: '装配件代号', colspan: 2 },
-    { key: 'part_name', label: '装配件名称', colspan: 3 },
-    { key: 'qty_per', label: '每装配件数量' },
-    { key: 'qty_total', label: '总计', colspan: 2 },
-    { key: 'source', label: '来自何处' },
-    { key: 'remarks', label: '备注', colspan: 4 },
+    { key: '', label: '', colspan: 2 },
+    { key: 'workshop', label: '车间' },
+    { key: 'step_no', label: '工序号' },
+    { key: 'step_name', label: '工序名称' },
+    { key: 'step_desc', label: '工序内容', colspan: 6 },
+    { key: 'aux_material', label: '辅助材料', colspan: 2 },
+    { key: 'instrument', label: '专用仪器、仪表及工艺装备', colspan: 4 },
+    { key: 'time_setup', label: '准结' },
+    { key: 'time_per_piece', label: '单件' },
+    { key: 'time_total', label: '总计' },
+    { key: '', label: '', colspan: 2 },
   ],
-  colWidths: [8, 8, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7],
+  colWidths: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 0],
 }

@@ -24,7 +24,7 @@ export const G12a: ProcessTableLayout = {
   ],
   headerRows: [
     [
-      { label: '会签', colspan: 2, rowspan: 7 },
+      { label: '会签', colspan: 2 },
       { label: '序号', rowspan: 2 },
       { label: '零件', colspan: 5 },
       { label: '材料名称、牌号、状态、品种、规格及标准号', colspan: 5, rowspan: 2 },
@@ -49,6 +49,7 @@ export const G12a: ProcessTableLayout = {
     ],
   ],
   dataColumns: [
+    { key: '', label: '', colspan: 1 },
     { key: 'seq', label: '序号' },
     { key: 'part_code', label: '代号' },
     { key: 'part_name', label: '名称', colspan: 2 },

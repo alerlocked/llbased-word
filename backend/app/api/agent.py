@@ -1030,7 +1030,60 @@ async def generate_stream(request: GenerateStreamRequest):
                             new_content = inner.get("content") or inner.get("result", {}).get("content", "")
                             logger.info(f"[draft_complete] 提取到 new_content 长度={len(new_content)}")
 
-                    if new_content:
+                    # Template-first: if structured_results exist, emit template output
+                    # even when new_content (Markdown) is empty
+                    if not new_content and structured_results and isinstance(structured_results, dict) and len(structured_results) > 0:
+                        from app.services.template_types import StructuredDocument, ChapterData
+
+                        try:
+                            from app.services.template_loader import load_template
+                            template = load_template("assembly_process_cable")
+                            tmpl_name = template.get("template_name", "")
+
+                            chapters = []
+                            for code, data in structured_results.items():
+                                if isinstance(data, dict):
+                                    chapters.append(ChapterData(
+                                        chapter_code=code,
+                                        chapter_title=data.get("chapter_title", ""),
+                                        table_type=data.get("table_type", ""),
+                                        filled_data=data.get("filled_data", []),
+                                        left_data=data.get("left_data"),
+                                        right_data=data.get("right_data"),
+                                        flow_steps=data.get("flow_steps"),
+                                        field_values=data.get("field_values"),
+                                        fill_sources=data.get("fill_sources"),
+                                    ))
+
+                            doc = StructuredDocument(
+                                template_id="assembly_process_cable",
+                                template_name=tmpl_name,
+                                chapters=chapters,
+                            )
+                            template_json = doc.to_dict()
+
+                            summary = (
+                                "工艺文件表格已生成。\n\n"
+                                f"共生成 {len(chapters)} 个章节的结构化表格数据，"
+                                "请在编辑器中查看和编辑。"
+                            )
+                            yield f"data: {json.dumps({'type': 'content', 'content': summary}, ensure_ascii=False)}\n\n"
+                            sse_result = {
+                                'type': 'result',
+                                'has_editor': True,
+                                'editor_content': '',
+                                'content_format': 'template',
+                                'template_data': template_json,
+                            }
+                            yield f"data: {json.dumps(sse_result, ensure_ascii=False)}\n\n"
+                            logger.info(f"[draft_complete] template output: {len(chapters)} chapters (no markdown)")
+                            _save_memory(session_id, user_input, json.dumps(template_json, ensure_ascii=False))
+                        except Exception as e:
+                            logger.warning(f"[draft_complete] template assembly failed (no-markdown path): {e}")
+                            yield f"data: {json.dumps({'type': 'content', 'content': '执行完成但模板组装失败。'}, ensure_ascii=False)}\n\n"
+                            yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+
+                    elif new_content:
                         # Build completion summary with chapter info
                         if missing_chapters:
                             summary = (

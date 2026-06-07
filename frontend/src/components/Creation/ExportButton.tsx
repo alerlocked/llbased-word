@@ -21,7 +21,6 @@ interface ExportButtonProps {
 
 const ExportButton: React.FC<ExportButtonProps> = ({ draftId, projectId, style }) => {
   const [loading, setLoading] = useState(false)
-  const editorContentFormat = useCreationStore((s) => s.editorContentFormat)
   const editorTemplateData = useCreationStore((s) => s.editorTemplateData)
 
   const handleExport = async (format: 'pdf' | 'word' | 'template-pdf') => {
@@ -76,7 +75,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({ draftId, projectId, style }
   }
 
   const menuItems: MenuProps['items'] = [
-    ...(editorContentFormat === 'template'
+    ...(editorTemplateData
       ? [
           {
             key: 'template-pdf',

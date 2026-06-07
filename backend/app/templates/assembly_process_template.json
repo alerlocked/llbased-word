@@ -32,16 +32,16 @@
       "editor_visible": false,
       "_comment": "Cover page is PDF-only, not shown in editor",
       "fields": [
-        {"key": "product_code", "label": "产品工号", "type": "text", "required": true},
-        {"key": "classification", "label": "密级", "type": "select", "options": ["非密", "秘密", "机密"], "default": "非密"},
-        {"key": "stage_mark", "label": "阶段标记", "type": "text", "default": "S2"},
-        {"key": "doc_number", "label": "工艺文件编号", "type": "text", "required": true},
-        {"key": "doc_name", "label": "工艺文件名称", "type": "text", "required": true},
-        {"key": "component_code", "label": "零、部、组(整)件代号", "type": "text", "required": true},
-        {"key": "component_name", "label": "零、部、组(整)件名称", "type": "text", "required": true},
-        {"key": "department", "label": "编制单位", "type": "text"},
-        {"key": "total_volumes", "label": "共几册", "type": "number"},
-        {"key": "current_volume", "label": "第几册", "type": "number"}
+        {"key": "product_code", "label": "产品工号", "type": "text", "required": true, "fill_type": "structured"},
+        {"key": "classification", "label": "密级", "type": "select", "options": ["非密", "秘密", "机密"], "default": "非密", "fill_type": "structured"},
+        {"key": "stage_mark", "label": "阶段标记", "type": "text", "default": "S2", "fill_type": "structured"},
+        {"key": "doc_number", "label": "工艺文件编号", "type": "text", "required": true, "fill_type": "structured"},
+        {"key": "doc_name", "label": "工艺文件名称", "type": "text", "required": true, "fill_type": "structured"},
+        {"key": "component_code", "label": "零、部、组(整)件代号", "type": "text", "required": true, "fill_type": "structured"},
+        {"key": "component_name", "label": "零、部、组(整)件名称", "type": "text", "required": true, "fill_type": "structured"},
+        {"key": "department", "label": "编制单位", "type": "text", "fill_type": "structured"},
+        {"key": "total_volumes", "label": "共几册", "type": "number", "fill_type": "structured"},
+        {"key": "current_volume", "label": "第几册", "type": "number", "fill_type": "structured"}
       ]
     },
 
@@ -51,14 +51,14 @@
       "pages": 1,
       "table_type": "single_row_list",
       "columns": [
-        {"key": "seq", "label": "序号", "type": "number", "required": true},
-        {"key": "doc_name", "label": "文件名称", "type": "text", "required": true, "ai_filled": true},
-        {"key": "doc_number", "label": "文件编号", "type": "text"},
-        {"key": "component_code", "label": "零部组件代号", "type": "text"},
-        {"key": "component_name", "label": "零部组件名称", "type": "text"},
-        {"key": "pages", "label": "页数", "type": "number", "ai_filled": true},
-        {"key": "volume", "label": "册数", "type": "text"},
-        {"key": "remarks", "label": "备注", "type": "text"}
+        {"key": "seq", "label": "序号", "type": "number", "required": true, "fill_type": "structured"},
+        {"key": "doc_name", "label": "文件名称", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "doc_number", "label": "文件编号", "type": "text", "fill_type": "structured"},
+        {"key": "component_code", "label": "零部组件代号", "type": "text", "fill_type": "structured"},
+        {"key": "component_name", "label": "零部组件名称", "type": "text", "fill_type": "structured"},
+        {"key": "pages", "label": "页数", "type": "number", "ai_filled": true, "fill_type": "structured"},
+        {"key": "volume", "label": "册数", "type": "text", "fill_type": "structured"},
+        {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
       "ai_guidance": "List all document sections with their page counts"
     },
@@ -69,11 +69,11 @@
       "pages": 1,
       "table_type": "single_row_list",
       "columns": [
-        {"key": "seq", "label": "序号", "type": "number", "required": true},
-        {"key": "ref_code", "label": "代号", "type": "text"},
-        {"key": "ref_name", "label": "文件名称", "type": "text", "required": true, "ai_filled": true},
-        {"key": "pages", "label": "页数", "type": "number"},
-        {"key": "remarks", "label": "备注", "type": "text"}
+        {"key": "seq", "label": "序号", "type": "number", "required": true, "fill_type": "structured"},
+        {"key": "ref_code", "label": "代号", "type": "text", "fill_type": "structured"},
+        {"key": "ref_name", "label": "文件名称", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "pages", "label": "页数", "type": "number", "fill_type": "structured"},
+        {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
       "ai_guidance": "List all referenced standards and documents"
     },
@@ -84,15 +84,15 @@
       "pages": 1,
       "table_type": "single_row_list",
       "columns": [
-        {"key": "seq", "label": "序号", "type": "number", "required": true},
-        {"key": "equipment_code", "label": "编号", "type": "text", "required": true, "ai_filled": true},
-        {"key": "equipment_name", "label": "名称", "type": "text", "required": true, "ai_filled": true},
-        {"key": "category", "label": "类别", "type": "text", "default": "III"},
-        {"key": "quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true},
-        {"key": "for_component_code", "label": "用于零部组件代号", "type": "text"},
-        {"key": "for_component_name", "label": "用于零部组件名称", "type": "text"},
-        {"key": "usage_unit", "label": "使用单位", "type": "text"},
-        {"key": "remarks", "label": "备注", "type": "text"}
+        {"key": "seq", "label": "序号", "type": "number", "required": true, "fill_type": "structured"},
+        {"key": "equipment_code", "label": "编号", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "equipment_name", "label": "名称", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "category", "label": "类别", "type": "text", "default": "III", "fill_type": "structured"},
+        {"key": "quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "for_component_code", "label": "用于零部组件代号", "type": "text", "fill_type": "structured"},
+        {"key": "for_component_name", "label": "用于零部组件名称", "type": "text", "fill_type": "structured"},
+        {"key": "usage_unit", "label": "使用单位", "type": "text", "fill_type": "structured"},
+        {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
       "ai_guidance": "List all special tooling equipment with codes, names and quantities"
     },
@@ -106,23 +106,23 @@
       "left_section": {
         "title": "专用工具",
         "columns": [
-          {"key": "tool_seq", "label": "序号", "type": "number", "required": true},
-          {"key": "tool_name", "label": "名称", "type": "text", "required": true, "ai_filled": true},
-          {"key": "tool_spec", "label": "型号或规格", "type": "text", "required": true, "ai_filled": true},
-          {"key": "tool_quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true}
+          {"key": "tool_seq", "label": "序号", "type": "number", "required": true, "fill_type": "structured"},
+          {"key": "tool_name", "label": "名称", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+          {"key": "tool_spec", "label": "型号或规格", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+          {"key": "tool_quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true, "fill_type": "structured"}
         ]
       },
       "right_section": {
         "title": "专用量具",
         "columns": [
-          {"key": "gauge_seq", "label": "序号", "type": "number", "required": true},
-          {"key": "gauge_name", "label": "名称", "type": "text", "required": true, "ai_filled": true},
-          {"key": "gauge_spec", "label": "型号或规格", "type": "text", "required": true, "ai_filled": true},
-          {"key": "gauge_quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true}
+          {"key": "gauge_seq", "label": "序号", "type": "number", "required": true, "fill_type": "structured"},
+          {"key": "gauge_name", "label": "名称", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+          {"key": "gauge_spec", "label": "型号或规格", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+          {"key": "gauge_quantity", "label": "数量", "type": "number", "required": true, "ai_filled": true, "fill_type": "structured"}
         ]
       },
       "shared_columns": [
-        {"key": "remarks", "label": "备注", "type": "text"}
+        {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
       "ai_guidance": "List all special tools (left) and gauges (right) with specs and quantities"
     },
@@ -133,19 +133,19 @@
       "pages": 1,
       "table_type": "single_row_list",
       "columns": [
-        {"key": "seq", "label": "序号", "type": "number", "required": true},
-        {"key": "part_code", "label": "零件代号", "type": "text"},
-        {"key": "part_name", "label": "零件名称", "type": "text"},
-        {"key": "per_set_qty", "label": "单套数量", "type": "number"},
-        {"key": "batch_qty", "label": "本批数量", "type": "number"},
-        {"key": "material_desc", "label": "材料名称、牌号、状态、品种、规格及标准号", "type": "text", "required": true, "ai_filled": true},
-        {"key": "blank_size", "label": "坯料尺寸", "type": "text"},
-        {"key": "blank_count", "label": "坯料件数", "type": "number"},
-        {"key": "unit", "label": "计量单位", "type": "text", "required": true, "ai_filled": true},
-        {"key": "net_weight", "label": "净重", "type": "text"},
-        {"key": "quota", "label": "定额", "type": "text", "required": true, "ai_filled": true},
-        {"key": "utilization", "label": "材利用率%", "type": "text"},
-        {"key": "destination", "label": "交往何处", "type": "text"}
+        {"key": "seq", "label": "序号", "type": "number", "required": true, "fill_type": "structured"},
+        {"key": "part_code", "label": "零件代号", "type": "text", "fill_type": "structured"},
+        {"key": "part_name", "label": "零件名称", "type": "text", "fill_type": "structured"},
+        {"key": "per_set_qty", "label": "单套数量", "type": "number", "fill_type": "structured"},
+        {"key": "batch_qty", "label": "本批数量", "type": "number", "fill_type": "structured"},
+        {"key": "material_desc", "label": "材料名称、牌号、状态、品种、规格及标准号", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "blank_size", "label": "坯料尺寸", "type": "text", "fill_type": "structured"},
+        {"key": "blank_count", "label": "坯料件数", "type": "number", "fill_type": "structured"},
+        {"key": "unit", "label": "计量单位", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "net_weight", "label": "净重", "type": "text", "fill_type": "structured"},
+        {"key": "quota", "label": "定额", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "utilization", "label": "材利用率%", "type": "text", "fill_type": "structured"},
+        {"key": "destination", "label": "交往何处", "type": "text", "fill_type": "structured"}
       ],
       "ai_guidance": "List all primary materials with specifications, units and quotas"
     },
@@ -156,16 +156,16 @@
       "pages": 1,
       "table_type": "single_row_list",
       "columns": [
-        {"key": "seq", "label": "序号", "type": "number", "required": true},
-        {"key": "component_code", "label": "零部组件代号", "type": "text"},
-        {"key": "component_name", "label": "零部组件名称", "type": "text"},
-        {"key": "per_set_qty", "label": "单套数量", "type": "number"},
-        {"key": "batch_qty", "label": "本批数量", "type": "number"},
-        {"key": "material_desc", "label": "材料名称、牌号、状态、品种规格及标准号", "type": "text", "required": true, "ai_filled": true},
-        {"key": "unit", "label": "计量单位", "type": "text", "required": true, "ai_filled": true},
-        {"key": "per_set_quota", "label": "单套定额", "type": "text", "required": true, "ai_filled": true},
-        {"key": "batch_quota", "label": "本批定额", "type": "text"},
-        {"key": "remarks", "label": "备注", "type": "text"}
+        {"key": "seq", "label": "序号", "type": "number", "required": true, "fill_type": "structured"},
+        {"key": "component_code", "label": "零部组件代号", "type": "text", "fill_type": "structured"},
+        {"key": "component_name", "label": "零部组件名称", "type": "text", "fill_type": "structured"},
+        {"key": "per_set_qty", "label": "单套数量", "type": "number", "fill_type": "structured"},
+        {"key": "batch_qty", "label": "本批数量", "type": "number", "fill_type": "structured"},
+        {"key": "material_desc", "label": "材料名称、牌号、状态、品种规格及标准号", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "unit", "label": "计量单位", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "per_set_quota", "label": "单套定额", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "batch_quota", "label": "本批定额", "type": "text", "fill_type": "structured"},
+        {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
       "ai_guidance": "List all auxiliary materials with specifications and quotas"
     },
@@ -177,7 +177,7 @@
       "table_type": "flow_chart",
       "_comment": "Not a table, but an ordered list of process steps forming a flow",
       "fields": [
-        {"key": "steps", "label": "工序流程", "type": "ordered_list", "item_type": "text", "required": true, "ai_filled": true}
+        {"key": "steps", "label": "工序流程", "type": "ordered_list", "item_type": "text", "required": true, "ai_filled": true, "fill_type": "unstructured"}
       ],
       "ai_guidance": "Define the ordered sequence of all assembly process steps"
     },
@@ -194,13 +194,13 @@
         {"key": "assembly_batch_total", "label": "本批装配件生产总数", "type": "number"}
       ],
       "columns": [
-        {"key": "seq", "label": "序号", "type": "number", "required": true},
-        {"key": "part_code", "label": "零部组件代号", "type": "text", "required": true, "ai_filled": true},
-        {"key": "part_name", "label": "零部组件名称", "type": "text", "required": true, "ai_filled": true},
-        {"key": "qty_per_assembly", "label": "每装配件数量", "type": "number", "required": true, "ai_filled": true},
-        {"key": "qty_total", "label": "总计数量", "type": "number"},
-        {"key": "source", "label": "来自何处", "type": "text", "ai_filled": true},
-        {"key": "remarks", "label": "备注", "type": "text"}
+        {"key": "seq", "label": "序号", "type": "number", "required": true, "fill_type": "structured"},
+        {"key": "part_code", "label": "零部组件代号", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "part_name", "label": "零部组件名称", "type": "text", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "qty_per_assembly", "label": "每装配件数量", "type": "number", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "qty_total", "label": "总计数量", "type": "number", "fill_type": "structured"},
+        {"key": "source", "label": "来自何处", "type": "text", "ai_filled": true, "fill_type": "structured"},
+        {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
       "ai_guidance": "List all parts and components with codes, names, quantities and sources"
     },
@@ -214,15 +214,15 @@
       "table_type": "single_row_list",
       "row_per_step": true,
       "columns": [
-        {"key": "workshop", "label": "车间", "type": "text", "ai_filled": true},
-        {"key": "step_no", "label": "工序号", "type": "number", "required": true, "ai_filled": true},
-        {"key": "step_name", "label": "工序名称", "type": "text", "default": "钳"},
-        {"key": "step_desc", "label": "工序内容简述", "type": "text", "required": true, "ai_filled": true},
-        {"key": "equipment", "label": "设备", "type": "text"},
-        {"key": "tooling", "label": "工艺装备及专用刀、量具", "type": "text"},
-        {"key": "time_setup", "label": "工时-准结", "type": "text"},
-        {"key": "time_per_piece", "label": "工时-单件", "type": "text"},
-        {"key": "time_total", "label": "工时-总计", "type": "text"}
+        {"key": "workshop", "label": "车间", "type": "text", "ai_filled": true, "fill_type": "structured"},
+        {"key": "step_no", "label": "工序号", "type": "number", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "step_name", "label": "工序名称", "type": "text", "default": "钳", "fill_type": "structured"},
+        {"key": "step_desc", "label": "工序内容简述", "type": "text", "required": true, "ai_filled": true, "fill_type": "unstructured"},
+        {"key": "equipment", "label": "设备", "type": "text", "fill_type": "structured"},
+        {"key": "tooling", "label": "工艺装备及专用刀、量具", "type": "text", "fill_type": "structured"},
+        {"key": "time_setup", "label": "工时-准结", "type": "text", "fill_type": "structured"},
+        {"key": "time_per_piece", "label": "工时-单件", "type": "text", "fill_type": "structured"},
+        {"key": "time_total", "label": "工时-总计", "type": "text", "fill_type": "structured"}
       ],
       "ai_guidance": "Summarize each process step in one row: step number, name, brief description, equipment, tooling"
     },
@@ -241,18 +241,18 @@
         {"key": "destination", "label": "交往何处", "type": "text"}
       ],
       "columns": [
-        {"key": "workshop", "label": "车间", "type": "text", "ai_filled": true},
-        {"key": "step_no", "label": "工序号", "type": "number", "required": true, "ai_filled": true},
-        {"key": "step_name", "label": "工序名称", "type": "text", "default": "钳"},
-        {"key": "content", "label": "工序内容", "type": "long_text", "required": true, "ai_filled": true,
+        {"key": "workshop", "label": "车间", "type": "text", "ai_filled": true, "fill_type": "structured"},
+        {"key": "step_no", "label": "工序号", "type": "number", "required": true, "ai_filled": true, "fill_type": "structured"},
+        {"key": "step_name", "label": "工序名称", "type": "text", "default": "钳", "fill_type": "structured"},
+        {"key": "content", "label": "工序内容", "type": "long_text", "required": true, "ai_filled": true, "fill_type": "unstructured",
          "_comment": "Main body - detailed operation steps, inspection points, safety notes"},
-        {"key": "inspection", "label": "检验", "type": "long_text", "ai_filled": true,
+        {"key": "inspection", "label": "检验", "type": "long_text", "ai_filled": true, "fill_type": "unstructured",
          "_comment": "Inspection checkpoints for this step"},
-        {"key": "aux_materials", "label": "辅助材料", "type": "text", "ai_filled": true},
-        {"key": "instruments", "label": "专用仪器、仪表及工艺装备", "type": "text", "ai_filled": true},
-        {"key": "time_setup", "label": "工时-准结", "type": "text"},
-        {"key": "time_per_piece", "label": "工时-单件", "type": "text"},
-        {"key": "time_total", "label": "工时-总计", "type": "text"}
+        {"key": "aux_materials", "label": "辅助材料", "type": "text", "ai_filled": true, "fill_type": "structured"},
+        {"key": "instruments", "label": "专用仪器、仪表及工艺装备", "type": "text", "ai_filled": true, "fill_type": "structured"},
+        {"key": "time_setup", "label": "工时-准结", "type": "text", "fill_type": "structured"},
+        {"key": "time_per_piece", "label": "工时-单件", "type": "text", "fill_type": "structured"},
+        {"key": "time_total", "label": "工时-总计", "type": "text", "fill_type": "structured"}
       ],
       "sub_sections": [
         {
@@ -260,19 +260,22 @@
           "label": "参考设计文件",
           "type": "list",
           "ai_filled": true,
+          "fill_type": "unstructured",
           "_comment": "Referenced design documents for this process step"
         },
         {
           "key": "tech_notes",
           "label": "技术状态说明",
           "type": "long_text",
-          "ai_filled": true
+          "ai_filled": true,
+          "fill_type": "unstructured"
         },
         {
           "key": "requirements",
           "label": "装配要求",
           "type": "long_text",
           "ai_filled": true,
+          "fill_type": "unstructured",
           "_comment": "Personnel, gauge, component requirements, safety notes"
         }
       ],

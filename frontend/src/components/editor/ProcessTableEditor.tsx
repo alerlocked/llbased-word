@@ -22,7 +22,8 @@ const cellStyle: React.CSSProperties = {
   fontSize: 13,
   lineHeight: 1.4,
   overflow: 'hidden',
-  wordBreak: 'break-all',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
 }
 
 const headerCellStyle: React.CSSProperties = {
@@ -91,10 +92,15 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
         style={{
           width: '100%',
           borderCollapse: 'collapse',
-          tableLayout: 'auto',
+          tableLayout: 'fixed',
         }}
         onBlur={handleBlur}
       >
+        <colgroup>
+          {layout.colWidths.map((w, i) => (
+            <col key={i} style={{ width: `${w}%` }} />
+          ))}
+        </colgroup>
         <tbody>
           {/* Title Row 0: labels */}
           <tr>

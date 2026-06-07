@@ -123,6 +123,12 @@ class ProcessStateMachine:
 
         # 从暂停状态可以取消
         StateTransition(ProcessState.PAUSED, ProcessState.IDLE),
+
+        # PAUSED → auto-confirm shortcut (generation_mode flow)
+        StateTransition(ProcessState.PAUSED, ProcessState.TASK_DECOMPOSITION),
+        StateTransition(ProcessState.PAUSED, ProcessState.TASK_EXECUTION),
+        StateTransition(ProcessState.PAUSED, ProcessState.RESULT_AGGREGATION),
+        StateTransition(ProcessState.PAUSED, ProcessState.COMPLETION),
     ]
 
     def __init__(

@@ -17,9 +17,15 @@ class TemplateColumn:
     ai_filled: bool = False
     default: Optional[str] = None
     options: Optional[List[str]] = None
+    fill_type: str = "structured"  # structured | unstructured
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TemplateColumn":
+        # Prefer explicit fill_type; fallback from legacy ai_filled
+        fill_type = data.get("fill_type")
+        if not fill_type:
+            fill_type = "unstructured" if data.get("ai_filled") else "structured"
+
         return cls(
             key=data["key"],
             label=data["label"],
@@ -28,6 +34,7 @@ class TemplateColumn:
             ai_filled=data.get("ai_filled", False),
             default=data.get("default"),
             options=data.get("options"),
+            fill_type=fill_type,
         )
 
 
@@ -84,6 +91,8 @@ class ChapterData:
     flow_steps: Optional[List[str]] = None
     # For fields type (cover page)
     field_values: Optional[Dict[str, Any]] = None
+    # Field source annotations (structured vs unstructured)
+    fill_sources: Optional[Dict[str, List[str]]] = None
     success: bool = True
     error: Optional[str] = None
 
@@ -110,6 +119,7 @@ class StructuredDocument:
                     "right_data": ch.right_data,
                     "flow_steps": ch.flow_steps,
                     "field_values": ch.field_values,
+                    "fill_sources": ch.fill_sources,
                 }
                 for ch in self.chapters
             ],

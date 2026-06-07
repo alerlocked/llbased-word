@@ -24,7 +24,7 @@ export const G10a: ProcessTableLayout = {
   ],
   headerRows: [
     [
-      { label: '会签', colspan: 2, rowspan: 7 },
+      { label: '会签', colspan: 2 },
       { label: '序号', rowspan: 2 },
       { label: '专用工艺装备', colspan: 5 },
       { label: '用于零、部、组(整)件', colspan: 4 },
@@ -41,6 +41,7 @@ export const G10a: ProcessTableLayout = {
     ],
   ],
   dataColumns: [
+    { key: '', label: '', colspan: 2 },
     { key: 'seq', label: '序号' },
     { key: 'equipment_code', label: '编号' },
     { key: 'equipment_name', label: '名称', colspan: 2 },

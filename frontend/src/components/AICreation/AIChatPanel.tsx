@@ -675,11 +675,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 assistantMsg = { ...assistantMsg, progressText: data.message || '' }
               } else if (data.type === 'result') {
                 // Stream finished — only extract editor content, don't overwrite accumulated text
-                if (data.has_editor && data.editor_content) {
-                  editorContentRef.current = data.editor_content
+                // Template mode: editor_content may be empty but template_data is present
+                const isTemplateResult = data.content_format === 'template' && data.template_data
+                if (data.has_editor && (data.editor_content || isTemplateResult)) {
+                  editorContentRef.current = data.editor_content || ''
 
                   // Template-driven result: switch editor to template mode
-                  if (data.content_format === 'template' && data.template_data) {
+                  if (isTemplateResult) {
                     const { useCreationStore } = await import('../../stores/creationStore')
                     const store = useCreationStore.getState()
                     store.setEditorTemplateData(data.template_data)
@@ -743,7 +745,11 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       setLoading(false)
       setStreamController(null)
       setOriginalInput('')
-      setGenerationMode(null)
+      // NOTE: Do NOT reset generationMode here.
+      // The fill/generate workflow spans multiple SSE rounds (user input → auto-confirm → execution).
+      // Resetting here makes the button lose its highlight prematurely,
+      // confusing users about whether they're still in fill/generate mode.
+      // generationMode resets when user toggles the button off or starts a new session.
     }
   }
 
@@ -791,6 +797,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   const handleNewSession = () => {
     if (projectId) {
       createNewSession(projectId)
+      setGenerationMode(null)
       message.success('新会话已创建')
     }
   }

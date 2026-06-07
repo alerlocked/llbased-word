@@ -434,7 +434,7 @@ async def initialize_pdf_watcher(
     Args:
         watch_paths: 监听路径列表
         max_concurrent: 最大并发解析数
-        output_base_path: 输出基础路径（默认使用 settings.DATA_DIR / parsed_pdfs）
+        output_base_path: 输出基础路径（默认使用 settings.DATA_DIR / documents）
 
     Returns:
         PDFWatcherService实例
@@ -445,7 +445,7 @@ async def initialize_pdf_watcher(
 
     # 使用统一的配置路径
     if output_base_path is None:
-        output_base_path = str(settings.DATA_DIR / "parsed_pdfs")
+        output_base_path = str(settings.DATA_DIR / "documents")
 
     # 创建队列管理器
     queue_manager = PDFQueueManager(

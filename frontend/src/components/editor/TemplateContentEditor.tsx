@@ -31,7 +31,7 @@ const TemplateContentEditor: React.FC<Props> = ({ sections, onChange }) => {
   }
 
   return (
-    <div style={{ padding: '8px 4px' }}>
+    <div style={{ padding: '8px 0' }}>
       {sections.map((section, idx) => (
         <div
           key={section.section_id}

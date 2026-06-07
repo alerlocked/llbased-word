@@ -11,10 +11,12 @@ import type { TemplateSection } from '../../types/template'
 
 interface Props {
   section: TemplateSection
+  /** Set of column keys that are LLM-generated (unstructured) */
+  aiGeneratedKeys?: Set<string>
   onChange: (section: TemplateSection) => void
 }
 
-const ChapterTableEditor: React.FC<Props> = ({ section, onChange }) => {
+const ChapterTableEditor: React.FC<Props> = ({ section, aiGeneratedKeys, onChange }) => {
   const tableRef = useRef<HTMLTableElement>(null)
 
   const handleBlur = useCallback(() => {
@@ -70,6 +72,12 @@ const ChapterTableEditor: React.FC<Props> = ({ section, onChange }) => {
   const columns = section.columns || []
   const rows = section.rows || []
   const keys = section.column_keys || columns
+  // Build AI-generated key set from fill_sources if not provided via props
+  const aiKeys = aiGeneratedKeys ?? (
+    section.fill_sources
+      ? new Set(section.fill_sources.unstructured || [])
+      : new Set<string>()
+  )
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -114,12 +122,14 @@ const ChapterTableEditor: React.FC<Props> = ({ section, onChange }) => {
                     border: '1px solid #d9d9d9',
                     minHeight: 32,
                     outline: 'none',
+                    backgroundColor: aiKeys.has(key) ? '#e6f4ff' : undefined,
                   }}
+                  title={aiKeys.has(key) ? 'AI 生成内容' : undefined}
                   onFocus={(e) => {
-                    e.currentTarget.style.backgroundColor = '#e6f7ff'
+                    e.currentTarget.style.backgroundColor = '#bae0ff'
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.backgroundColor = ''
+                    e.currentTarget.style.backgroundColor = aiKeys.has(key) ? '#e6f4ff' : ''
                   }}
                 >
                   {String(row[key] ?? '')}

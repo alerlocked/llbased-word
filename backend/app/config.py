@@ -189,18 +189,19 @@ class Settings(BaseSettings):
 
     @staticmethod
     def resolve_doc_content_html(doc_dir: Path) -> Path:
-        """Resolve the best HTML content file for a document directory.
+        """Resolve the best HTML content file for text extraction.
 
-        Priority: document.html (VLM styled) > content.html (raw fallback).
-        Returns the first existing file, or document.html as default.
+        Priority: content.html (MinerU raw parsed, has actual text) >
+                  document.html (VLM display framework, fallback).
+        Returns the first existing file, or content.html as default.
         """
-        display = doc_dir / "document.html"
-        if display.exists():
-            return display
         content = doc_dir / "content.html"
         if content.exists():
             return content
-        return display  # default, even if missing
+        display = doc_dir / "document.html"
+        if display.exists():
+            return display
+        return content  # default, even if missing
 
     @staticmethod
     def resolve_content_list_json(doc_dir: Path) -> Optional[Path]:
