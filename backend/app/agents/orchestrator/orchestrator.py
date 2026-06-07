@@ -479,6 +479,23 @@ class ProcessOrchestrator:
             intent = await self.intent_recognizer.recognize(user_input, full_context)
             logger.info("intent_recognized", intent_type=intent.get("type"), confidence=intent.get("confidence"))
 
+            # 4.1 generation_mode shortcut: skip intent recognition, go directly to draft_complete
+            gen_mode = (context or {}).get("generation_mode") or (full_context or {}).get("generation_mode")
+            if gen_mode in ("generate", "fill"):
+                logger.info("generation_mode_shortcut", mode=gen_mode)
+                if self.repository and self.current_task_id:
+                    self.repository.add_message(
+                        task_id=self.current_task_id,
+                        role="user",
+                        content=user_input,
+                        metadata={"intent": {"type": "draft_complete", "generation_mode": gen_mode}},
+                    )
+                merged_context = {**(context or {}), **full_context, "generation_mode": gen_mode}
+                # generate: treat as all chapters missing; fill: detect gaps
+                if gen_mode == "generate":
+                    merged_context["force_all_chapters"] = True
+                return await self._handle_draft_complete(user_input, intent, merged_context)
+
             # 4.5 Route DRAFT_COMPLETE to dedicated handler
             # This includes temp uploaded file scenarios (no draft_id)
             if intent.get("type") == "draft_complete":
@@ -1419,11 +1436,26 @@ class ProcessOrchestrator:
                 logger.info("draft_loaded_from_temp_upload", content_length=len(draft_content))
 
             # 6. 结构对比 Agent：章节索引 vs 初稿 → 缺失章节
-            missing_chapters = await self._detect_missing_chapters(
-                chapter_summary=chapter_summary,
-                draft_content=draft_content,
-                user_requirement=user_input,
-            )
+            force_all = context.get("force_all_chapters", False)
+            if force_all:
+                # generate mode: treat ALL indexed chapters as missing
+                missing_chapters = []
+                for idx in chapter_indexes:
+                    for ch in idx.get("chapters", []):
+                        missing_chapters.append({
+                            "title": ch["title"],
+                            "pages": ch["pages"],
+                            "page_count": ch["page_count"],
+                            "_doc_dir": idx.get("doc_dir", ""),
+                            "reason": "full generation",
+                        })
+                logger.info("force_all_chapters", count=len(missing_chapters))
+            else:
+                missing_chapters = await self._detect_missing_chapters(
+                    chapter_summary=chapter_summary,
+                    draft_content=draft_content,
+                    user_requirement=user_input,
+                )
 
             logger.info(
                 "chapter_diff_complete",
@@ -1524,6 +1556,7 @@ class ProcessOrchestrator:
             self._collected_info["chapter_source_texts"] = chapter_source_texts
             self._collected_info["chapter_sub_sources"] = chapter_sub_sources
             self._collected_info["chapter_schemas"] = chapter_schemas
+            self._collected_info["generation_mode"] = context.get("generation_mode")
 
             # 9b. Load template and build chapter→template mapping
             template_data = None

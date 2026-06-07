@@ -48,6 +48,12 @@ const WorkspacePage: React.FC = () => {
   const [newProjectName, setNewProjectName] = useState('')
   const [creating, setCreating] = useState(false)
 
+  // AI panel resizable width
+  const [aiPanelWidth, setAiPanelWidth] = useState(320)
+  const isDraggingRef = useRef(false)
+  const startXRef = useRef(0)
+  const startWidthRef = useRef(0)
+
   // 编辑器状态
   const { setEditorContent, setEditorTemplateData, getProjectState, pushEdit, undo, canUndo } = useCreationStore()
   const projectState = currentProjectId ? getProjectState(currentProjectId) : null
@@ -175,6 +181,9 @@ const WorkspacePage: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    // Clear template data on project switch — only show tables after AI generation
+    setEditorTemplateData(null)
+
     if (currentProjectId) {
       // 更新 URL 参数以保持同步
       setSearchParams({ project: String(currentProjectId) })
@@ -196,6 +205,32 @@ const WorkspacePage: React.FC = () => {
     const timer = setTimeout(() => handleSave(true), 10000)
     return () => clearTimeout(timer)
   }, [editorContent, currentProjectId])
+
+  // AI panel drag resize handlers
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDraggingRef.current = true
+    startXRef.current = e.clientX
+    startWidthRef.current = aiPanelWidth
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      const delta = startXRef.current - ev.clientX
+      const newWidth = Math.min(Math.max(startWidthRef.current + delta, 280), 600)
+      setAiPanelWidth(newWidth)
+    }
+    const handleMouseUp = () => {
+      isDraggingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [aiPanelWidth])
 
   // 创建项目
   const handleCreateProject = async () => {
@@ -720,7 +755,7 @@ const WorkspacePage: React.FC = () => {
           }}
         >
           {/* 编辑器区域 */}
-          <div style={{ flex: 1, padding: '12px 16px', overflow: 'auto' }}>
+          <div style={{ flex: 1, padding: '12px 96px', overflow: 'auto' }}>
             <div style={{
               minHeight: '100%'
             }}>
@@ -843,9 +878,23 @@ const WorkspacePage: React.FC = () => {
           )}
         </div>
 
-        {/* AI 面板 - 永远固定在右侧 */}
+        {/* AI 面板 - 永远固定在右侧，宽度可拖拽 */}
+        {/* Drag handle */}
+        <div
+          onMouseDown={handleDragStart}
+          style={{
+            width: 4,
+            cursor: 'col-resize',
+            background: 'transparent',
+            flexShrink: 0,
+            transition: 'background 0.2s',
+            zIndex: 10,
+          }}
+          onMouseEnter={e => { (e.target as HTMLElement).style.background = colors.primary + '40' }}
+          onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent' }}
+        />
         <div style={{
-          width: 380,
+          width: aiPanelWidth,
           borderLeft: `1px solid ${colors.borderLight}`,
           background: colors.bgSecondary,
           display: 'flex',

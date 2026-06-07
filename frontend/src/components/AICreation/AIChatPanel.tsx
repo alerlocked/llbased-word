@@ -11,7 +11,8 @@ import { colors } from '../../styles/design-tokens'
 import { PlanOptionCard } from './PlanOptionCard'
 import { AgentCollaborationView } from './AgentCollaborationView'
 import { PlanOption, AgentCallEvent, CollaborationEvent } from '../../services/conversationService'
-import { SolutionList, ImprovementSolution } from './SolutionList'
+import { SolutionList } from './SolutionList'
+import { ImprovementSolution } from './SolutionCard'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -60,6 +61,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
 
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
+  // 'generate' = full generation, 'fill' = fill missing chapters, null = free chat
+  const [generationMode, setGenerationMode] = useState<'generate' | 'fill' | null>(null)
   const [historyVisible, setHistoryVisible] = useState(false)
   // Uploaded file state for AI context injection — persisted in sessionStorage
   // so it survives page refresh within the same tab/session
@@ -257,7 +260,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
         }
       } catch (readError) {
         const err = readError as any
-        if (err.name === 'AbortError' || controller.signal.aborted) {
+        if (err.name === 'AbortError') {
           const stoppedMsg: Message = {
             ...assistantMsg,
             content: contentAccumulator || '[已停止]',
@@ -273,7 +276,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       setStreamController(null)
     } catch (error) {
       const err = error as any
-      if (err.name === 'AbortError' || controller.signal.aborted) {
+      if (err.name === 'AbortError') {
         return
       }
       message.error(`选择计划失败: ${err.message}`)
@@ -306,11 +309,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
 
     let contentAccumulator = ''
 
-    try {
-      // 创建AbortController用于取消请求
-      const controller = new AbortController()
-      setStreamController(controller)
+    const controller = new AbortController()
+    setStreamController(controller)
 
+    try {
       const response = await fetch('http://localhost:8000/api/agent/reply-question-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -445,7 +447,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       return
     }
 
-    if (!inputText.trim() || !projectId) return
+    if ((!inputText.trim() && !generationMode) || !projectId) return
 
     // 保存用户原始输入
     const userInput = inputText.trim()
@@ -514,6 +516,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
           })) : undefined,  // 注入选中的素材
           uploaded_file_content: uploadedFile?.status === 'done' ? uploadedFile.content : undefined,
           uploaded_file_name: uploadedFile?.status === 'done' ? uploadedFile.name : undefined,
+          generation_mode: generationMode || undefined,
           chat_history: messages.slice(-10).map((m: any) => ({
             role: m.role,
             content: typeof m.content === 'string' ? m.content.slice(0, 500) : '',
@@ -679,7 +682,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   if (data.content_format === 'template' && data.template_data) {
                     const { useCreationStore } = await import('../../stores/creationStore')
                     const store = useCreationStore.getState()
-                    store.setEditorContentFormat('template')
                     store.setEditorTemplateData(data.template_data)
                   }
                 } else {
@@ -741,6 +743,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       setLoading(false)
       setStreamController(null)
       setOriginalInput('')
+      setGenerationMode(null)
     }
   }
 
@@ -1053,7 +1056,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                       // 调用API选择方案并继续工作流
                       const sessionId = (msg as any).sessionId
                       if (!sessionId) return
-                      
+
                       try {
                         const response = await fetch('http://localhost:8000/api/agent/select-solution', {
                           method: 'POST',
@@ -1063,16 +1066,22 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                             solution_ids: selectedIds
                           })
                         })
-                        
+
                         if (!response.ok) throw new Error('选择方案失败')
-                        
+
                         // 继续流式响应处理
                         const reader = response.body?.getReader()
                         const decoder = new TextDecoder()
                         if (!reader) throw new Error('无法读取流')
-                        
+
                         setLoading(true)
-                        let continueContent = contentAccumulator
+                        let continueContent = ''
+                        let continueAssistant: Message = {
+                          role: 'assistant',
+                          content: '',
+                          timestamp: Date.now(),
+                          isStreaming: true,
+                        }
 
                         while (true) {
                           const { done, value } = await reader.read()
@@ -1093,18 +1102,19 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                                 currentModeRef.current = continueData.mode
                                 console.info(`[AI助手-继续] 模式: ${continueData.mode}`)
                               } else if (continueData.type === 'progress') {
-                                assistantMsg = { ...assistantMsg, progressText: continueData.message || '' }
+                                continueAssistant = { ...continueAssistant, progressText: continueData.message || '' }
                               } else if (continueData.type === 'result') {
                                 continueContent = continueData.content
                               }
 
                               const updatedMsg: Message = {
-                                ...assistantMsg,
+                                ...continueAssistant,
                                 content: continueContent,
                                 isStreaming: continueData.type !== 'result',
                                 progressText: continueData.type === 'progress' ? (continueData.message || '') : undefined,
                               }
-                              updateActiveMessages([...messages, userMsg, updatedMsg])
+                              const currentMsgs = messages
+                              updateActiveMessages([...currentMsgs, updatedMsg])
                             } catch (e) {
                               console.error('Continue SSE Error:', e)
                             }
@@ -1228,32 +1238,76 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             />
           </div>
         )}
+        {/* Mode buttons row */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <Button
+            size="small"
+            onClick={() => {
+              setGenerationMode(generationMode === 'fill' ? null : 'fill')
+            }}
+            disabled={loading}
+            style={{
+              flex: 1,
+              borderRadius: 8,
+              background: generationMode === 'fill' ? colors.primary : 'transparent',
+              color: generationMode === 'fill' ? '#fff' : colors.textSecondary,
+              borderColor: generationMode === 'fill' ? colors.primary : colors.border,
+              fontSize: 12,
+            }}
+          >
+            补齐
+          </Button>
+          <Button
+            size="small"
+            onClick={() => {
+              setGenerationMode(generationMode === 'generate' ? null : 'generate')
+            }}
+            disabled={loading}
+            style={{
+              flex: 1,
+              borderRadius: 8,
+              background: generationMode === 'generate' ? colors.primary : 'transparent',
+              color: generationMode === 'generate' ? '#fff' : colors.textSecondary,
+              borderColor: generationMode === 'generate' ? colors.primary : colors.border,
+              fontSize: 12,
+            }}
+          >
+            生成
+          </Button>
+        </div>
+        {/* Input + Send row */}
         <Space.Compact style={{ width: '100%' }}>
           <TextArea
             value={inputText}
             onChange={e => setInputText(e.target.value)}
-            placeholder="输入写作主题，例如：关于人工智能发展历程的深度报道..."
+            placeholder={
+              generationMode === 'generate'
+                ? '表格生成模式：基于知识库生成完整工艺文件（可选输入需求描述）...'
+                : generationMode === 'fill'
+                ? '补齐模式：自动检测并补充缺失章节...'
+                : '描述你的工艺文件需求，例如：编写一份电缆装配工艺规程...'
+            }
             autoSize={{ minRows: 3, maxRows: 6 }}
             onPressEnter={e => {
               if (e.ctrlKey || e.metaKey) handleGenerate()
             }}
             style={{ borderRadius: '12px 0 0 12px' }}
           />
-          <Button 
-            type="primary" 
-            loading={loading && !streamController} 
+          <Button
+            type="primary"
+            loading={loading && !streamController}
             onClick={handleGenerate}
-            disabled={(!inputText.trim() && !loading) || !projectId}
+            disabled={(!inputText.trim() && !generationMode && !loading) || !projectId}
             danger={loading}
-            style={{ 
-              height: 'auto', 
-              background: loading ? '#ff4d4f' : colors.primary, 
+            style={{
+              height: 'auto',
+              background: loading ? '#ff4d4f' : colors.primary,
               borderColor: loading ? '#ff4d4f' : colors.primary,
               borderRadius: '0 12px 12px 0'
             }}
             icon={loading ? <StopOutlined /> : <RocketOutlined />}
           >
-            {loading ? '停止' : '生成'}
+            {loading ? '停止' : '发送'}
           </Button>
         </Space.Compact>
         <div style={{ marginTop: 8, fontSize: 11, color: colors.textTertiary }}>

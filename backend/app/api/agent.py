@@ -358,6 +358,7 @@ class GenerateStreamRequest(BaseModel):
     chat_history: Optional[List[dict]] = Field(None, description="最近对话历史 [{role, content}]")
     uploaded_file_content: Optional[str] = Field(None, description="临时上传文件解析后的纯文本内容")
     uploaded_file_name: Optional[str] = Field(None, description="临时上传文件名")
+    generation_mode: Optional[str] = Field(None, description="生成模式: 'generate' 全部生成, 'fill' 补齐缺失章节")
 
 
 class SelectSolutionRequest(BaseModel):
@@ -880,6 +881,7 @@ async def generate_stream(request: GenerateStreamRequest):
     reference_materials = request.reference_materials or []
     uploaded_file_content = request.uploaded_file_content
     uploaded_file_name = request.uploaded_file_name
+    generation_mode = request.generation_mode
 
     logger.info(
         f"[AI助手] 收到请求: prompt={user_input[:50]}..., session={session_id}, "
@@ -1074,6 +1076,7 @@ async def generate_stream(request: GenerateStreamRequest):
                                             right_data=data.get("right_data"),
                                             flow_steps=data.get("flow_steps"),
                                             field_values=data.get("field_values"),
+                                            fill_sources=data.get("fill_sources"),
                                         ))
 
                                 doc = StructuredDocument(
@@ -1254,6 +1257,7 @@ def _build_orchestrator_context(
         "uploaded_file_content": request.uploaded_file_content,
         "uploaded_file_name": request.uploaded_file_name,
         "mode": mode,
+        "generation_mode": request.generation_mode,
     }
 
     # ── Hierarchical context ──
