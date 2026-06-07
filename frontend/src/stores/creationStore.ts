@@ -11,6 +11,8 @@ export interface Message {
   isStreaming?: boolean
   /** Progress text shown while waiting for content (e.g. "正在分析...") */
   progressText?: string
+  /** AI thinking process content */
+  thinkingContent?: string
 }
 
 export interface ChatSession {
@@ -58,9 +60,7 @@ interface CreationStore extends PDFState {
 
   // Template-driven editor state
   editorTemplateData: StructuredDocument | null
-  editorContentFormat: 'markdown' | 'template'
   setEditorTemplateData: (data: StructuredDocument | null) => void
-  setEditorContentFormat: (format: 'markdown' | 'template') => void
 
   // 会话管理
   createNewSession: (projectId: number, title?: string) => string
@@ -111,10 +111,8 @@ export const useCreationStore = create<CreationStore>()(
 
       // Template-driven editor state
       editorTemplateData: null,
-      editorContentFormat: 'markdown',
 
       setEditorTemplateData: (data) => set({ editorTemplateData: data }),
-      setEditorContentFormat: (format) => set({ editorContentFormat: format }),
 
       getProjectState: (projectId: number) => {
         const state = get()
