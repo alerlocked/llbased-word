@@ -20,6 +20,8 @@ import AIChatPanel from '../components/AICreation/AIChatPanel'
 import { EmptyStateIllustration } from '../components/Illustrations/RecordingAnimation'
 import InlineDiff, { FloatingConfirmBar } from '../components/common/InlineDiff'
 import MarkdownTiptapEditor from '../components/common/MarkdownTiptapEditor'
+import TemplateContentEditor from '../components/editor/TemplateContentEditor'
+import type { TemplateSection } from '../types/template'
 import ProcessContentView from '../components/common/ProcessContentView'
 import { markdownToHtml } from '../utils/markdownConverter'
 import { colors } from '../styles/design-tokens'
@@ -47,11 +49,42 @@ const WorkspacePage: React.FC = () => {
   const [creating, setCreating] = useState(false)
 
   // 编辑器状态
-  const { setEditorContent, getProjectState, pushEdit, undo, canUndo } = useCreationStore()
+  const { setEditorContent, setEditorTemplateData, getProjectState, pushEdit, undo, canUndo } = useCreationStore()
   const projectState = currentProjectId ? getProjectState(currentProjectId) : null
   const editorContent = projectState?.editorContent || ''
   const editorRef = useRef<any>(null) // Tiptap Editor 实例
   const canUndoNow = currentProjectId ? canUndo(currentProjectId) : false
+
+  // Template-driven editor state
+  const editorTemplateData = useCreationStore((s) => s.editorTemplateData)
+
+  // Convert editorTemplateData to TemplateSection[] for rendering
+  const templateSections: TemplateSection[] = editorTemplateData
+    ? editorTemplateData.chapters.map((ch) => ({
+        section_id: ch.chapter_code,
+        title: ch.chapter_title,
+        content_type: mapTableType(ch.table_type),
+        columns: [],
+        column_keys: [],
+        rows: ch.filled_data || [],
+        left_data: ch.left_data,
+        right_data: ch.right_data,
+        flow_steps: ch.flow_steps,
+        field_values: ch.field_values,
+        fill_sources: ch.fill_sources,
+        review_passed: true,
+        source: 'template_generated',
+        table_type: ch.table_type,
+      }))
+    : []
+
+  const handleTemplateSectionsChange = useCallback(
+    (sections: TemplateSection[]) => {
+      if (!currentProjectId) return
+      setEditorContent(currentProjectId, JSON.stringify(sections))
+    },
+    [currentProjectId, setEditorContent],
+  )
 
   // UI状态
   const [imageModalVisible, setImageModalVisible] = useState(false)
@@ -66,7 +99,6 @@ const WorkspacePage: React.FC = () => {
   const [previewMode, setPreviewMode] = useState(false)
   const [previewContent, setPreviewContent] = useState('')
   const [originalBeforePreview, setOriginalBeforePreview] = useState('')
-  const [rawEditMode, setRawEditMode] = useState(false)
 
   // 获取项目列表
   const fetchProjects = async () => {
@@ -688,10 +720,8 @@ const WorkspacePage: React.FC = () => {
           }}
         >
           {/* 编辑器区域 */}
-          <div style={{ flex: 1, padding: '24px 48px', overflow: 'auto' }}>
+          <div style={{ flex: 1, padding: '12px 16px', overflow: 'auto' }}>
             <div style={{
-              maxWidth: 800,
-              margin: '0 auto',
               minHeight: '100%'
             }}>
               {/* 空状态展示 */}
@@ -774,42 +804,27 @@ const WorkspacePage: React.FC = () => {
                   />
                 </div>
               ) : (
-                /* 编辑模式 — 卡片视图 (默认) / 源码编辑 (可切换) */
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    padding: '4px 8px',
-                    borderBottom: `1px solid ${colors.borderLight}`,
-                  }}>
-                    <Button
-                      size="small"
-                      onClick={() => setRawEditMode(!rawEditMode)}
-                    >
-                      {rawEditMode ? '卡片视图' : '源码编辑'}
-                    </Button>
-                  </div>
-                  <div style={{ flex: 1, overflow: 'auto' }}>
-                    {rawEditMode ? (
-                      <MarkdownTiptapEditor
-                        key={currentProjectId || 'no-project'}
-                        ref={editorRef}
-                        value={editorContent}
-                        onChange={handleEditorChange}
-                        placeholder="开始写作...\n\n💡 选中文字后会出现 AI 工具栏"
-                        disabled={!currentProjectId}
-                        style={{
-                          color: colors.textPrimary
-                        }}
-                        onOpenImageDialog={() => setImageModalVisible(true)}
-                      />
-                    ) : (
-                      <ProcessContentView
-                        markdown={editorContent}
-                        style={{ padding: 16 }}
-                      />
-                    )}
-                  </div>
+                /* 编辑模式 — template table editor / markdown editor fallback */
+                <div style={{ flex: 1, overflow: 'auto' }}>
+                  {templateSections.length > 0 ? (
+                    <TemplateContentEditor
+                      sections={templateSections}
+                      onChange={handleTemplateSectionsChange}
+                    />
+                  ) : (
+                    <MarkdownTiptapEditor
+                      key={currentProjectId || 'no-project'}
+                      ref={editorRef}
+                      value={editorContent}
+                      onChange={handleEditorChange}
+                      placeholder="开始写作...\n\n💡 选中文字后会出现 AI 工具栏"
+                      disabled={!currentProjectId}
+                      style={{
+                        color: colors.textPrimary
+                      }}
+                      onOpenImageDialog={() => setImageModalVisible(true)}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -915,4 +930,16 @@ const WorkspacePage: React.FC = () => {
 }
 
 export default WorkspacePage
+
+/** Map backend table_type to frontend content_type */
+function mapTableType(tableType: string): TemplateSection['content_type'] {
+  const mapping: Record<string, TemplateSection['content_type']> = {
+    single_row_list: 'table',
+    process_card: 'table',
+    dual_list: 'dual_table',
+    flow_chart: 'flow_chart',
+    fields: 'fields',
+  }
+  return mapping[tableType] || 'text'
+}
 
