@@ -1462,6 +1462,7 @@ class ProcessOrchestrator:
                 total_chapters=len(chapter_summary_lines),
                 missing_count=len(missing_chapters),
                 missing_titles=[mc.get("title", "") for mc in missing_chapters],
+                chapter_indexes_count=len(chapter_indexes),
             )
 
             # 7. 按缺失章节提取原文（大章节按子章节拆分）
@@ -1585,6 +1586,7 @@ class ProcessOrchestrator:
                     "template_matched",
                     matched=len(chapter_template_map),
                     total=len(missing_chapters),
+                    matched_titles=list(chapter_template_map.keys()),
                 )
             except FileNotFoundError:
                 logger.info("no_template_found, using markdown mode")
@@ -2035,6 +2037,7 @@ class ProcessOrchestrator:
 
         # 2. Try chapter-based parallel generation first
         if chapter_source_texts:
+            logger.info("executing_chapters_parallel", chapters=list(chapter_source_texts.keys()), template=bool(template), template_map_size=len(chapter_template_map or {}))
             new_content, structured_results = await self._execute_chapters_parallel(
                 chapter_source_texts=chapter_source_texts,
                 chapter_sub_sources=chapter_sub_sources,

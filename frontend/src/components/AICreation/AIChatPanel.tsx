@@ -1240,40 +1240,46 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
         )}
         {/* Mode buttons row */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <Button
-            size="small"
-            onClick={() => {
-              setGenerationMode(generationMode === 'fill' ? null : 'fill')
-            }}
-            disabled={loading}
-            style={{
-              flex: 1,
-              borderRadius: 8,
-              background: generationMode === 'fill' ? colors.primary : 'transparent',
-              color: generationMode === 'fill' ? '#fff' : colors.textSecondary,
-              borderColor: generationMode === 'fill' ? colors.primary : colors.border,
-              fontSize: 12,
-            }}
-          >
-            补齐
-          </Button>
-          <Button
-            size="small"
-            onClick={() => {
-              setGenerationMode(generationMode === 'generate' ? null : 'generate')
-            }}
-            disabled={loading}
-            style={{
-              flex: 1,
-              borderRadius: 8,
-              background: generationMode === 'generate' ? colors.primary : 'transparent',
-              color: generationMode === 'generate' ? '#fff' : colors.textSecondary,
-              borderColor: generationMode === 'generate' ? colors.primary : colors.border,
-              fontSize: 12,
-            }}
-          >
-            生成
-          </Button>
+          {(!generationMode || generationMode === 'fill') && (
+            <Button
+              size="small"
+              onClick={() => {
+                setGenerationMode(generationMode === 'fill' ? null : 'fill')
+              }}
+              disabled={loading}
+              style={{
+                flex: 1,
+                borderRadius: 8,
+                background: generationMode === 'fill' ? colors.primary : 'transparent',
+                color: generationMode === 'fill' ? '#000' : colors.textSecondary,
+                borderColor: generationMode === 'fill' ? colors.primary : colors.border,
+                fontSize: 12,
+                fontWeight: generationMode === 'fill' ? 600 : 400,
+              }}
+            >
+              补齐
+            </Button>
+          )}
+          {(!generationMode || generationMode === 'generate') && (
+            <Button
+              size="small"
+              onClick={() => {
+                setGenerationMode(generationMode === 'generate' ? null : 'generate')
+              }}
+              disabled={loading}
+              style={{
+                flex: 1,
+                borderRadius: 8,
+                background: generationMode === 'generate' ? colors.primary : 'transparent',
+                color: generationMode === 'generate' ? '#000' : colors.textSecondary,
+                borderColor: generationMode === 'generate' ? colors.primary : colors.border,
+                fontSize: 12,
+                fontWeight: generationMode === 'generate' ? 600 : 400,
+              }}
+            >
+              生成
+            </Button>
+          )}
         </div>
         {/* Input + Send row */}
         <Space.Compact style={{ width: '100%' }}>
