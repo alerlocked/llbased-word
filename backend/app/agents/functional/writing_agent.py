@@ -930,6 +930,11 @@ class WritingAgent(BaseAgent):
         # --- Step 4: Merge structured + unstructured ---
         total_rows = max(struct_row_count, llm_row_count, 1)
 
+        # Cap rows by inherited process flow step count (phased generation)
+        inherited = task.get("inherited_context") or task.get("params", {}).get("inherited_context")
+        if inherited and inherited.get("max_rows"):
+            total_rows = min(total_rows, inherited["max_rows"])
+
         merged_rows: List[Dict[str, Any]] = []
         if chapter_type in ("single_row_list", "process_card"):
             if structured_values or unstructured_slots:

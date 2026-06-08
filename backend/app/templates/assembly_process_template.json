@@ -287,6 +287,26 @@
     "G1a", "G4a", "G5a", "G10a", "B12a", "G12a", "G14a", "G19a", "G18a", "G22a", "G25a"
   ],
 
+  "generation_phases": [
+    {
+      "phase": 1,
+      "description": "Skeleton — process flow defines step count for all downstream chapters",
+      "chapter_codes": ["G19a"],
+      "output_key": "process_flow_steps"
+    },
+    {
+      "phase": 2,
+      "description": "Flow-dependent chapters — row count driven by process_flow_steps",
+      "chapter_codes": ["G18a", "G22a", "G25a"],
+      "depends_on": "process_flow_steps"
+    },
+    {
+      "phase": 3,
+      "description": "Independent chapters — no dependency on process flow",
+      "chapter_codes": ["G4a", "G5a", "G10a", "G12a", "G14a"]
+    }
+  ],
+
   "process_steps": {
     "_comment": "Pre-defined steps from the template, each G25a card corresponds to one step",
     "steps": [

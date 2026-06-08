@@ -6,6 +6,7 @@ and separate editor-visible chapters from PDF-only fields.
 """
 import json
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from app.services.template_types import TemplateChapter, TemplateColumn
@@ -124,6 +125,43 @@ def get_columns_by_fill_type(chapter: TemplateChapter) -> Dict[str, List[Templat
         else:
             structured.append(col)
     return {"structured": structured, "unstructured": unstructured}
+@dataclass
+class GenerationPhase:
+    """One phase of the generation pipeline."""
+    phase: int
+    description: str
+    chapter_codes: List[str]
+    output_key: Optional[str] = None
+    depends_on: Optional[str] = None
+
+
+def get_generation_phases(template: Dict[str, Any]) -> List[GenerationPhase]:
+    """Parse generation_phases from template into ordered Phase objects.
+
+    Returns a single default phase (all editor-visible chapters) when the
+    template does not define explicit phases.
+    """
+    raw_phases = template.get("generation_phases")
+    if not raw_phases:
+        # Fallback: all editor-visible chapters in one phase
+        editor_codes = [ch.code for ch in get_editor_chapters(template)]
+        return [GenerationPhase(
+            phase=1,
+            description="default",
+            chapter_codes=editor_codes,
+        )]
+
+    phases: List[GenerationPhase] = []
+    for p in raw_phases:
+        phases.append(GenerationPhase(
+            phase=p["phase"],
+            description=p.get("description", ""),
+            chapter_codes=p["chapter_codes"],
+            output_key=p.get("output_key"),
+            depends_on=p.get("depends_on"),
+        ))
+    phases.sort(key=lambda x: x.phase)
+    return phases
 
 
 def get_editor_chapters(template: Dict[str, Any]) -> List[TemplateChapter]:

@@ -2427,8 +2427,103 @@ class ProcessOrchestrator:
             tasks=task_keys,
         )
 
-        coros = [self._dispatch_to_sub_agent(t) for t in tasks]
-        results = await asyncio.gather(*coros, return_exceptions=True)
+        # --- Phased execution ---
+        # Initialize results array for all tasks (phased mode writes into it)
+        results: List[Any] = [None] * len(tasks)
+
+        # When template defines generation_phases, execute them in order:
+        # Phase 1 (skeleton) → Phase 2 (flow-dependent) → Phase 3 (independent).
+        # Phase-internal chapters still run in parallel.
+        from app.services.template_loader import get_generation_phases, get_chapter_by_code
+        from app.services.structured_extractor import parse_flow_steps
+
+        phase_outputs: Dict[str, Any] = {}  # output_key -> parsed output
+        phases = get_generation_phases(template) if template else []
+
+        # Build a mapping: task_key -> task index for phase assignment
+        title_to_task_idx: Dict[str, int] = {}
+        for i, key in enumerate(task_keys):
+            # Map chapter title to task index
+            base_title = key.split("::")[0]
+            title_to_task_idx[base_title] = i
+            title_to_task_idx[key] = i
+
+        # Build code_to_title from template
+        code_to_title: Dict[str, str] = {}
+        if template:
+            for ch_data in template.get("chapters", []):
+                code_to_title[ch_data["code"]] = ch_data["title"]
+
+        if phases and len(phases) > 1:
+            logger.info("phased_generation", phases=len(phases))
+
+            for phase in phases:
+                # Collect task indices for this phase
+                phase_task_indices = []
+                for code in phase.chapter_codes:
+                    title = code_to_title.get(code, "")
+                    if title in title_to_task_idx:
+                        phase_task_indices.append(title_to_task_idx[title])
+
+                if not phase_task_indices:
+                    logger.info("phase_skipped", phase=phase.phase, reason="no_matching_tasks")
+                    continue
+
+                # Inject upstream context into Phase 2+ tasks
+                if phase.depends_on and phase.depends_on in phase_outputs:
+                    upstream = phase_outputs[phase.depends_on]
+                    step_count = upstream.get("step_count", 0)
+                    step_names = [s["step_name"] for s in upstream.get("steps", [])]
+                    for idx in phase_task_indices:
+                        tasks[idx]["inherited_context"] = {
+                            "process_flow_steps": upstream,
+                            "max_rows": step_count,
+                            "step_names": step_names,
+                        }
+                        # Also pass to params so WritingAgent can read it
+                        tasks[idx]["params"]["inherited_context"] = {
+                            "process_flow_steps": upstream,
+                            "max_rows": step_count,
+                            "step_names": step_names,
+                        }
+                    logger.info(
+                        "phase_injecting_context",
+                        phase=phase.phase,
+                        step_count=step_count,
+                        chapters=len(phase_task_indices),
+                    )
+
+                # Execute this phase's tasks in parallel
+                phase_coros = [self._dispatch_to_sub_agent(tasks[i]) for i in phase_task_indices]
+                phase_results = await asyncio.gather(*phase_coros, return_exceptions=True)
+
+                # Write results back to main results array
+                for j, idx in enumerate(phase_task_indices):
+                    results[idx] = phase_results[j]
+
+                # Parse skeleton output for downstream phases
+                if phase.output_key:
+                    for idx in phase_task_indices:
+                        r = results[idx]
+                        if isinstance(r, dict) and r.get("status") == "completed":
+                            inner = r.get("result", {})
+                            if isinstance(inner, dict):
+                                # Extract flow steps from template-fill result
+                                flow_data = inner.get("flow_steps") or inner.get("filled_data")
+                                if flow_data:
+                                    parsed = parse_flow_steps(flow_data)
+                                    phase_outputs[phase.output_key] = parsed
+                                    logger.info(
+                                        "phase_output_captured",
+                                        phase=phase.phase,
+                                        output_key=phase.output_key,
+                                        step_count=parsed["step_count"],
+                                    )
+                                    break
+        else:
+            # No phases defined — execute all in parallel (original behavior)
+            coros = [self._dispatch_to_sub_agent(t) for t in tasks]
+            results = await asyncio.gather(*coros, return_exceptions=True)
 
         # --- Review-Retry (workflow #4: incomplete PDF completion) ---
         # Check each chapter output with ReviewAgent. Retry once if issues found.

@@ -262,4 +262,64 @@ def merge_structured_with_unstructured(
 
         rows.append(row)
 
+    # Filter out rows where all values are empty/None
+    rows = _filter_empty_rows(rows)
     return rows
+
+
+def _filter_empty_rows(
+    rows: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Remove rows where every value is empty string or None.
+
+    Returns:
+        Rows with at least one non-empty value.
+    """
+    filtered = []
+    for row in rows:
+        has_value = any(v not in ("", None) for v in row.values())
+        if has_value:
+            filtered.append(row)
+    return filtered
+
+
+# ---------------------------------------------------------------------------
+# Flow-step parsing — extract process flow steps from G19a output
+# ---------------------------------------------------------------------------
+
+def parse_flow_steps(flow_output: Any) -> Dict[str, Any]:
+    """Parse G19a flow_chart output into a structured step list.
+
+    Accepts:
+      - A list of step-name strings: ["装前准备", "对接", ...]
+      - A list of dicts: [{"step_no": 1, "step_name": "装前准备"}, ...]
+      - A string of comma/newline-separated step names
+
+    Returns:
+        {
+            "step_count": int,
+            "steps": [{"step_no": N, "step_name": "..."}, ...]
+        }
+    """
+    steps: List[Dict[str, Any]] = []
+
+    if isinstance(flow_output, list):
+        for i, item in enumerate(flow_output):
+            if isinstance(item, str):
+                steps.append({"step_no": i + 1, "step_name": item.strip()})
+            elif isinstance(item, dict):
+                name = item.get("step_name") or item.get("name") or item.get("title", "")
+                no = item.get("step_no") or item.get("seq") or (i + 1)
+                steps.append({"step_no": int(no), "step_name": str(name).strip()})
+    elif isinstance(flow_output, str):
+        # Split by comma or newline
+        parts = re.split(r"[,\n]", flow_output)
+        for i, part in enumerate(parts):
+            clean = part.strip().lstrip("0123456789.)、 \t")
+            if clean:
+                steps.append({"step_no": i + 1, "step_name": clean})
+
+    return {
+        "step_count": len(steps),
+        "steps": steps,
+    }
