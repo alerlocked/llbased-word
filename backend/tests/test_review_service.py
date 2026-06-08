@@ -5,7 +5,7 @@ import pytest
 from pathlib import Path
 import yaml
 
-from app.services.review_service import ReviewService, ReviewResult, Issue, Suggestion, Severity
+from app.services.review_service import ReviewService, ReviewResult, Issue, Severity
 from app.models.profile import Profile, WritingConfig, ReviewConfig
 from app.services.context_service import ContextService
 
@@ -209,18 +209,5 @@ class TestIssueModel:
         assert issue.type == "placeholder"
 
 
-class TestSuggestionModel:
-    """测试 Suggestion 模型"""
-    
-    def test_suggestion_to_dict(self):
-        """测试 Suggestion 转字典"""
-        suggestion = Suggestion(
-            type="tone_mismatch",
-            message="建议使用更正式的语气",
-            priority="medium"
-        )
-        
-        data = suggestion.to_dict()
-        
-        assert data["type"] == "tone_mismatch"
-        assert data["priority"] == "medium"
+# NOTE: TestSuggestionModel removed — Suggestion class no longer exists
+# in review_service (refactored to Issue-based API)

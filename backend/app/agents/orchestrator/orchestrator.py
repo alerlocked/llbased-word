@@ -1598,7 +1598,13 @@ class ProcessOrchestrator:
                             "chapter_code": tmpl_ch.code,
                             "chapter_type": tmpl_ch.table_type,
                             "template_slots": [
-                                {"key": s.key, "label": s.label, "type": s.col_type}
+                                {
+                                    "key": s.key,
+                                    "label": s.label,
+                                    "type": s.col_type,
+                                    "fill_type": s.fill_type,
+                                    "ai_filled": s.ai_filled,
+                                }
                                 for s in slots
                             ],
                             "ai_guidance": tmpl_ch.ai_guidance,

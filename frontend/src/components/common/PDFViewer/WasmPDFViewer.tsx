@@ -103,7 +103,7 @@ export const WasmPDFViewer: React.FC<WasmPDFViewerProps> = ({
 
         if (!mounted) return;
 
-        const title = pdfDoc.getTitle() || 'Untitled';
+        const title = (pdfDoc as any).getTitle?.() || 'Untitled';
 
         setState(prev => ({
           ...prev,

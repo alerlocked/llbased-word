@@ -15,7 +15,7 @@ interface DocumentMaterial {
   name: string
   type: string
   content: string
-  pages?: Array<{
+  pages: Array<{
     page_number: number
     image_path: string
     content: string

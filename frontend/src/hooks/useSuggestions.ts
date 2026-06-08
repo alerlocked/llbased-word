@@ -153,7 +153,7 @@ export function useSuggestions(
 
   // 防抖版本的 fetchSuggestions
   const debouncedFetchSuggestions = useCallback(
-    (context: string, selectedText?: string) => {
+    (context: string, selectedText?: string): Promise<void> => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
@@ -161,6 +161,7 @@ export function useSuggestions(
       debounceRef.current = setTimeout(() => {
         fetchSuggestions(context, selectedText);
       }, debounceMs);
+      return Promise.resolve();
     },
     [fetchSuggestions, debounceMs]
   );

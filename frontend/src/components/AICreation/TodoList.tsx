@@ -55,10 +55,10 @@ export const TodoList: React.FC<TodoListProps> = ({
     const todo = localTodos.find(t => t.id === todoId)
     if (!todo) return
 
-    const newStatus = todo.status === 'completed' ? 'pending' : 'completed'
+    const newStatus = todo.status === 'completed' ? 'pending' as const : 'completed' as const
 
     // 乐观更新UI
-    const updatedTodos = localTodos.map(t => 
+    const updatedTodos: TodoItem[] = localTodos.map(t =>
       t.id === todoId ? { ...t, status: newStatus } : t
     )
     setLocalTodos(updatedTodos)
@@ -82,7 +82,7 @@ export const TodoList: React.FC<TodoListProps> = ({
         // API调用成功，状态已更新
       } catch (error: any) {
         // 恢复原状态
-        const restoredTodos = localTodos.map(t => 
+        const restoredTodos: TodoItem[] = localTodos.map(t =>
           t.id === todoId ? { ...t, status: todo.status } : t
         )
         setLocalTodos(restoredTodos)

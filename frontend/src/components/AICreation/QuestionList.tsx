@@ -3,7 +3,8 @@
  * 显示所有问题，支持点击选择，显示已回答状态
  */
 import React from 'react'
-import { Card, Space, Typography, CheckCircleOutlined } from 'antd'
+import { Card, Space, Typography } from 'antd'
+import { CheckCircleOutlined } from '@ant-design/icons'
 import { colors } from '../../styles/design-tokens'
 
 const { Text } = Typography

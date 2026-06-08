@@ -20,7 +20,7 @@ import json
 sys.modules['app.agents.workflows'] = MagicMock()
 sys.modules['app.agents.workflows.creation_graph'] = MagicMock()
 
-from app.main import app
+from main import app
 
 
 @pytest.fixture

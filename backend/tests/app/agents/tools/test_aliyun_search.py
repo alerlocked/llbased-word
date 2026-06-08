@@ -2,6 +2,16 @@
 测试阿里云搜索工具
 """
 import pytest
+
+# Skip entire module if SDK not installed
+try:
+    import alibabacloud_iqs20241111  # noqa: F401
+except ImportError:
+    pytest.skip(
+        "alibabacloud_iqs20241111 not installed, skipping aliyun_search tests",
+        allow_module_level=True,
+    )
+
 from unittest.mock import Mock, patch, MagicMock
 from app.agents.tools.aliyun_search import AliyunSearchTool
 from app.shared.config import UNRELIABLE_DOMAINS

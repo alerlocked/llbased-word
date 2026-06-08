@@ -11,7 +11,7 @@ function App() {
   return (
     <ThemeProvider>
       <BrowserRouter future={{ v7_startTransition: true }}>
-        <Routes future={{ v7_relativeSplatPath: true }}>
+        <Routes>
           {/* 主工作台 - 工艺文件辅助编辑 */}
           <Route path="/" element={<WorkspacePage />} />
           {/* 用户画像管理 */}
