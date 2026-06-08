@@ -189,39 +189,65 @@ async def delete_project(
     db: Session = Depends(get_db)
 ):
     """
-    删除项目
-    
+    删除项目 — clean chain: DB records + filesystem + material assets.
+
     Args:
         project_id: 项目ID
         db: 数据库会话
-    
+
     Returns:
         删除结果
     """
+    import shutil
+
     try:
         # 查找项目
         project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
-        
-        # 删除关联的素材（从 material_ids 中获取素材ID列表）
+
+        # 1. Collect material IDs before deletion
         material_ids = project.material_ids or []
+
+        # 2. Delete associated materials (DB + filesystem)
+        for mid in material_ids:
+            # Remove filesystem directories for this material
+            for subdir in ["materials", "uploads", "documents"]:
+                mat_dir = Path(settings.DATA_DIR) / subdir / str(mid)
+                if mat_dir.exists():
+                    shutil.rmtree(mat_dir, ignore_errors=True)
+                    logger.info("deleted_material_dir", dir=str(mat_dir))
+
         if material_ids:
             db.query(Material).filter(Material.id.in_(material_ids)).delete(synchronize_session=False)
+            db.query(MaterialPage).filter(MaterialPage.material_id.in_(material_ids)).delete(synchronize_session=False)
+            db.query(Figure).filter(Figure.material_id.in_(material_ids)).delete(synchronize_session=False)
 
-        # 删除版本历史
+        # 3. Delete version history
         db.query(EditorVersion).filter(EditorVersion.project_id == project_id).delete()
 
-        # 删除关联的上传图片（project_id 是 NOT NULL，需要先删除）
+        # 4. Delete uploaded images
         image_count = db.query(UploadedImage).filter(UploadedImage.project_id == project_id).count()
         if image_count > 0:
-            logger.info(f"🗑️ 删除项目{project_id}关联的{image_count}个上传图片")
+            # Remove image files from filesystem
+            upload_img_dir = Path(settings.DATA_DIR) / "uploads" / "images"
+            for img in db.query(UploadedImage).filter(UploadedImage.project_id == project_id).all():
+                if img.file_path and Path(img.file_path).exists():
+                    Path(img.file_path).unlink(missing_ok=True)
             db.query(UploadedImage).filter(UploadedImage.project_id == project_id).delete(synchronize_session=False)
+            logger.info("deleted_project_images", project_id=project_id, count=image_count)
 
-        # 删除项目
+        # 5. Delete project row
         db.delete(project)
         db.commit()
 
-        logger.info(f"✅ 已删除项目{project_id}")
-        
+        # 6. Clean project-specific filesystem dirs
+        for subdir in ["documents", "uploads"]:
+            proj_dir = Path(settings.DATA_DIR) / subdir / str(project_id)
+            if proj_dir.exists():
+                shutil.rmtree(proj_dir, ignore_errors=True)
+                logger.info("deleted_project_dir", dir=str(proj_dir))
+
+        logger.info("project_deleted", project_id=project_id, materials_removed=len(material_ids))
+
         return {"message": "删除成功"}
         
     except HTTPException:

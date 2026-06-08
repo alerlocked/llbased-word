@@ -268,7 +268,12 @@ const WorkspacePage: React.FC = () => {
       })
       if (response.ok) {
         message.success('删除成功')
-        // 如果删除的是当前项目，切换到其他项目
+
+        // Clean Zustand persist cache for deleted project
+        const store = useCreationStore.getState()
+        store.clearProjectState(projectId)
+
+        // If the deleted project was current, switch to another
         if (currentProjectId === projectId) {
           const remainingProjects = projects.filter(p => p.id !== projectId)
           if (remainingProjects.length > 0) {
