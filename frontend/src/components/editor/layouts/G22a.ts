@@ -35,6 +35,7 @@ export const G22a: ProcessTableLayout = {
   ],
   headerRows: [
     [
+      { label: '会签', colspan: 2, rowspan: 2 },
       { label: '车间', rowspan: 2 },
       { label: '工序号', rowspan: 2 },
       { label: '工序名称', rowspan: 2 },
@@ -46,9 +47,7 @@ export const G22a: ProcessTableLayout = {
     [
       { label: '准结', colspan: 2 },
       { label: '单件' },
-      { label: '总计' },
-      { label: '' },
-      { label: '' },
+      { label: '总计', colspan: 2 },
     ],
   ],
   dataColumns: [
@@ -61,8 +60,7 @@ export const G22a: ProcessTableLayout = {
     { key: 'tooling', label: '工艺装备及专用刀、量具', colspan: 3 },
     { key: 'time_setup', label: '准结', colspan: 2 },
     { key: 'time_per_piece', label: '单件' },
-    { key: 'time_total', label: '总计' },
-    { key: '', label: '', colspan: 1 },
+    { key: 'time_total', label: '总计', colspan: 2 },
   ],
-  colWidths: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 1],
+  colWidths: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
 }

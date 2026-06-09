@@ -1586,7 +1586,7 @@ class ProcessOrchestrator:
             try:
                 from app.services.template_loader import (
                     load_template, match_chapter_by_title, get_fillable_slots,
-                    get_chapter_by_code,
+                    get_chapter_by_code, get_editor_chapters,
                 )
                 template_data = load_template("assembly_process_cable")
                 for mc in missing_chapters:
@@ -1609,6 +1609,46 @@ class ProcessOrchestrator:
                             ],
                             "ai_guidance": tmpl_ch.ai_guidance,
                         }
+
+                # 9b-2. Ensure ALL template editor chapters are included,
+                # even if not found in knowledge base index.
+                # This guarantees G22a (工艺过程卡) and G25a (装配工艺卡片)
+                # are always generated when using template mode.
+                existing_titles = {mc.get("title", "") for mc in missing_chapters}
+                for tch in get_editor_chapters(template_data):
+                    if tch.title not in existing_titles:
+                        missing_chapters.append({
+                            "title": tch.title,
+                            "pages": [],
+                            "page_count": 0,
+                            "_doc_dir": "",
+                            "reason": "template_required",
+                        })
+                        chapter_source_texts[tch.title] = ""
+                        existing_titles.add(tch.title)
+                        logger.info(
+                            "template_chapter_added",
+                            title=tch.title,
+                            code=tch.code,
+                        )
+                        # Also build template mapping for newly added chapters
+                        slots = get_fillable_slots(tch)
+                        chapter_template_map[tch.title] = {
+                            "chapter_code": tch.code,
+                            "chapter_type": tch.table_type,
+                            "template_slots": [
+                                {
+                                    "key": s.key,
+                                    "label": s.label,
+                                    "type": s.col_type,
+                                    "fill_type": s.fill_type,
+                                    "ai_filled": s.ai_filled,
+                                }
+                                for s in slots
+                            ],
+                            "ai_guidance": tch.ai_guidance,
+                        }
+
                 logger.info(
                     "template_matched",
                     matched=len(chapter_template_map),

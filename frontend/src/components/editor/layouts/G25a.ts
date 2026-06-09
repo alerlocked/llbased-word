@@ -1,7 +1,7 @@
 /**
  * Process document table layout — G25a
  *
- * 装配工艺卡片 — 22 physical columns
+ * 装配工艺卡片 — 21 physical columns
  * Source: data/documents/1/content.html page 15
  */
 import type { ProcessTableLayout } from '../processDocumentLayouts'
@@ -15,7 +15,6 @@ export const G25a: ProcessTableLayout = {
     { label: '零、部、组(整)件代号', colspan: 3 },
     { label: '零、部、组(整)件名称', colspan: 3 },
     { label: '工艺文件编号', colspan: 5 },
-    { label: '' },
   ],
   titleRow1: [
     { label: '', colspan: 2 },
@@ -23,7 +22,6 @@ export const G25a: ProcessTableLayout = {
     { label: '', colspan: 3 },
     { label: '', colspan: 3 },
     { label: '', colspan: 5 },
-    { label: '' },
   ],
   infoRows: [
     [
@@ -32,14 +30,13 @@ export const G25a: ProcessTableLayout = {
       { label: '1', colspan: 2 },
       { label: '本批装配件生产总数', colspan: 3 },
       { label: '', colspan: 3 },
-      { label: '交往何处', colspan: 2 },
+      { label: '交往何处', colspan: 3 },
       { label: '33', colspan: 5 },
-      { label: '' },
-      { label: '' },
     ],
   ],
   headerRows: [
     [
+      { label: '会签', colspan: 2, rowspan: 2 },
       { label: '车间', rowspan: 2 },
       { label: '工序号', rowspan: 2 },
       { label: '工序名称', rowspan: 2 },
@@ -47,17 +44,11 @@ export const G25a: ProcessTableLayout = {
       { label: '辅助材料', colspan: 2, rowspan: 2 },
       { label: '专用仪器、仪表及工艺装备', colspan: 4, rowspan: 2 },
       { label: '工时定额h', colspan: 4 },
-      { label: '' },
-      { label: '' },
-      { label: '' },
     ],
     [
       { label: '准结' },
       { label: '单件' },
       { label: '总计' },
-      { label: '' },
-      { label: '' },
-      { label: '' },
       { label: '' },
     ],
   ],
@@ -72,7 +63,7 @@ export const G25a: ProcessTableLayout = {
     { key: 'time_setup', label: '准结' },
     { key: 'time_per_piece', label: '单件' },
     { key: 'time_total', label: '总计' },
-    { key: '', label: '', colspan: 2 },
+    { key: '', label: '' },
   ],
-  colWidths: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 0],
+  colWidths: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
 }

@@ -86,13 +86,14 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
   const { titleRow0, titleRow1, infoRows, headerRows, dataColumns } = layout
 
   return (
-    <div style={{ width: '100%' }}>
+    <div style={{ width: '100%', overflowX: 'auto' }}>
       <table
         ref={tableRef}
         style={{
           width: '100%',
           borderCollapse: 'collapse',
           tableLayout: 'fixed',
+          minWidth: layout.colWidths.length > 16 ? `${layout.colWidths.length * 60}px` : undefined,
         }}
         onBlur={handleBlur}
       >
