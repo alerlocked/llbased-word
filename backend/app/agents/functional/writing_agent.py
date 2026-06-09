@@ -516,10 +516,12 @@ class WritingAgent(BaseAgent):
                 )
                 if has_source:
                     system_msg += (
+                        "这是生成系统，不是摘抄系统。参考文档仅用于格式和术语。\n\n"
                         f"1. 参考「{source_label}」的格式和术语体系，根据工艺要求生成内容\n"
-                        "2. 具体数值（尺寸、公差、材料牌号等）应基于实际工艺要求\n"
+                        "2. 关键参数（代号、材料牌号、公差等）必须准确，参考文档中有的直接使用\n"
                         "3. 描述性文字用自己的语言组织，不要直接复制原文段落\n"
-                        "4. 保留原文中的关键参数、代号和数量，不得编造不存在的数据\n\n"
+                        "4. 必须排除噪声内容：签名栏（及人名）、日期戳、页码、更改单号、续表标记\n"
+                        "5. 不要把 PDF 表头文字（产品工号、车间、准结等）当作数据输出\n\n"
                     )
                 else:
                     system_msg += (
@@ -781,6 +783,7 @@ class WritingAgent(BaseAgent):
         from app.services.structured_extractor import (
             extract_structured_fields,
             merge_structured_with_unstructured,
+            _filter_noise_rows,
         )
 
         chapter_code = task.get("chapter_code", "")
@@ -863,7 +866,8 @@ class WritingAgent(BaseAgent):
                 )
 
             system_msg = (
-                "你是一位专业的航天工艺文件编写助手。你的任务是为指定的表格位置生成内容。\n\n"
+                "你是一位专业的航天工艺文件编写助手。你的任务是为指定的表格位置生成内容。\n"
+                "这是生成系统，不是摘抄系统——参考文档仅用于了解格式和术语，不要照搬原文。\n\n"
                 f"章节代码：{chapter_code}\n"
                 f"章节标题：{task.get('chapter_title', '')}\n"
                 f"表格类型：{chapter_type}\n"
@@ -872,7 +876,15 @@ class WritingAgent(BaseAgent):
                 "- 只输出 JSON 数组\n"
                 "- 不要使用 ```json``` 代码块包裹\n"
                 "- 每一行/每一个条目都必须是完整的\n"
-                "- 不要编造不存在的数据\n"
+                "- 关键参数（代号、材料牌号等）必须准确，参考文档中有的直接使用\n"
+                "- 描述性内容用自己的语言组织\n"
+                "- 必须排除以下噪声（它们是文档元数据，不是工艺数据）：\n"
+                "  · 签名栏及人名（编制/校对/审核/标检/批准，以及具体人名）\n"
+                "  · 日期戳（如 20240828）\n"
+                "  · 页码、页数、更改单号\n"
+                "  · 续表标记（如'XX(续)'）\n"
+                "  · 表头文字（如'产品工号'、'车间'、'准结'出现在数据字段中）\n"
+                "  · 产品型号/图号作为占位符出现在非对应字段中\n"
             )
             if ai_guidance:
                 system_msg += f"\n指导：{ai_guidance}\n"
@@ -883,10 +895,11 @@ class WritingAgent(BaseAgent):
             user_parts = []
             if knowledge_context:
                 user_parts.append(
-                    f"## 参考文档（完整原文）\n{knowledge_context[:8000]}"
+                    f"## 参考文档（仅供格式和术语参考，过滤噪声后生成内容）\n{knowledge_context[:8000]}"
                 )
                 user_parts.append(
-                    "请仔细阅读参考文档，为每个条目/工序生成上述指定列的内容。"
+                    "请基于参考文档的格式和术语，结合工艺要求生成指定列的内容。"
+                    "排除签名栏、日期、页码、更改单号、续表标记等文档元数据。"
                 )
             else:
                 user_parts.append(
@@ -943,6 +956,8 @@ class WritingAgent(BaseAgent):
                 )
             if not structured_values and not unstructured_slots and parsed is not None:
                 merged_rows = parsed if isinstance(parsed, list) else [parsed]
+                # Apply noise filter to LLM direct output (fallback path)
+                merged_rows = _filter_noise_rows(merged_rows)
 
         # --- Step 5: Build output ---
         chapter_data = ChapterData(
@@ -1015,9 +1030,9 @@ class WritingAgent(BaseAgent):
                     if retry_filled is not None:
                         if chapter_type in ("single_row_list", "process_card"):
                             if isinstance(retry_filled, list):
-                                chapter_data.filled_data = retry_filled
+                                chapter_data.filled_data = _filter_noise_rows(retry_filled)
                             else:
-                                chapter_data.filled_data = [retry_filled]
+                                chapter_data.filled_data = _filter_noise_rows([retry_filled])
                         elif chapter_type == "flow_chart":
                             chapter_data.flow_steps = retry_filled if isinstance(retry_filled, list) else []
                         elif chapter_type == "dual_list":

@@ -11,6 +11,63 @@ from app.services.template_types import TemplateColumn
 from app.services.table_schemas import FIELD_ALIASES
 from app.shared.logging import get_logger
 
+# ---------------------------------------------------------------------------
+# Noise patterns — OCR artifacts that should not be treated as data
+# ---------------------------------------------------------------------------
+_NOISE_PATTERNS: List[re.Pattern] = [
+    # Signature names (编制/校对/审核/标检/批准 + person names)
+    re.compile(r"^(编制|校对|审核|标检|批准|会签)[：:]?\s*$"),
+    re.compile(r"^[一-鿿]{2,4}$"),  # Standalone Chinese name (2-4 chars)
+    # Date stamps
+    re.compile(r"^\d{8}$"),  # 20240828
+    re.compile(r"^\d{4}[年\-/.]\d{1,2}[月\-/.]?\d{0,2}[日]?$"),
+    # Page / change markers
+    re.compile(r"^(页数|页码|更改单号|共\d+页|第\d+页)[：:]?\s*$"),
+    # Continuation markers
+    re.compile(r".*[\(（]续[\)）]\s*$"),
+    # Section titles appearing as data values
+    re.compile(r"^工艺过程卡|配套明细表|装配工艺卡片|工艺文件目录|引用文件目录"),
+    # Product codes in wrong context (standalone, not in part_code field)
+    re.compile(r"^(小产品|KA0-\d+-KZD)$"),
+    # Signature lines
+    re.compile(r"^[编制校对审核标检批准：:]+[_\s]*$"),
+    # Standalone "M.2" or similar version markers
+    re.compile(r"^M\.\d+$"),
+]
+
+# Keywords that indicate a row is metadata, not data
+_METADATA_KEYWORDS = [
+    "签名", "编制", "校对", "审核", "标检", "批准", "会签",
+    "更改单号", "日期", "页数", "页码",
+]
+
+
+def _is_noise_row(row: List[str]) -> bool:
+    """Check if a table row is OCR noise (signature, date, header continuation, etc.)."""
+    joined = " ".join(cell.strip() for cell in row if cell.strip())
+    if not joined:
+        return True
+
+    # Check individual cells against noise patterns
+    for cell in row:
+        stripped = cell.strip()
+        if not stripped:
+            continue
+        for pat in _NOISE_PATTERNS:
+            if pat.match(stripped):
+                return True
+
+    # Check if the row is mostly metadata keywords
+    keyword_hits = sum(1 for kw in _METADATA_KEYWORDS if kw in joined)
+    if keyword_hits >= 2:
+        return True
+
+    # Check for signature-line pattern: "编制:___审核:___校对:___"
+    if "编制" in joined and ("审核" in joined or "校对" in joined):
+        return True
+
+    return False
+
 logger = get_logger(__name__)
 
 # Map template column keys to FIELD_ALIASES logical field names
@@ -213,11 +270,14 @@ def _extract_tabular_fields(
         # No header found, fall back to singleton extraction
         return _extract_singleton_fields(structured_cols, full_text)
 
-    # Extract data rows (after header)
+    # Extract data rows (after header), filtering noise
     results: Dict[str, List[str]] = {col.key: [] for col in structured_cols}
     data_start = best_header_idx + 1
 
     for row in rows[data_start:]:
+        # Skip noise rows (signatures, dates, page headers, etc.)
+        if _is_noise_row(row):
+            continue
         for col in structured_cols:
             col_idx = best_col_map.get(col.key)
             if col_idx is not None and col_idx < len(row):
@@ -262,8 +322,9 @@ def merge_structured_with_unstructured(
 
         rows.append(row)
 
-    # Filter out rows where all values are empty/None
+    # Filter out rows where all values are empty/None or are noise
     rows = _filter_empty_rows(rows)
+    rows = _filter_noise_rows(rows)
     return rows
 
 
@@ -280,6 +341,38 @@ def _filter_empty_rows(
         has_value = any(v not in ("", None) for v in row.values())
         if has_value:
             filtered.append(row)
+    return filtered
+
+
+def _filter_noise_rows(
+    rows: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Remove rows that are OCR metadata noise (signatures, dates, headers).
+
+    Applied after merging structured + unstructured data as a safety net.
+    """
+    filtered = []
+    for row in rows:
+        # Check all string values in the row
+        all_values = [str(v) for v in row.values() if v not in ("", None)]
+
+        is_noise = False
+        for val in all_values:
+            for pat in _NOISE_PATTERNS:
+                if pat.match(val.strip()):
+                    is_noise = True
+                    break
+            if is_noise:
+                break
+
+        # Also check for signature-line patterns spanning multiple fields
+        joined = " ".join(all_values)
+        if "编制" in joined and ("审核" in joined or "校对" in joined):
+            is_noise = True
+
+        if not is_noise:
+            filtered.append(row)
+
     return filtered
 
 
