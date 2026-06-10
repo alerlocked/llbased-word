@@ -23,16 +23,23 @@ _NOISE_PATTERNS: List[re.Pattern] = [
     re.compile(r"^\d{4}[年\-/.]\d{1,2}[月\-/.]?\d{0,2}[日]?$"),
     # Page / change markers
     re.compile(r"^(页数|页码|更改单号|共\d+页|第\d+页)[：:]?\s*$"),
-    # Continuation markers
+    re.compile(r"^共\s*\d+\s*页"),  # "共X页" variants
+    # Continuation markers — with and without parentheses
     re.compile(r".*[\(（]续[\)）]\s*$"),
-    # Section titles appearing as data values
-    re.compile(r"^工艺过程卡|配套明细表|装配工艺卡片|工艺文件目录|引用文件目录"),
+    re.compile(r".*(?:明细表|过程卡|工艺卡片|文件目录|工艺规程)(?:续|序)\s*$"),
+    # Section / table titles appearing as data values
+    re.compile(
+        r"^(?:工艺过程卡|配套明细表|装配工艺卡片|工艺文件目录|引用文件目录"
+        r"|专用工艺装备明细表|主要材料消耗|辅助材料消耗|专用工具|封面)\s*$"
+    ),
     # Product codes in wrong context (standalone, not in part_code field)
     re.compile(r"^(小产品|KA0-\d+-KZD)$"),
     # Signature lines
     re.compile(r"^[编制校对审核标检批准：:]+[_\s]*$"),
     # Standalone "M.2" or similar version markers
     re.compile(r"^M\.\d+$"),
+    # Table header keywords appearing as data
+    re.compile(r"^(?:工序号|工序名称|设备|工艺装备|准结|单件|总计|车间|产品工号)\s*$"),
 ]
 
 # Keywords that indicate a row is metadata, not data
@@ -40,6 +47,91 @@ _METADATA_KEYWORDS = [
     "签名", "编制", "校对", "审核", "标检", "批准", "会签",
     "更改单号", "日期", "页数", "页码",
 ]
+
+# Top-100 Chinese surname first characters for person name detection
+_COMMON_SURNAMES = set(
+    "赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜"
+    "戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳酆鲍史唐"
+    "费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄"
+    "和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁"
+)
+
+# Column keys that should NEVER contain person names
+_CODE_LIKE_KEYS = {
+    "part_code", "equipment_code", "component_code", "ref_code",
+    "doc_number", "for_component_code",
+}
+
+# Column keys where values should be numeric
+_NUMERIC_KEYS = {"seq", "step_no", "quantity", "per_set_qty", "batch_qty"}
+
+
+def _is_person_name(value: str) -> bool:
+    """Heuristic: is this value likely a Chinese person name?
+
+    Checks: first char is a common surname + total length 2-4 chars,
+    remaining chars are common CJK name characters.
+    """
+    if not value or len(value) < 2 or len(value) > 4:
+        return False
+    if value[0] not in _COMMON_SURNAMES:
+        return False
+    # Remaining chars should be CJK (not punctuation/ASCII)
+    return all("一" <= c <= "鿿" for c in value[1:])
+
+
+def validate_field_value(col_key: str, value: str) -> Optional[str]:
+    """Check if a value is valid for the given column.
+
+    Returns:
+        None if valid, or a warning string describing the issue.
+    """
+    if not value or not value.strip():
+        return None
+
+    stripped = value.strip()
+
+    # Person name in code/designation field
+    if col_key in _CODE_LIKE_KEYS and _is_person_name(stripped):
+        return f"person name '{stripped}' in code field '{col_key}'"
+
+    # Non-numeric value in numeric field
+    if col_key in _NUMERIC_KEYS:
+        # Allow empty or pure digits / decimals
+        clean = stripped.replace(".", "").replace("-", "")
+        if clean and not clean.isdigit():
+            return f"non-numeric '{stripped}' in numeric field '{col_key}'"
+
+    # Page number pattern in name/description field
+    if "name" in col_key or col_key == "step_desc":
+        if re.match(r"^(?:共?\d+页|第?\d+页|页数|页码)", stripped):
+            return f"page marker '{stripped}' in name field '{col_key}'"
+
+    return None
+
+
+def validate_filled_rows(
+    rows: List[Dict[str, Any]],
+    column_keys: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Validate and clean filled rows by checking field-level constraints.
+
+    Replaces invalid values with empty string instead of removing rows.
+    """
+    if not rows:
+        return rows
+
+    keys = column_keys or list(rows[0].keys())
+    for row in rows:
+        for key in keys:
+            val = row.get(key)
+            if val and isinstance(val, str):
+                warning = validate_field_value(key, val)
+                if warning:
+                    logger.debug("field_validation_cleaned", warning=warning)
+                    row[key] = ""
+
+    return rows
 
 
 def _is_noise_row(row: List[str]) -> bool:
@@ -325,6 +417,9 @@ def merge_structured_with_unstructured(
     # Filter out rows where all values are empty/None or are noise
     rows = _filter_empty_rows(rows)
     rows = _filter_noise_rows(rows)
+    # Field-level validation: clean invalid values (person names in code fields, etc.)
+    all_keys = list(structured_values.keys())
+    rows = validate_filled_rows(rows, all_keys)
     return rows
 
 
