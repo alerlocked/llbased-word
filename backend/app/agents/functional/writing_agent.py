@@ -836,6 +836,9 @@ class WritingAgent(BaseAgent):
         llm_row_count = 0
         parsed = None
 
+        # Extract inherited context early for prompt injection
+        inherited = task.get("inherited_context") or task.get("params", {}).get("inherited_context")
+
         if unstructured_cols:
             slot_desc = ", ".join(
                 f'"{c.key}"({c.label})' for c in unstructured_cols
@@ -858,6 +861,26 @@ class WritingAgent(BaseAgent):
                 + "\n".join(schema_lines) + "\n\n"
                 f"你只需要生成标记为「📝 你需要生成」的列。不要生成标记为「✅ 系统已提取」的列。\n"
             )
+
+            # Build inherited context block (process flow steps from Phase 1)
+            inherited_block = ""
+            if inherited:
+                step_names = inherited.get("step_names", [])
+                max_rows = inherited.get("max_rows")
+                if step_names:
+                    step_list = "\n".join(
+                        f"  {i+1}. {name}" for i, name in enumerate(step_names)
+                    )
+                    inherited_block = (
+                        f"\n## 工艺流程步骤（必须严格对应）\n"
+                        f"Phase 1 已确定以下 {len(step_names)} 道工序步骤，"
+                        f"你的生成必须按此顺序逐行对应：\n{step_list}\n"
+                        f"每行的工序号和工序名称必须与上述列表一致，不要自行编造或更改。\n"
+                    )
+                if max_rows:
+                    inherited_block += (
+                        f"\n行数约束：必须恰好生成 {max_rows} 行，与工艺流程步骤一一对应。\n"
+                    )
 
             row_hint = ""
             if struct_row_count > 0:
@@ -891,6 +914,7 @@ class WritingAgent(BaseAgent):
                 f"章节标题：{task.get('chapter_title', '')}\n"
                 f"表格类型：{chapter_type}\n"
                 f"{fill_instruction}\n"
+                f"{inherited_block}\n"
                 "硬约束：\n"
                 "- 只输出 JSON 数组\n"
                 "- 不要使用 ```json``` 代码块包裹\n"
@@ -964,7 +988,7 @@ class WritingAgent(BaseAgent):
         total_rows = max(struct_row_count, llm_row_count, 1)
 
         # Cap rows by inherited process flow step count (phased generation)
-        inherited = task.get("inherited_context") or task.get("params", {}).get("inherited_context")
+        # inherited already extracted above for prompt injection
         if inherited and inherited.get("max_rows"):
             total_rows = min(total_rows, inherited["max_rows"])
 
