@@ -2661,7 +2661,8 @@ class ProcessOrchestrator:
                 if inner.get("chapter_code"):
                     structured_results[inner["chapter_code"]] = inner
                 elif inner.get("result", {}).get("chapter_code"):
-                    structured_results[inner["result"]["chapter_code"]] = inner["result"]
+                    code = inner["result"]["chapter_code"]
+                    structured_results[code] = inner["result"]
 
         # Template mode: skip Markdown assembly, return structured data only
         if structured_results:

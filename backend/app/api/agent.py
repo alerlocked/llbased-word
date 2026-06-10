@@ -1014,6 +1014,18 @@ async def generate_stream(request: GenerateStreamRequest):
                 )
                 logger.info(f"[draft_complete] continue_conversation 返回: success={exec_result.get('success')}, keys={list(exec_result.keys())}")
 
+                # DEBUG: write to file for diagnosis
+                import pathlib
+                pathlib.Path("D:/tmp/ntm-debug.txt").write_text(
+                    f"exec_result success={exec_result.get('success')}\n"
+                    f"keys={list(exec_result.keys())}\n"
+                    f"state={exec_result.get('state')}\n"
+                    f"result keys={list(exec_result.get('result',{}).keys()) if isinstance(exec_result.get('result'),dict) else 'not-dict'}\n"
+                    f"sr={list(exec_result.get('result',{}).get('structured_results',{}).keys()) if isinstance(exec_result.get('result',{}).get('structured_results'),dict) else 'not-dict'}\n"
+                    f"sr_type={type(exec_result.get('result',{}).get('structured_results')).__name__}\n",
+                    encoding="utf-8"
+                )
+
                 if exec_result.get("success"):
                     # Extract generated content from _execute_draft_modification result
                     result_wrapper = exec_result.get("result", {})
