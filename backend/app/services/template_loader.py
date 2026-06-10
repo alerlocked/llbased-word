@@ -97,7 +97,11 @@ def get_chapter_by_code(
 
 
 def get_fillable_slots(chapter: TemplateChapter) -> List[TemplateColumn]:
-    """Extract columns where ai_filled=True.
+    """Extract columns/fields where ai_filled=True.
+
+    For chapters with ``columns`` (tables), returns ai_filled columns.
+    For chapters with ``fields`` (e.g. G19a flow_chart, G1a cover),
+    parses raw field dicts into TemplateColumn and returns ai_filled ones.
 
     Args:
         chapter: Parsed chapter object.
@@ -105,7 +109,16 @@ def get_fillable_slots(chapter: TemplateChapter) -> List[TemplateColumn]:
     Returns:
         List of columns that should be filled by AI.
     """
-    return [col for col in chapter.columns if col.ai_filled]
+    # Standard table chapters use columns
+    if chapter.columns:
+        return [col for col in chapter.columns if col.ai_filled]
+
+    # field-based chapters (flow_chart, fields/cover) use raw dicts
+    if chapter.fields:
+        parsed = [TemplateColumn.from_dict(f) for f in chapter.fields]
+        return [col for col in parsed if col.ai_filled]
+
+    return []
 
 
 def get_columns_by_fill_type(chapter: TemplateChapter) -> Dict[str, List[TemplateColumn]]:
