@@ -851,7 +851,7 @@ class WritingAgent(BaseAgent):
                     status = "✅ 系统已提取"
                 else:
                     status = "📝 你需要生成"
-                schema_lines.append(f"  {c.key} | {c.label} | {c.type} | {status}")
+                schema_lines.append(f"  {c.key} | {c.label} | {c.col_type} | {status}")
             schema_block = (
                 f"## 表格完整结构\n"
                 f"章节：{task.get('chapter_title', '')} ({chapter_code})\n"
