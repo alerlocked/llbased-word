@@ -68,22 +68,29 @@ const WorkspacePage: React.FC = () => {
   // Fallback: if editorTemplateData is lost after refresh, parse editorContent JSON
   const templateSections: TemplateSection[] = (() => {
     if (editorTemplateData) {
-      return editorTemplateData.chapters.map((ch) => ({
-        section_id: ch.chapter_code,
-        title: ch.chapter_title,
-        content_type: mapTableType(ch.table_type),
-        columns: [],
-        column_keys: [],
-        rows: ch.filled_data || [],
-        left_data: ch.left_data,
-        right_data: ch.right_data,
-        flow_steps: ch.flow_steps,
-        field_values: ch.field_values,
-        fill_sources: ch.fill_sources,
-        review_passed: true,
-        source: 'template_generated',
-        table_type: ch.table_type,
-      }))
+      return editorTemplateData.chapters.map((ch) => {
+        // Derive column keys from fill_sources (structured + unstructured)
+        const allKeys = [
+          ...(ch.fill_sources?.structured || []),
+          ...(ch.fill_sources?.unstructured || []),
+        ]
+        return {
+          section_id: ch.chapter_code,
+          title: ch.chapter_title,
+          content_type: mapTableType(ch.table_type),
+          columns: allKeys,
+          column_keys: allKeys,
+          rows: ch.filled_data || [],
+          left_data: ch.left_data,
+          right_data: ch.right_data,
+          flow_steps: ch.flow_steps,
+          field_values: ch.field_values,
+          fill_sources: ch.fill_sources,
+          review_passed: true,
+          source: 'template_generated',
+          table_type: ch.table_type,
+        }
+      })
     }
     // Fallback: try to recover from persisted editorContent JSON
     if (editorContent) {
