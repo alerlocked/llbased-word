@@ -17,7 +17,6 @@ from app.shared.logging import get_logger
 _NOISE_PATTERNS: List[re.Pattern] = [
     # Signature names (编制/校对/审核/标检/批准 + person names)
     re.compile(r"^(编制|校对|审核|标检|批准|会签)[：:]?\s*$"),
-    re.compile(r"^[一-鿿]{2,4}$"),  # Standalone Chinese name (2-4 chars)
     # Date stamps
     re.compile(r"^\d{8}$"),  # 20240828
     re.compile(r"^\d{4}[年\-/.]\d{1,2}[月\-/.]?\d{0,2}[日]?$"),
@@ -48,12 +47,13 @@ _METADATA_KEYWORDS = [
     "更改单号", "日期", "页数", "页码",
 ]
 
-# Top-100 Chinese surname first characters for person name detection
+# Top Chinese surname first characters for person name detection
 _COMMON_SURNAMES = set(
     "赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜"
     "戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳酆鲍史唐"
     "费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄"
     "和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁"
+    "牛石段侯武刘龙叶白田卓"
 )
 
 # Column keys that should NEVER contain person names
