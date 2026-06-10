@@ -65,8 +65,10 @@ const WorkspacePage: React.FC = () => {
   const editorTemplateData = useCreationStore((s) => s.editorTemplateData)
 
   // Convert editorTemplateData to TemplateSection[] for rendering
-  const templateSections: TemplateSection[] = editorTemplateData
-    ? editorTemplateData.chapters.map((ch) => ({
+  // Fallback: if editorTemplateData is lost after refresh, parse editorContent JSON
+  const templateSections: TemplateSection[] = (() => {
+    if (editorTemplateData) {
+      return editorTemplateData.chapters.map((ch) => ({
         section_id: ch.chapter_code,
         title: ch.chapter_title,
         content_type: mapTableType(ch.table_type),
@@ -82,7 +84,20 @@ const WorkspacePage: React.FC = () => {
         source: 'template_generated',
         table_type: ch.table_type,
       }))
-    : []
+    }
+    // Fallback: try to recover from persisted editorContent JSON
+    if (editorContent) {
+      try {
+        const parsed = JSON.parse(editorContent)
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].section_id) {
+          return parsed as TemplateSection[]
+        }
+      } catch {
+        // not JSON — regular markdown content, skip
+      }
+    }
+    return []
+  })()
 
   const handleTemplateSectionsChange = useCallback(
     (sections: TemplateSection[]) => {
