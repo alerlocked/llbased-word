@@ -384,6 +384,7 @@ def merge_structured_with_unstructured(
     structured_values: Dict[str, List[str]],
     unstructured_slots: List[Dict[str, Any]],
     row_count: int,
+    key_map: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
     """Merge structured field values with LLM-generated unstructured values.
 
@@ -391,6 +392,7 @@ def merge_structured_with_unstructured(
         structured_values: {col_key: [val1, val2, ...]} from extraction.
         unstructured_slots: [{"row": N, "slot": "key", "value": "..."}] from LLM.
         row_count: Total rows to generate.
+        key_map: Optional label→key mapping for normalizing LLM slot names.
 
     Returns:
         List of row dicts with both structured and unstructured fields.
@@ -410,7 +412,11 @@ def merge_structured_with_unstructured(
         # Fill unstructured fields from LLM output
         for slot in unstructured_slots:
             if slot.get("row") == row_idx + 1:
-                row[slot["slot"]] = slot.get("value", "")
+                slot_name = slot.get("slot", "")
+                # Safety net: normalize label→key if key_map provided
+                if key_map and slot_name in key_map:
+                    slot_name = key_map[slot_name]
+                row[slot_name] = slot.get("value", "")
 
         rows.append(row)
 

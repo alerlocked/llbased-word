@@ -975,6 +975,12 @@ class WritingAgent(BaseAgent):
 
             if parsed is not None and isinstance(parsed, list):
                 if parsed and "slot" in parsed[0] and "row" in parsed[0]:
+                    # Normalize slot names: LLM may return label instead of key
+                    label_to_key = {c.label: c.key for c in unstructured_cols}
+                    for slot_item in parsed:
+                        s = slot_item.get("slot", "")
+                        if s in label_to_key:
+                            slot_item["slot"] = label_to_key[s]
                     unstructured_slots = parsed
                 else:
                     unstructured_slots = _legacy_to_slots(parsed, unstructured_cols)
