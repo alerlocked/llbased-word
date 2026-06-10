@@ -841,6 +841,24 @@ class WritingAgent(BaseAgent):
                 f'"{c.key}"({c.label})' for c in unstructured_cols
             )
 
+            # Build full table schema context so LLM sees the whole picture
+            schema_lines = []
+            for c in slot_cols:
+                if c.fill_type == "structured":
+                    status = "✅ 系统已提取"
+                else:
+                    status = "📝 你需要生成"
+                schema_lines.append(f"  {c.key} | {c.label} | {c.type} | {status}")
+            schema_block = (
+                f"## 表格完整结构\n"
+                f"章节：{task.get('chapter_title', '')} ({chapter_code})\n"
+                f"表格类型：{chapter_type}\n\n"
+                f"| 列key | 列标题 | 类型 | 状态 |\n"
+                f"|-------|--------|------|------|\n"
+                + "\n".join(schema_lines) + "\n\n"
+                f"你只需要生成标记为「📝 你需要生成」的列。不要生成标记为「✅ 系统已提取」的列。\n"
+            )
+
             row_hint = ""
             if struct_row_count > 0:
                 row_hint = f"参考文档中共有 {struct_row_count} 道工序/条目，请为每道工序/条目都生成内容。\n"
@@ -868,6 +886,7 @@ class WritingAgent(BaseAgent):
             system_msg = (
                 "你是一位专业的航天工艺文件编写助手。你的任务是为指定的表格位置生成内容。\n"
                 "这是生成系统，不是摘抄系统——参考文档仅用于了解格式和术语，不要照搬原文。\n\n"
+                f"{schema_block}\n"
                 f"章节代码：{chapter_code}\n"
                 f"章节标题：{task.get('chapter_title', '')}\n"
                 f"表格类型：{chapter_type}\n"
@@ -882,9 +901,10 @@ class WritingAgent(BaseAgent):
                 "  · 签名栏及人名（编制/校对/审核/标检/批准，以及具体人名）\n"
                 "  · 日期戳（如 20240828）\n"
                 "  · 页码、页数、更改单号\n"
-                "  · 续表标记（如'XX(续)'）\n"
+                "  · 续表标记（如'XX(续)'、'XX序'）\n"
                 "  · 表头文字（如'产品工号'、'车间'、'准结'出现在数据字段中）\n"
                 "  · 产品型号/图号作为占位符出现在非对应字段中\n"
+                "  · 其他章节的标题（如'工艺过程卡'不应出现在目录中）\n"
             )
             if ai_guidance:
                 system_msg += f"\n指导：{ai_guidance}\n"
