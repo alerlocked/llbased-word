@@ -295,8 +295,8 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
             ))
           )}
 
-          {/* Signature row */}
-          <SignatureRow totalCols={getTotalCols(layout)} />
+          {/* Signature row (编制/校对/审核/批准) omitted in editor —
+              rendered only at PDF export time. Saves vertical space. */}
         </tbody>
       </table>
 
@@ -343,11 +343,6 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
       )}
     </div>
   )
-}
-
-/** Calculate total physical columns from layout */
-function getTotalCols(layout: { titleRow0: { colspan?: number }[] }): number {
-  return layout.titleRow0.reduce((sum, cell) => sum + (cell.colspan || 1), 0)
 }
 
 /** Cell-level merge / split button shown on hover. */
@@ -397,19 +392,6 @@ const CellMergeButton: React.FC<{
   }
   return <Tooltip title="与下方单元格合并">{btn}</Tooltip>
 }
-
-/** Signature row at bottom of every table */
-const SignatureRow: React.FC<{ totalCols: number }> = ({ totalCols }) => (
-  <tr>
-    <td colSpan={totalCols} style={{ ...cellStyle, borderTop: '2px solid #333', padding: '6px 12px', fontSize: 12 }}>
-      <span style={{ marginRight: 24 }}>编制:________</span>
-      <span style={{ marginRight: 24 }}>审核:________</span>
-      <span style={{ marginRight: 24 }}>校对:________</span>
-      <span style={{ marginRight: 24 }}>标检:________</span>
-      <span>批准:________</span>
-    </td>
-  </tr>
-)
 
 /** Fallback: auto-generate table from data row keys */
 const FallbackTable: React.FC<{
