@@ -23,16 +23,20 @@ _NOISE_PATTERNS: List[re.Pattern] = [
     # Page / change markers
     re.compile(r"^(页数|页码|更改单号|共\d+页|第\d+页)[：:]?\s*$"),
     re.compile(r"^共\s*\d+\s*页"),  # "共X页" variants
-    # Continuation markers — with and without parentheses
+    # Continuation markers — table title + 续/序, with or without parens,
+    # optionally followed by a page index (e.g. "配套明细表(续)1").
+    # 配套明细表(续) is a PEER continuation page, never a data value.
+    re.compile(
+        r"^(?:配套明细表|工艺过程卡|装配工艺卡片|工艺文件目录|引用文件目录"
+        r"|专用工艺装备明细表|主要材料消耗|辅助材料消耗|工艺规程)"
+        r"\s*[（(]?\s*[续序]\s*[)）]?\s*\d*\s*$"
+    ),
     re.compile(r".*[\(（]续[\)）]\s*$"),
-    re.compile(r".*(?:明细表|过程卡|工艺卡片|文件目录|工艺规程)(?:续|序)\s*$"),
     # Section / table titles appearing as data values
     re.compile(
         r"^(?:工艺过程卡|配套明细表|装配工艺卡片|工艺文件目录|引用文件目录"
         r"|专用工艺装备明细表|主要材料消耗|辅助材料消耗|专用工具|封面)\s*$"
     ),
-    # Product codes in wrong context (standalone, not in part_code field)
-    re.compile(r"^(小产品|KA0-\d+-KZD)$"),
     # Signature lines
     re.compile(r"^[编制校对审核标检批准：:]+[_\s]*$"),
     # Standalone "M.2" or similar version markers
