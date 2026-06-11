@@ -419,13 +419,26 @@ const FallbackTable: React.FC<{
   const rows = section.rows || []
   const keys =
     rows.length > 0 ? Object.keys(rows[0]) : section.column_keys || []
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+
+  const addRowBelow = (rowIndex: number) => {
+    const next = [...rows]
+    if (next.length === 0) next.push(emptyRow(keys))
+    next.splice(rowIndex + 1, 0, emptyRow(keys))
+    onChange({ ...section, rows: next })
+  }
+  const deleteRow = (rowIndex: number) => {
+    const next = [...rows]
+    next.splice(rowIndex, 1)
+    onChange({ ...section, rows: next })
+  }
 
   if (keys.length === 0) {
     return <div style={{ color: '#888', padding: 12 }}>暂无数据</div>
   }
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ overflowX: 'auto', position: 'relative' }}>
       <table
         style={{
           width: '100%',
@@ -442,22 +455,85 @@ const FallbackTable: React.FC<{
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, ri) => (
-            <tr key={ri}>
+          {rows.length === 0 ? (
+            <tr
+              onMouseEnter={() => setHoveredRow(-1)}
+              onMouseLeave={() => setHoveredRow(null)}
+            >
               {keys.map((key, ci) => (
                 <td
                   key={ci}
                   contentEditable
                   suppressContentEditableWarning
-                  style={cellStyle}
-                >
-                  {String(row[key] ?? '')}
-                </td>
+                  style={{ ...cellStyle, color: '#bbb' }}
+                />
               ))}
             </tr>
-          ))}
+          ) : (
+            rows.map((row, ri) => (
+              <tr
+                key={ri}
+                onMouseEnter={() => setHoveredRow(ri)}
+                onMouseLeave={() => setHoveredRow(null)}
+              >
+                {keys.map((key, ci) => (
+                  <td
+                    key={ci}
+                    contentEditable
+                    suppressContentEditableWarning
+                    style={cellStyle}
+                  >
+                    {String(row[key] ?? '')}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
+
+      {/* Hover row toolbar */}
+      {hoveredRow !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'unset',
+            bottom: 4,
+            right: 4,
+            display: 'flex',
+            gap: 2,
+            background: 'rgba(255,255,255,0.95)',
+            border: '1px solid #d9d9d9',
+            borderRadius: 4,
+            padding: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+            zIndex: 10,
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onMouseEnter={() => setHoveredRow(hoveredRow)}
+          onMouseLeave={() => setHoveredRow(null)}
+        >
+          <Tooltip title="在下方加一行">
+            <Button
+              size="small"
+              type="text"
+              icon={<PlusOutlined />}
+              onClick={() => addRowBelow(hoveredRow < 0 ? -1 : hoveredRow)}
+            />
+          </Tooltip>
+          {hoveredRow >= 0 && (
+            <Tooltip title="删除此行">
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => deleteRow(hoveredRow)}
+              />
+          </Tooltip>
+          )}
+        </div>
+      )}
     </div>
   )
 }
