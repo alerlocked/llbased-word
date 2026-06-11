@@ -5,10 +5,25 @@
  * with grouped headers (colspan/rowspan) matching the actual document format.
  * Each table includes: title area, countersign column, info rows, column headers, data cells.
  */
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { Button, Tooltip } from 'antd'
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  ColumnHeightOutlined,
+  BorderInnerOutlined,
+} from '@ant-design/icons'
 import type { CellMerge, TemplateSection } from '../../types/template'
 import { getLayout } from './processDocumentLayouts'
-import { cellStateFor } from './mergeUtils'
+import {
+  cellStateFor,
+  emptyRow,
+  findMergeAt,
+  mergeDown,
+  removeRowFromMerges,
+  shiftMerges,
+  splitMerge,
+} from './mergeUtils'
 
 interface Props {
   section: TemplateSection
@@ -90,9 +105,36 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
   }, [section, onChange, layout])
 
   const { titleRow0, titleRow1, infoRows, headerRows, dataColumns } = layout
+  const colKeys = dataColumns.map((c) => c.key)
+
+  // --- Row / merge operations (data-driven, then onChange) ---
+  const addRowBelow = (rowIndex: number) => {
+    const rows = [...(section.rows || [])]
+    // If table was empty (placeholder row), replace with one real row
+    if (rows.length === 0) {
+      rows.push(emptyRow(colKeys))
+    }
+    rows.splice(rowIndex + 1, 0, emptyRow(colKeys))
+    const merges = shiftMerges(section.merges, rowIndex + 1, +1)
+    onChange({ ...section, rows, merges })
+  }
+
+  const deleteRow = (rowIndex: number) => {
+    const rows = [...(section.rows || [])]
+    if (rows.length <= rowIndex) return
+    rows.splice(rowIndex, 1)
+    const merges = removeRowFromMerges(section.merges, rowIndex)
+    onChange({ ...section, rows, merges })
+  }
+
+  // --- Hover state ---
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  const [rowTop, setRowTop] = useState(0)
+  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: string } | null>(null)
 
   return (
-    <div style={{ width: '100%', overflowX: 'auto' }}>
+    <div ref={containerRef} style={{ width: '100%', overflowX: 'auto', position: 'relative' }}>
       <table
         ref={tableRef}
         style={{
@@ -182,7 +224,13 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
 
           {/* Data rows */}
           {rows.length === 0 ? (
-            <tr>
+            <tr
+              onMouseEnter={(e) => {
+                setHoveredRow(-1)
+                setRowTop(e.currentTarget.offsetTop)
+              }}
+              onMouseLeave={() => setHoveredRow(null)}
+            >
               {dataColumns.map((col, ci) => (
                 <td
                   key={ci}
@@ -198,7 +246,15 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
             </tr>
           ) : (
             rows.map((row, ri) => (
-              <tr key={ri} data-row-index={ri}>
+              <tr
+                key={ri}
+                data-row-index={ri}
+                onMouseEnter={(e) => {
+                  setHoveredRow(ri)
+                  setRowTop(e.currentTarget.offsetTop)
+                }}
+                onMouseLeave={() => setHoveredRow(null)}
+              >
                 {dataColumns.map((col, ci) => {
                   const state = cellStateFor(section.merges, col.key, ri)
                   // Swallowed by a merge above — render nothing
@@ -211,15 +267,27 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
                       rowSpan={state.kind === 'merge-start' ? state.rowSpan : undefined}
                       contentEditable
                       suppressContentEditableWarning
+                      onMouseEnter={() => setHoveredCell({ row: ri, col: col.key })}
+                      onMouseLeave={() => setHoveredCell(null)}
                       style={{
                         ...cellStyle,
                         backgroundColor: isAI ? '#e6f4ff' : undefined,
                         verticalAlign: 'top',
                         whiteSpace: 'pre-wrap',
+                        position: 'relative',
                       }}
                       title={isAI ? 'AI 生成内容' : undefined}
                     >
                       {String(row[col.key] ?? '')}
+                      {hoveredCell?.row === ri && hoveredCell?.col === col.key && (
+                        <CellMergeButton
+                          section={section}
+                          colKey={col.key}
+                          rowIndex={ri}
+                          rowCount={rows.length}
+                          onChange={onChange}
+                        />
+                      )}
                     </td>
                   )
                 })}
@@ -231,6 +299,48 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
           <SignatureRow totalCols={getTotalCols(layout)} />
         </tbody>
       </table>
+
+      {/* Row-level hover toolbar: add / delete row */}
+      {hoveredRow !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            top: rowTop,
+            right: 4,
+            display: 'flex',
+            gap: 2,
+            background: 'rgba(255,255,255,0.95)',
+            border: '1px solid #d9d9d9',
+            borderRadius: 4,
+            padding: 2,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+            zIndex: 10,
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onMouseEnter={() => setHoveredRow(hoveredRow)}
+          onMouseLeave={() => setHoveredRow(null)}
+        >
+          <Tooltip title="在下方加一行">
+            <Button
+              size="small"
+              type="text"
+              icon={<PlusOutlined />}
+              onClick={() => addRowBelow(hoveredRow < 0 ? -1 : hoveredRow)}
+            />
+          </Tooltip>
+          {hoveredRow >= 0 && (
+            <Tooltip title="删除此行">
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => deleteRow(hoveredRow)}
+              />
+            </Tooltip>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -238,6 +348,54 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
 /** Calculate total physical columns from layout */
 function getTotalCols(layout: { titleRow0: { colspan?: number }[] }): number {
   return layout.titleRow0.reduce((sum, cell) => sum + (cell.colspan || 1), 0)
+}
+
+/** Cell-level merge / split button shown on hover. */
+const CellMergeButton: React.FC<{
+  section: TemplateSection
+  colKey: string
+  rowIndex: number
+  rowCount: number
+  onChange: (s: TemplateSection) => void
+}> = ({ section, colKey, rowIndex, rowCount, onChange }) => {
+  const existing = findMergeAt(section.merges, colKey, rowIndex)
+  const atBottom = rowIndex >= rowCount - 1
+  const isMergeStart = existing && existing.startRow === rowIndex
+  const mergeFull = isMergeStart && existing!.span >= rowCount - existing!.startRow
+
+  const btn = (
+    <Button
+      size="small"
+      type="text"
+      icon={
+        isMergeStart ? <BorderInnerOutlined /> : <ColumnHeightOutlined />
+      }
+      style={{
+        position: 'absolute',
+        top: 1,
+        right: 1,
+        padding: '0 4px',
+        height: 18,
+        fontSize: 12,
+        background: 'rgba(255,255,255,0.9)',
+      }}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        if (isMergeStart) {
+          onChange(splitMerge(section, colKey, rowIndex))
+        } else if (!atBottom && !mergeFull) {
+          onChange(mergeDown(section, colKey, rowIndex, rowCount))
+        }
+      }}
+    />
+  )
+  if (isMergeStart) {
+    return <Tooltip title="拆分合并">{btn}</Tooltip>
+  }
+  if (atBottom) {
+    return <Tooltip title="已是最后一行，无法向下合并">{btn}</Tooltip>
+  }
+  return <Tooltip title="与下方单元格合并">{btn}</Tooltip>
 }
 
 /** Signature row at bottom of every table */
