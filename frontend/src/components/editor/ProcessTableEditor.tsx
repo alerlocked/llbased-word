@@ -6,8 +6,9 @@
  * Each table includes: title area, countersign column, info rows, column headers, data cells.
  */
 import { useCallback, useRef } from 'react'
-import type { TemplateSection } from '../../types/template'
+import type { CellMerge, TemplateSection } from '../../types/template'
 import { getLayout } from './processDocumentLayouts'
+import { cellStateFor } from './mergeUtils'
 
 interface Props {
   section: TemplateSection
@@ -79,7 +80,12 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
   const handleBlur = useCallback(() => {
     if (!tableRef.current) return
     const keys = layout.dataColumns.map((c) => c.key)
-    const newRows = parseTableToRows(tableRef.current, keys)
+    const newRows = parseTableToRows(
+      tableRef.current,
+      keys,
+      layout.dataColumns,
+      section.merges,
+    )
     onChange({ ...section, rows: newRows })
   }, [section, onChange, layout])
 
@@ -192,19 +198,24 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
             </tr>
           ) : (
             rows.map((row, ri) => (
-              <tr key={ri}>
+              <tr key={ri} data-row-index={ri}>
                 {dataColumns.map((col, ci) => {
+                  const state = cellStateFor(section.merges, col.key, ri)
+                  // Swallowed by a merge above — render nothing
+                  if (state.kind === 'merged-out') return null
                   const isAI = aiKeys.has(col.key)
                   return (
                     <td
                       key={ci}
                       colSpan={col.colspan}
+                      rowSpan={state.kind === 'merge-start' ? state.rowSpan : undefined}
                       contentEditable
                       suppressContentEditableWarning
                       style={{
                         ...cellStyle,
                         backgroundColor: isAI ? '#e6f4ff' : undefined,
                         verticalAlign: 'top',
+                        whiteSpace: 'pre-wrap',
                       }}
                       title={isAI ? 'AI 生成内容' : undefined}
                     >
@@ -338,13 +349,21 @@ const FlowChartEditor: React.FC<{
   )
 }
 
-/** Parse HTML table rows back into data arrays */
+/** Parse HTML table rows back into data arrays.
+ *
+ * `dataColumns` and `merges` mirror the render logic so that merged-out
+ * cells (rendered as nothing) are read as empty strings and the DOM cell
+ * index (`domIdx`) stays aligned with the rendered `<td>` sequence.
+ */
 function parseTableToRows(
   table: HTMLTableElement,
   keys: string[],
+  dataColumns: Array<{ key: string }>,
+  merges?: Record<string, CellMerge[]>,
 ): Array<Record<string, unknown>> {
   const rows: Array<Record<string, unknown>> = []
   const trs = table.querySelectorAll('tbody tr')
+  let rowIndex = 0
   trs.forEach((tr) => {
     const cells = tr.querySelectorAll('td')
     // Only collect actual data rows: rows whose cells are contenteditable.
@@ -354,13 +373,20 @@ function parseTableToRows(
       (c) => c.getAttribute('contenteditable') !== null,
     )
     if (!hasContentEditable) return
+
     const row: Record<string, unknown> = {}
-    let colIdx = 0
-    keys.forEach((key) => {
-      row[key] = cells[colIdx]?.textContent?.trim() || ''
-      colIdx++
+    let domIdx = 0
+    dataColumns.forEach((col) => {
+      const state = cellStateFor(merges, col.key, rowIndex)
+      if (state.kind === 'merged-out') {
+        row[col.key] = '' // swallowed cell
+      } else {
+        row[col.key] = cells[domIdx]?.textContent?.trim() || ''
+        domIdx++
+      }
     })
     rows.push(row)
+    rowIndex++
   })
   return rows
 }
