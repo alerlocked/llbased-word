@@ -345,14 +345,15 @@ function parseTableToRows(
 ): Array<Record<string, unknown>> {
   const rows: Array<Record<string, unknown>> = []
   const trs = table.querySelectorAll('tbody tr')
-  let dataStarted = false
   trs.forEach((tr) => {
     const cells = tr.querySelectorAll('td')
-    if (!dataStarted) {
-      const hasContentEditable = Array.from(cells).some(c => c.getAttribute('contenteditable') !== null)
-      if (!hasContentEditable) return
-      dataStarted = true
-    }
+    // Only collect actual data rows: rows whose cells are contenteditable.
+    // This skips title rows, info rows, header rows (th), and the signature row,
+    // all of which come before/after data rows but must not be parsed as data.
+    const hasContentEditable = Array.from(cells).some(
+      (c) => c.getAttribute('contenteditable') !== null,
+    )
+    if (!hasContentEditable) return
     const row: Record<string, unknown> = {}
     let colIdx = 0
     keys.forEach((key) => {
