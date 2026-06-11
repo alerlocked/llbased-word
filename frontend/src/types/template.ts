@@ -79,8 +79,21 @@ export interface TemplateSection {
     structured: string[]
     unstructured: string[]
   }
+  /**
+   * Vertical cell merges: key = column key, value = merge ranges
+   * (ascending, non-overlapping) within the data rows.
+   */
+  merges?: Record<string, CellMerge[]>
   review_passed: boolean
   source: string
+}
+
+/** A vertical cell merge range within a single column. */
+export interface CellMerge {
+  /** First row index of the merge (0-based, within data rows). */
+  startRow: number
+  /** Number of rows spanned, including the start row (>= 2). */
+  span: number
 }
 
 /** Full content.json v3 response from backend */
