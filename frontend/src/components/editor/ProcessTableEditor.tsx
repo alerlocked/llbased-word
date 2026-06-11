@@ -469,14 +469,38 @@ const FlowChartEditor: React.FC<{
 }> = ({ section, onChange }) => {
   const steps = section.flow_steps || []
 
+  const addStep = (idx: number) => {
+    const next = [...steps]
+    next.splice(idx + 1, 0, '新步骤')
+    onChange({ ...section, flow_steps: next })
+  }
+  const deleteStep = (idx: number) => {
+    const next = [...steps]
+    next.splice(idx, 1)
+    onChange({ ...section, flow_steps: next })
+  }
+
   if (steps.length === 0) {
-    return <div style={{ color: '#888', padding: 12 }}>流程步骤暂无数据</div>
+    return (
+      <div style={{ color: '#888', padding: 12 }}>
+        流程步骤暂无数据
+        <Tooltip title="添加第一个步骤">
+          <Button
+            size="small"
+            type="text"
+            icon={<PlusOutlined />}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => addStep(-1)}
+          />
+        </Tooltip>
+      </div>
+    )
   }
 
   return (
     <ol style={{ paddingLeft: 20 }}>
       {steps.map((step, idx) => (
-        <li key={idx} style={{ marginBottom: 6 }}>
+        <li key={idx} style={{ marginBottom: 6, position: 'relative' }}>
           <span
             contentEditable
             suppressContentEditableWarning
@@ -500,6 +524,28 @@ const FlowChartEditor: React.FC<{
             }}
           >
             {step}
+          </span>
+          <span
+            style={{ marginLeft: 8, display: 'inline-flex', gap: 2 }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <Tooltip title="在下方加一步">
+              <Button
+                size="small"
+                type="text"
+                icon={<PlusOutlined />}
+                onClick={() => addStep(idx)}
+              />
+            </Tooltip>
+            <Tooltip title="删除此步">
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => deleteStep(idx)}
+              />
+            </Tooltip>
           </span>
         </li>
       ))}
