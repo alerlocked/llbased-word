@@ -239,6 +239,13 @@ async def delete_project(
         db.delete(project)
         db.commit()
 
+        # Invalidate retrieval cache so deleted materials drop from search
+        try:
+            from app.services.hierarchical_context import hierarchical_context
+            hierarchical_context.invalidate_cache()
+        except Exception as e:
+            logger.warning("invalidate_cache_failed", error=str(e))
+
         # 6. Clean project-specific filesystem dirs
         for subdir in ["documents", "uploads"]:
             proj_dir = Path(settings.DATA_DIR) / subdir / str(project_id)
@@ -718,6 +725,13 @@ async def delete_material(
         # Remove material record
         db.delete(material)
         db.commit()
+
+        # Invalidate retrieval cache so deleted material drops from search
+        try:
+            from app.services.hierarchical_context import hierarchical_context
+            hierarchical_context.invalidate_cache()
+        except Exception as e:
+            logger.warning("invalidate_cache_failed", error=str(e))
 
         logger.info(f"✅ 已删除素材{material_id}")
         return {"message": "删除成功"}

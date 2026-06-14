@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
 import json
 import re
+import time
 from bs4 import BeautifulSoup
 from app.shared.logging import get_logger
 logger = get_logger(__name__)
@@ -35,6 +36,13 @@ def extract_keywords(text: str) -> Set[str]:
         chinese_words = set(re.findall(r'[\u4e00-\u9fff]{2,}', text))
         english_words = set(re.findall(r'[a-zA-Z]{2,}', text.lower()))
         return chinese_words | english_words
+
+
+# Audit/signature markers found in source process docs (every page has a
+# 会签 block with 审核/批准/校对/签名/更改单号). These are company review
+# workflow, NOT process content — filtered out when converting source HTML
+# so the LLM never sees them and cannot copy them into generated output.
+_AUDIT_MARKERS = ("会签", "审核", "批准", "校对", "签名", "更改单号")
 
 
 class TableMatch:
@@ -80,6 +88,12 @@ class HierarchicalContext:
             "documents": [],
         }
 
+        # Documents list cache (mirrors materials table; TTL-based to avoid
+        # opening a DB session on every call within one build_context chain)
+        self._documents_cache: Optional[List[Dict[str, Any]]] = None
+        self._documents_cache_ts: float = 0.0
+        self._documents_cache_ttl: float = 30.0
+
         # Layer 4: initialize memory service
         try:
             from app.config import settings
@@ -99,33 +113,95 @@ class HierarchicalContext:
             "document_count": 0,
             "documents": [],
         }
+        self._documents_cache = None
+        self._documents_cache_ts = 0.0
         logger.info("[上下文] 缓存已清除")
         
     def _get_all_documents(self) -> List[Dict[str, Any]]:
-        """获取所有文档的 index.json"""
-        documents = []
+        """Get all available documents.
 
-        if not self.data_dir.exists():
-            return documents
+        Data source = materials table (素材库). Each Material maps to
+        documents/{material_id}/, indexed by chapter_index.json + content.html.
+        Falls back to scanning index.json so legacy/DB-less environments and
+        existing tests still work.
+        """
+        # TTL cache: avoid re-querying DB on every call within one
+        # build_context / get_material_status chain.
+        if self._documents_cache is not None and \
+                (time.time() - self._documents_cache_ts) < self._documents_cache_ttl:
+            return self._documents_cache
 
-        for doc_dir in self.data_dir.iterdir():
-            if not doc_dir.is_dir():
-                continue
+        documents: List[Dict[str, Any]] = []
+        seen_dirs: Set[str] = set()
 
-            index_path = doc_dir / "index.json"
-            if not index_path.exists():
-                continue
-
+        # Primary path: materials table (source of truth for 素材库)
+        try:
+            from app.database import SessionLocal
+            from app.models.database import Material
+            db = SessionLocal()
             try:
-                with open(index_path, "r", encoding="utf-8") as f:
-                    index_data = json.load(f)
-                    index_data["_doc_dir"] = doc_dir.name
-                    documents.append(index_data)
-            except Exception as e:
-                logger.error(f"[上下文] 读取 index.json 失败: {index_path}, {e}")
+                materials = db.query(Material).order_by(
+                    Material.created_at.desc()
+                ).all()
+                for m in materials:
+                    doc_dir_name = str(m.id)
+                    doc_dir = self.data_dir / doc_dir_name
+                    if not doc_dir.exists():
+                        continue  # DB row exists but files removed → skip
+                    documents.append(self._build_doc_dict(doc_dir_name, m.name))
+                    seen_dirs.add(doc_dir_name)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"[上下文] materials 查询失败，回退文件扫描: {e}")
 
+        # Fallback path: scan index.json (legacy/standard docs, DB-less envs)
+        if self.data_dir.exists():
+            for doc_dir in self.data_dir.iterdir():
+                if not doc_dir.is_dir() or doc_dir.name in seen_dirs:
+                    continue
+                index_path = doc_dir / "index.json"
+                if not index_path.exists():
+                    continue
+                try:
+                    with open(index_path, "r", encoding="utf-8") as f:
+                        index_data = json.load(f)
+                        index_data["_doc_dir"] = doc_dir.name
+                        documents.append(index_data)
+                        seen_dirs.add(doc_dir.name)
+                except Exception as e:
+                    logger.error(f"[上下文] 读取 index.json 失败: {index_path}, {e}")
+
+        self._documents_cache = documents
+        self._documents_cache_ts = time.time()
         logger.info(f"[上下文] 找到 {len(documents)} 个文档")
         return documents
+
+    def _build_doc_dict(self, doc_dir_name: str, name: str) -> Dict[str, Any]:
+        """Build a doc dict for a materials-table document.
+
+        Mirrors the index.json shape consumed by downstream layers
+        (name/pages/tables/materials/_doc_dir). tables/materials are empty for
+        uploaded docs (chapter_index.json has no such fields); the L1/L2 table
+        layers degrade gracefully and the generation path does not use them.
+        """
+        doc_dir = self.data_dir / doc_dir_name
+        pages = 0
+        chapter_path = doc_dir / "chapter_index.json"
+        if chapter_path.exists():
+            try:
+                with open(chapter_path, "r", encoding="utf-8") as f:
+                    ch = json.load(f)
+                    pages = ch.get("total_pages", 0) or 0
+            except Exception as e:
+                logger.warning(f"[上下文] 读取 chapter_index.json 失败: {chapter_path}, {e}")
+        return {
+            "name": name,
+            "pages": pages,
+            "tables": [],
+            "materials": [],
+            "_doc_dir": doc_dir_name,
+        }
     
     def load_meta_index(self, force_reload: bool = False) -> str:
         """加载 Layer 0: 元信息索引
@@ -867,6 +943,13 @@ class HierarchicalContext:
         Returns:
             Material status dict
         """
+        # Ensure material status is populated. The generation path calls
+        # get_material_status directly (not via build_context), so we must
+        # trigger load_meta_index which fills _material_status from the
+        # documents list (materials table).
+        if self._meta_cache is None:
+            self.load_meta_index()
+
         status = dict(self._material_status)
         status["search_performed"] = self._meta_cache is not None
 
@@ -1122,6 +1205,25 @@ class HierarchicalContext:
             if any(c for c in cells):
                 rows.append(cells)
 
+        # Drop audit/signature rows (company review workflow, not process
+        # content). Filtered here so the LLM never receives 会签/审核/批准/
+        # 校对/签名/更改单号 from the source docs.
+        # Scrub audit/signature cells in-place (会签/审核/批准/校对/签名/
+        # 更改单号 → empty) while preserving process content in the same
+        # row. A whole-row drop would lose step names that share a row with
+        # a 会签 label (e.g. G19a "会签 | 装前准备 | 安装密封圈2 | ...").
+        def _scrub_audit(cell: str) -> str:
+            compact = re.sub(r"\s", "", cell)
+            return "" if any(m in compact for m in _AUDIT_MARKERS) else cell
+
+        rows = [[_scrub_audit(c) for c in r] for r in rows]
+        # Drop signature/footer rows: rows containing a long digit run
+        # (dates like 20240828, audit stamps, page numbers). Process/step
+        # rows never contain 6+ consecutive digits, so this safely removes
+        # 编制/标检/审核/签名 + 人名 + 日期 footer without touching steps.
+        rows = [r for r in rows if not re.search(r"\d{6,}", "".join(r))]
+        rows = [r for r in rows if any(c for c in r)]
+
         if not rows:
             return ""
 
@@ -1187,6 +1289,127 @@ class HierarchicalContext:
                 idx["_doc_dir"] = doc_dir_name
                 results.append(idx)
         return results
+
+    def extract_process_steps(self, doc_dir_name: str = None, text: str = None) -> List[str]:
+        """Extract process step names from a doc's 工艺流程图 (G19a) chapter.
+
+        Reads the cleaned chapter text (audit/footer already scrubbed by
+        _table_to_markdown) and pulls step names from the table. This is
+        the source of truth for the process skeleton — downstream chapters
+        (G22a/G25a) align to it instead of LLM-fabricated steps.
+
+        Args:
+            doc_dir_name: document dir (e.g. "1") — fetches the 工艺流程图
+                chapter if text is not given.
+            text: pre-fetched chapter text (skips the lookup).
+
+        Returns:
+            Ordered list of step names.
+        """
+        if text is None and doc_dir_name:
+            text = self.get_chapter_content(doc_dir_name, "工艺流程图")
+        if not text:
+            return []
+        header_words = {
+            "产品工号", "工艺流程图", "产品数字", "工艺文件编号",
+            "零、部、组(整)件代号", "零、部、组(整)件名称", "小产品", "---",
+        }
+        steps: List[str] = []
+        for line in text.split("\n"):
+            if "|" not in line:
+                continue
+            for cell in (c.strip() for c in line.split("|")):
+                if not cell or cell in header_words:
+                    continue
+                # codes/numbers: KA0-0-KZD, 2080, S2
+                if re.match(r"^[A-Za-z0-9\-\. ]+$", cell):
+                    continue
+                # short chinese (<=3 chars): 小产品 etc.
+                if re.match(r"^[一-鿿]{1,3}$", cell):
+                    continue
+                if len(cell) >= 3 and re.search(r"[一-鿿]", cell):
+                    steps.append(cell)
+        return steps
+
+    def extract_assembly_steps(self, doc_dir_name: str) -> Dict[int, Dict[str, Any]]:
+        """Extract per-step substeps (操作/材料/设备) from 装配工艺卡片 (G25a).
+
+        G25a is the detailed per-step card. Reads the FULL chapter with a
+        large token budget — G25a spans ~30 pages and exceeds the default
+        12k truncation, which would drop later steps (6-10). Groups
+        substeps by step number so downstream generation aligns to the
+        skeleton instead of LLM-fabricating step content.
+
+        Returns:
+            {step_no: {"name": str, "substeps": [{"content","material"}]}}
+        """
+        idx = self.load_chapter_index(doc_dir_name)
+        if not idx:
+            return {}
+        g25a = next(
+            (c for c in idx.get("chapters", []) if "装配" in c.get("title", "")),
+            None,
+        )
+        if not g25a or not g25a.get("pages"):
+            return {}
+        pages = g25a["pages"]
+        # Large budget: G25a is ~33k chars across 30 pages.
+        text = self.get_pages_content(
+            doc_dir_name, pages[0], pages[-1], max_tokens=60000
+        )
+        if not text:
+            return {}
+
+        # Column keys recognized in the table header row. The header gives
+        # the authoritative column→cell-index mapping per page block, so we
+        # read content/material/instruments by column name (robust to
+        # colspan shifts between first page and continuation pages) instead
+        # of guessing by cell position.
+        col_keys = {
+            "车间": "workshop", "工序号": "step_no", "工序名称": "step_name",
+            "工序内容": "content", "辅助材料": "material", "专用仪器": "instruments",
+        }
+        steps: Dict[int, Dict[str, Any]] = {}
+        header: Dict[str, int] = {}  # column name -> cell index
+        cur_no = None
+
+        def _col(cells: List[str], name: str) -> str:
+            i = header.get(name)
+            return cells[i] if i is not None and i < len(cells) else ""
+
+        for line in text.split("\n"):
+            if "|" not in line:
+                continue
+            cells = [c.strip() for c in line.split("|")]
+            # Header row: contains 车间 + 工序号 + 工序内容 → fix column map
+            if "车间" in cells and "工序号" in cells and "工序内容" in cells:
+                header = {}
+                for i, c in enumerate(cells):
+                    for k, v in col_keys.items():
+                        if k in c:
+                            header[v] = i
+                continue
+            if not header:
+                continue
+            # Step header row: workshop + step_no both numeric
+            wk = _col(cells, "workshop")
+            sn = _col(cells, "step_no")
+            if wk and re.match(r"^\d+$", wk) and sn and re.match(r"^\d+$", sn):
+                cur_no = int(sn)
+                name = _col(cells, "step_name") or ""
+                steps.setdefault(cur_no, {"name": name, "substeps": []})
+                if not steps[cur_no]["name"]:
+                    steps[cur_no]["name"] = name
+                continue
+            # Substep row: content starts with N.M
+            content = _col(cells, "content")
+            if cur_no is not None and re.match(r"^\d{1,2}\.\d", content):
+                steps[cur_no]["substeps"].append({
+                    "content": content,
+                    "material": _col(cells, "material"),
+                    "instruments": _col(cells, "instruments"),
+                })
+        return steps
 
 
 # 全局单例

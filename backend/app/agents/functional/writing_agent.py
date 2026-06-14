@@ -839,6 +839,51 @@ class WritingAgent(BaseAgent):
         # Extract inherited context early for prompt injection
         inherited = task.get("inherited_context") or task.get("params", {}).get("inherited_context")
 
+        # --- G25a: source-driven generation (real substeps, no fabrication) ---
+        # The orchestrator injects assembly_steps (per-step substeps extracted
+        # from the source G25a chapter) + skeleton_steps (G19a step names).
+        # We direct-fill structured columns from source and feed the substep
+        # text to the LLM as the single source of truth for content.
+        _assembly = task.get("assembly_steps") or task.get("params", {}).get("assembly_steps")
+        _skeleton = (task.get("skeleton_steps") or task.get("params", {}).get("skeleton_steps")
+                     or (inherited or {}).get("step_names", []))
+        is_g25a_sourced = chapter_code == "G25a" and bool(_assembly)
+        g25a_source_block = ""
+        g25a_skeleton_block = ""
+        if is_g25a_sourced:
+            asm: Dict[int, Dict[str, Any]] = {}
+            for _k, _v in _assembly.items():
+                try:
+                    asm[int(_k)] = _v
+                except (ValueError, TypeError):
+                    continue
+            skel = list(_skeleton) if _skeleton else [asm[k]["name"] for k in sorted(asm)]
+            n = len(skel)
+            # Direct-fill structured columns from source (zero fabrication)
+            structured_values["step_no"] = [str(i + 1) for i in range(n)]
+            structured_values["step_name"] = list(skel)
+            _aux: List[str] = []
+            _instr: List[str] = []
+            _src_lines: List[str] = []
+            for i in range(1, n + 1):
+                name = skel[i - 1] if i - 1 < len(skel) else ""
+                step = asm.get(i)
+                subs = step.get("substeps", []) if step else []
+                mats = sorted({s.get("material", "") for s in subs if s.get("material")})
+                _aux.append("、".join(mats) if mats else "")
+                instrs = sorted({s.get("instruments", "") for s in subs if s.get("instruments")})
+                _instr.append("、".join(instrs) if instrs else "")
+                sub_text = "\n".join(
+                    f"  {s.get('content', '')}" + (f" | 辅材:{s.get('material')}" if s.get("material") else "")
+                    for s in subs
+                )
+                _src_lines.append(f"工序{i}（{name}）：\n{sub_text if sub_text else '  （原文未提供）'}")
+            structured_values["aux_materials"] = _aux
+            structured_values["instruments"] = _instr
+            struct_row_count = n
+            g25a_source_block = "\n".join(_src_lines)
+            g25a_skeleton_block = "\n".join(f"{i + 1}. {nm}" for i, nm in enumerate(skel))
+
         if unstructured_cols:
             slot_desc = ", ".join(
                 f'"{c.key}"({c.label})' for c in unstructured_cols
@@ -930,6 +975,20 @@ class WritingAgent(BaseAgent):
                 "  · 产品型号/图号作为占位符出现在非对应字段中\n"
                 "  · 其他章节的标题（如'工艺过程卡'不应出现在目录中）\n"
             )
+            # G25a: override the generic "don't copy source" prompt — this
+            # chapter must stay faithful to the extracted substep text.
+            if is_g25a_sourced:
+                system_msg += (
+                    "\n\n## G25a 严格原文约束（覆盖以上任何相反指示）\n"
+                    "本装配卡每个工序的内容来自下方【工步原文】。你必须：\n"
+                    "- 工序内容(content)：基于【工步原文】组织工艺方法描述，操作语言可整理通顺，"
+                    "但工具名称、材料牌号、参数数值、公差必须严格来自原文，禁止新增/臆造/替换\n"
+                    "- 车间/工序号/工序名称/辅助材料 已由系统从原文结构化提取，你不要生成这些列\n"
+                    "- 工序行必须与【工序骨架】逐行对应，不得增删\n"
+                    "- 上方关于「不要照搬原文」「用自己的语言组织」的指示对本章不适用——本章必须忠实于工步原文\n\n"
+                    f"## 工序骨架（逐行对应）\n{g25a_skeleton_block}\n\n"
+                    f"## 工步原文（content 的唯一事实来源）\n{g25a_source_block}\n"
+                )
             if ai_guidance:
                 system_msg += f"\n指导：{ai_guidance}\n"
 
@@ -990,6 +1049,50 @@ class WritingAgent(BaseAgent):
                         s.get("row", 0) for s in unstructured_slots
                     )
 
+        # --- Step 3b: Derivation fallback for structured-only list chapters ---
+        # List chapters (清单类: G4a/G5a/G10a/G12a/G14a/B12a) have no
+        # unstructured columns, so they never hit the LLM above. When
+        # structured extraction also yielded nothing, derive rows from
+        # already-generated upstream chapters (G19a/G22a/G25a) instead of
+        # returning an empty table.
+        if (
+            not unstructured_cols
+            and not unstructured_slots
+            and not structured_values
+            and chapter_type in ("single_row_list", "process_card", "dual_list")
+        ):
+            upstream = task.get("upstream_chapters") or task.get("params", {}).get("upstream_chapters")
+            if upstream:
+                derived = await self._derive_list_from_upstream(
+                    chapter_code=chapter_code,
+                    chapter_type=chapter_type,
+                    chapter_title=task.get("chapter_title", ""),
+                    slot_cols=slot_cols,
+                    ai_guidance=ai_guidance,
+                    upstream=upstream,
+                )
+                if derived is not None:
+                    if chapter_type == "dual_list":
+                        parsed = derived
+                    else:
+                        unstructured_slots = derived
+                        if unstructured_slots:
+                            llm_row_count = max(
+                                (s.get("row", 0) for s in unstructured_slots),
+                                default=0,
+                            )
+                    derived_count = (
+                        len(derived) if isinstance(derived, list)
+                        else (len(derived.get("left", [])) + len(derived.get("right", [])))
+                        if isinstance(derived, dict) else 0
+                    )
+                    logger.info(
+                        "list_derived_from_upstream",
+                        chapter_code=chapter_code,
+                        chapter_type=chapter_type,
+                        items=derived_count,
+                    )
+
         # --- Step 4: Merge structured + unstructured ---
         total_rows = max(struct_row_count, llm_row_count, 1)
 
@@ -1001,8 +1104,14 @@ class WritingAgent(BaseAgent):
         merged_rows: List[Dict[str, Any]] = []
         if chapter_type in ("single_row_list", "process_card"):
             if structured_values or unstructured_slots:
+                # key_map: label→key so LLM-returned slot names (which may
+                # be column labels like "工序号") are matched to template
+                # column keys — fills by header name (excel logic), not by
+                # position. Fixes G18a/清单 off-by-one column shifts.
+                _key_map = {c.label: c.key for c in slot_cols}
                 merged_rows = merge_structured_with_unstructured(
-                    structured_values, unstructured_slots, total_rows
+                    structured_values, unstructured_slots, total_rows,
+                    key_map=_key_map,
                 )
             if not structured_values and not unstructured_slots and parsed is not None:
                 merged_rows = parsed if isinstance(parsed, list) else [parsed]
@@ -1101,6 +1210,120 @@ class WritingAgent(BaseAgent):
             "table_type": chapter_type,
             "fill_sources": fill_sources,
         }
+
+    async def _derive_list_from_upstream(
+        self,
+        chapter_code: str,
+        chapter_type: str,
+        chapter_title: str,
+        slot_cols: List["TemplateColumn"],
+        ai_guidance: str,
+        upstream: Dict[str, Any],
+    ) -> Any:
+        """Derive list rows for a structured-only chapter from upstream chapters.
+
+        Used when a list chapter (G4a/G5a/G10a/G12a/G14a/B12a) has no
+        unstructured columns and structured extraction yielded nothing.
+        Feeds already-generated chapters (G19a/G22a/G25a) as source so the
+        LLM can reverse-derive the list (parts <- assembly content, tooling
+        <- equipment column, materials <- aux_materials column).
+
+        Returns:
+            For single_row_list/process_card: list of {row, slot, value}.
+            For dual_list: dict {"left": [...], "right": [...]}.
+            None if derivation yields nothing.
+        """
+        from app.services.llm_service import llm_service
+
+        # Build upstream context text from already-generated chapters
+        upstream_parts = []
+        for code, info in upstream.items():
+            if not isinstance(info, dict):
+                continue
+            title = info.get("title", code)
+            text = info.get("text", "")
+            if text:
+                upstream_parts.append(f"### {title}（{code}）\n{text}")
+        upstream_text = "\n\n".join(upstream_parts)[:8000]
+        if not upstream_text:
+            return None
+
+        # Columns to fill (all ai_filled slots)
+        fill_cols = [c for c in slot_cols if c.ai_filled]
+        if not fill_cols:
+            return None
+        slot_desc = ", ".join(f'"{c.key}"({c.label})' for c in fill_cols)
+
+        if chapter_type == "dual_list":
+            system_msg = (
+                f"你是航天工艺文件编写助手。任务：根据已生成的工艺内容，"
+                f"反推填写「{chapter_title}」（{chapter_code}）的左右双栏清单。\n"
+                f"左栏=专用工具，右栏=专用量具。从上游工序内容里提到的工具与量具"
+                f"中归纳：工具归入 left，量具归入 right。\n"
+                f"需要填的列：{slot_desc}\n"
+                f"指导：{ai_guidance}\n\n"
+                f"输出格式：JSON 对象 {{\"left\": [{{...}}], \"right\": [{{...}}]}}，"
+                f"对象键为列 key。只输出 JSON，不要解释、不要 markdown 代码块。"
+            )
+        else:
+            first_key = fill_cols[0].key
+            system_msg = (
+                f"你是航天工艺文件编写助手。任务：根据已生成的工艺内容，"
+                f"反推填写「{chapter_title}」（{chapter_code}）清单。\n"
+                f"从上游工序内容中归纳出本清单所需条目（零件、设备、材料等），"
+                f"每一条目生成一行，填入指定列。\n"
+                f"需要填的列：{slot_desc}\n"
+                f"指导：{ai_guidance}\n\n"
+                f"输出格式：JSON 数组，每个元素含 row（行号从1开始）、slot（列key）、"
+                f"value（值）。示例：[{{\"row\":1,\"slot\":\"{first_key}\",\"value\":\"...\"}}]。\n"
+                f"只输出 JSON 数组，不要 ```json``` 包裹、不要解释。"
+            )
+
+        if self._writing_preferences:
+            system_msg += self._get_preference_prompt_fragment()
+
+        user_parts = [
+            f"## 已生成的工艺内容（据此反推本清单）\n{upstream_text}",
+            "从上面的工艺内容归纳出本清单的所有条目。"
+            "关键参数（代号、数量、牌号）必须来自上游内容，不要编造。"
+            "排除签名、日期、页码、更改单号等噪声。"
+            "上游确实没有的信息宁可少填，也不要凭空编造。",
+        ]
+
+        result = await llm_service.generate_with_messages(
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": "\n\n".join(user_parts)},
+            ],
+            temperature=0.2,
+            max_tokens=4000,
+            tier="complex",
+        )
+
+        if result["status"] == "error":
+            logger.warning(
+                "derive_list_failed",
+                chapter_code=chapter_code,
+                error=result.get("error"),
+            )
+            return None
+
+        parsed = _parse_llm_json(result["content"].strip())
+
+        if chapter_type == "dual_list":
+            return parsed if isinstance(parsed, dict) else None
+
+        # single_row_list / process_card: expect [{row, slot, value}]
+        if isinstance(parsed, list):
+            if parsed and isinstance(parsed[0], dict) and "slot" in parsed[0] and "row" in parsed[0]:
+                label_to_key = {c.label: c.key for c in fill_cols}
+                for item in parsed:
+                    s = item.get("slot", "")
+                    if s in label_to_key:
+                        item["slot"] = label_to_key[s]
+                return parsed
+            return _legacy_to_slots(parsed, fill_cols)
+        return None
 
     def _looks_complete(self, content: str) -> bool:
         """Check if the generated document looks complete (has closing sections)."""

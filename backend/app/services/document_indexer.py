@@ -75,14 +75,37 @@ class DocumentIndexer:
             logger.warning("content_html_not_found", path=str(html_path))
             return None
 
-        # Read index.json for doc metadata
+        # Read doc metadata: prefer index.json, fall back to materials table
         doc_name = ""
         total_pages = 0
         if index_path.exists():
-            with open(index_path, "r", encoding="utf-8") as f:
-                idx = json.load(f)
-                doc_name = idx.get("name", "")
-                total_pages = idx.get("pages", 0)
+            try:
+                with open(index_path, "r", encoding="utf-8") as f:
+                    idx = json.load(f)
+                    doc_name = idx.get("name", "")
+                    total_pages = idx.get("pages", 0)
+            except Exception as e:
+                logger.warning("index_read_failed", path=str(index_path), error=str(e))
+
+        # DB fallback for uploaded docs (no index.json): look up material name
+        if not doc_name:
+            try:
+                material_id = int(doc_dir_name)
+            except (ValueError, TypeError):
+                material_id = None
+            if material_id is not None:
+                try:
+                    from app.database import SessionLocal
+                    from app.models.database import Material
+                    db = SessionLocal()
+                    try:
+                        mat = db.query(Material).filter(Material.id == material_id).first()
+                        if mat:
+                            doc_name = mat.name or ""
+                    finally:
+                        db.close()
+                except Exception as e:
+                    logger.warning("material_name_lookup_failed", id=doc_dir_name, error=str(e))
 
         # Parse content.html → pages with code detection
         pages_data = self._parse_pages(html_path)

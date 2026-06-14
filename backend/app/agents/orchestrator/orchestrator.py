@@ -2467,6 +2467,45 @@ class ProcessOrchestrator:
                     task["chapter_title"] = title
                     task["ai_guidance"] = tmpl_info.get("ai_guidance", "")
 
+                    # G25a: inject source-extracted assembly steps + skeleton
+                    # at task construction, so it works in BOTH phase mode and
+                    # chapter-parallel mode. Generation then uses real substeps
+                    # (operations/materials/instruments) instead of LLM
+                    # fabrication.
+                    if task.get("chapter_code") == "G25a":
+                        _doc_dir = ""
+                        for mc in self._collected_info.get("missing_chapters", []):
+                            if mc.get("title") == title:
+                                _doc_dir = mc.get("_doc_dir", "")
+                                break
+                        # Fallback: if missing_chapters had no _doc_dir for
+                        # G25a, locate the source doc by scanning chapter
+                        # indexes for the 装配工艺卡片 chapter. Ensures G25a
+                        # always gets real substeps even in fill/补齐 mode.
+                        if not _doc_dir:
+                            try:
+                                from app.services.hierarchical_context import hierarchical_context
+                                for _idx in hierarchical_context.get_all_chapter_indexes():
+                                    if any("装配" in c.get("title", "") for c in _idx.get("chapters", [])):
+                                        _doc_dir = _idx.get("_doc_dir", "")
+                                        if _doc_dir:
+                                            break
+                            except Exception:
+                                pass
+                        if _doc_dir:
+                            try:
+                                from app.services.hierarchical_context import hierarchical_context
+                                _asm = hierarchical_context.extract_assembly_steps(_doc_dir)
+                                if _asm:
+                                    task["params"]["assembly_steps"] = _asm
+                                    task["params"]["skeleton_steps"] = hierarchical_context.extract_process_steps(_doc_dir)
+                                    logger.info(
+                                        "g25a_assembly_steps_injected",
+                                        doc_dir=_doc_dir, step_count=len(_asm),
+                                    )
+                            except Exception as e:
+                                logger.warning("g25a_assembly_steps_failed", error=str(e))
+
                 tasks.append(task)
                 task_keys.append(title)
 
@@ -2487,6 +2526,10 @@ class ProcessOrchestrator:
         from app.services.structured_extractor import parse_flow_steps
 
         phase_outputs: Dict[str, Any] = {}  # output_key -> parsed output
+        # Accumulate each chapter's generated text so downstream list-type
+        # chapters (清单类: G4a/G5a/G10a/G12a/G14a/B12a) can derive content
+        # from already-generated chapters (G19a/G22a/G25a).
+        generated_chapters: Dict[str, Dict[str, str]] = {}
         phases = get_generation_phases(template) if template else []
 
         # Build a mapping: task_key -> task index for phase assignment
@@ -2542,6 +2585,44 @@ class ProcessOrchestrator:
                         chapters=len(phase_task_indices),
                     )
 
+                # G25a: inject structured assembly steps extracted from the
+                # source 装配工艺卡片 chapter, so process_card generation
+                # uses real substeps (operations/materials) instead of
+                # LLM fabrication. G22a is left untouched.
+                for idx in phase_task_indices:
+                    if tasks[idx].get("chapter_code") != "G25a":
+                        continue
+                    title = tasks[idx].get("chapter_title", "")
+                    doc_dir = ""
+                    for mc in self._collected_info.get("missing_chapters", []):
+                        if mc.get("title") == title:
+                            doc_dir = mc.get("_doc_dir", "")
+                            break
+                    if not doc_dir:
+                        logger.warning("g25a_no_doc_dir_fallback", chapter=title)
+                        continue
+                    try:
+                        from app.services.hierarchical_context import hierarchical_context
+                        assembly_steps = hierarchical_context.extract_assembly_steps(doc_dir)
+                        if assembly_steps:
+                            tasks[idx]["params"]["assembly_steps"] = assembly_steps
+                            inherited = tasks[idx].get("inherited_context") or {}
+                            tasks[idx]["params"]["skeleton_steps"] = inherited.get("step_names", [])
+                            logger.info(
+                                "g25a_assembly_steps_injected",
+                                doc_dir=doc_dir,
+                                step_count=len(assembly_steps),
+                            )
+                    except Exception as e:
+                        logger.warning("g25a_assembly_steps_failed", error=str(e))
+
+                # Inject accumulated upstream chapter text so list-type
+                # chapters (清单类) can derive content from earlier chapters.
+                # 工序类 chapters ignore this key; list-type chapters use it.
+                if generated_chapters:
+                    for idx in phase_task_indices:
+                        tasks[idx]["params"]["upstream_chapters"] = generated_chapters
+
                 # Execute this phase's tasks in parallel
                 phase_coros = [self._dispatch_to_sub_agent(tasks[i]) for i in phase_task_indices]
                 phase_results = await asyncio.gather(*phase_coros, return_exceptions=True)
@@ -2552,23 +2633,89 @@ class ProcessOrchestrator:
 
                 # Parse skeleton output for downstream phases
                 if phase.output_key:
-                    for idx in phase_task_indices:
-                        r = results[idx]
-                        if isinstance(r, dict) and r.get("status") == "completed":
-                            inner = r.get("result", {})
-                            if isinstance(inner, dict):
-                                # Extract flow steps from template-fill result
-                                flow_data = inner.get("flow_steps") or inner.get("filled_data")
-                                if flow_data:
-                                    parsed = parse_flow_steps(flow_data)
-                                    phase_outputs[phase.output_key] = parsed
-                                    logger.info(
-                                        "phase_output_captured",
-                                        phase=phase.phase,
-                                        output_key=phase.output_key,
-                                        step_count=parsed["step_count"],
-                                    )
-                                    break
+                    parsed = None
+                    # Prefer extracting the process skeleton from the source
+                    # 工艺流程图 chapter (deterministic) over LLM-generated
+                    # flow_steps. The skeleton must come from source material,
+                    # not be fabricated by the LLM.
+                    if phase.output_key == "process_flow_steps":
+                        src_texts = self._collected_info.get("chapter_source_texts", {})
+                        g19a_text = src_texts.get("工艺流程图", "")
+                        if g19a_text:
+                            from app.services.hierarchical_context import hierarchical_context
+                            src_steps = hierarchical_context.extract_process_steps(text=g19a_text)
+                            if src_steps:
+                                parsed = {
+                                    "step_count": len(src_steps),
+                                    "steps": [
+                                        {"step_no": i + 1, "step_name": s}
+                                        for i, s in enumerate(src_steps)
+                                    ],
+                                }
+                                logger.info(
+                                    "skeleton_from_source",
+                                    phase=phase.phase,
+                                    source_steps=len(src_steps),
+                                )
+                    # Fallback: parse LLM-generated flow_steps
+                    if parsed is None:
+                        for idx in phase_task_indices:
+                            r = results[idx]
+                            if isinstance(r, dict) and r.get("status") == "completed":
+                                inner = r.get("result", {})
+                                if isinstance(inner, dict):
+                                    # writing_agent.process wraps the fill result under "result"
+                                    inner = inner.get("result") if isinstance(inner.get("result"), dict) else inner
+                                    # Extract flow steps from template-fill result
+                                    flow_data = inner.get("flow_steps") or inner.get("filled_data")
+                                    if flow_data:
+                                        parsed = parse_flow_steps(flow_data)
+                                        logger.info(
+                                            "phase_output_captured",
+                                            phase=phase.phase,
+                                            output_key=phase.output_key,
+                                            step_count=parsed["step_count"],
+                                        )
+                                        break
+                    if parsed is not None:
+                        phase_outputs[phase.output_key] = parsed
+
+                # Collect this phase's chapter outputs for downstream derivation
+                for idx in phase_task_indices:
+                    code = tasks[idx].get("chapter_code")
+                    if not code:
+                        continue
+                    r = results[idx]
+                    if not (isinstance(r, dict) and r.get("status") == "completed"):
+                        continue
+                    inner = r.get("result", {})
+                    if not isinstance(inner, dict):
+                        continue
+                    # writing_agent.process wraps the fill result under "result"
+                    inner = inner.get("result") if isinstance(inner.get("result"), dict) else inner
+                    # Convert chapter result to readable text for downstream LLM
+                    text = ""
+                    if inner.get("flow_steps"):
+                        steps = inner["flow_steps"]
+                        if steps and isinstance(steps[0], str):
+                            text = "\n".join(
+                                f"{i+1}. {s}" for i, s in enumerate(steps)
+                            )
+                    if not text and inner.get("filled_data"):
+                        lines = []
+                        for row in inner["filled_data"]:
+                            if isinstance(row, dict):
+                                parts = [f"{k}: {v}" for k, v in row.items() if v]
+                                if parts:
+                                    lines.append(" | ".join(parts))
+                        text = "\n".join(lines)
+                    if not text:
+                        text = inner.get("content", "")
+                    if text:
+                        generated_chapters[code] = {
+                            "title": tasks[idx].get("chapter_title", ""),
+                            "text": text[:3000],
+                        }
         else:
             # No phases defined — execute all in parallel (original behavior)
             coros = [self._dispatch_to_sub_agent(t) for t in tasks]
