@@ -90,5 +90,4 @@ backend/data/
 ## 当前进度
 
 - 35 个 Feature，29 个已完成 (83%)
-- 开放任务：#49 (WASM PDF 预览), #50 (E2E 测试)
-- 已跳过：PDM 集成、Windows 7 兼容、麒麟系统兼容
+- 已跳过：PDM 集成、Windows 7 兼容、麒麟系统兼容、#49 (WASM PDF 预览)、#50 (E2E 测试)

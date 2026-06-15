@@ -102,6 +102,8 @@ def get_fillable_slots(chapter: TemplateChapter) -> List[TemplateColumn]:
     For chapters with ``columns`` (tables), returns ai_filled columns.
     For chapters with ``fields`` (e.g. G19a flow_chart, G1a cover),
     parses raw field dicts into TemplateColumn and returns ai_filled ones.
+    For ``dual_list`` chapters (e.g. B12a), collects ai_filled columns
+    from both ``left_section`` and ``right_section``.
 
     Args:
         chapter: Parsed chapter object.
@@ -109,6 +111,18 @@ def get_fillable_slots(chapter: TemplateChapter) -> List[TemplateColumn]:
     Returns:
         List of columns that should be filled by AI.
     """
+    # dual_list chapters: collect from left/right sections (e.g. B12a tools/gauges)
+    if chapter.table_type == "dual_list":
+        slots: List[TemplateColumn] = []
+        for section in (chapter.left_section, chapter.right_section):
+            if not section:
+                continue
+            for col_dict in section.get("columns", []):
+                col = TemplateColumn.from_dict(col_dict)
+                if col.ai_filled:
+                    slots.append(col)
+        return slots
+
     # Standard table chapters use columns
     if chapter.columns:
         return [col for col in chapter.columns if col.ai_filled]

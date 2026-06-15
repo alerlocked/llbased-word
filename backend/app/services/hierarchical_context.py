@@ -44,6 +44,39 @@ def extract_keywords(text: str) -> Set[str]:
 # so the LLM never sees them and cannot copy them into generated output.
 _AUDIT_MARKERS = ("会签", "审核", "批准", "校对", "签名", "更改单号")
 
+# G25a substep filter. When grouping 工序内容 rows under a step, reject cells
+# that are header residue (续页表头列名) or audit/signature noise. Originally
+# only N.M-prefixed rows were captured, which silently dropped steps whose
+# substeps carry no N.M number (e.g. step 9 → 0 substeps).
+_SUBSTEP_HEADER_WORDS = frozenset({
+    "车间", "工序号", "工序名称", "工序内容", "辅助材料", "专用仪器",
+    "准结", "单件", "总计", "设备", "工艺装备",
+})
+_SUBSTEP_NOISE_MARKERS = (
+    "会签", "审核", "批准", "校对", "签名", "编制", "标检", "更改单号",
+    "日期", "页数", "页码",
+)
+
+# G25a 配套零件清单区. Each step ends with a parts sub-table
+# (代号/名称/编号/数量). Once its header row appears, every row until the
+# next step header belongs to the parts list — not process content — so skip
+# them all to avoid pulling part names/codes into the substep list.
+_PARTS_LIST_MARKERS = (
+    "产品工号", "产品数字", "零、部、组(整)件代号", "交往何处",
+    "单套产品中装配件数量", "本批装配件生产总数",
+)
+
+
+def _is_substep_content(content: str) -> bool:
+    """True if a 工序内容 cell is a real substep, not header residue or noise."""
+    if content in _SUBSTEP_HEADER_WORDS:
+        return False
+    if not content.strip("-–— \t"):  # pure separator row like '---'
+        return False
+    if any(m in content for m in _SUBSTEP_NOISE_MARKERS):
+        return False
+    return True
+
 
 class TableMatch:
     """表格匹配结果"""
@@ -1372,6 +1405,7 @@ class HierarchicalContext:
         steps: Dict[int, Dict[str, Any]] = {}
         header: Dict[str, int] = {}  # column name -> cell index
         cur_no = None
+        in_parts_list = False  # True while inside 配套零件清单 sub-table
 
         def _col(cells: List[str], name: str) -> str:
             i = header.get(name)
@@ -1396,14 +1430,28 @@ class HierarchicalContext:
             sn = _col(cells, "step_no")
             if wk and re.match(r"^\d+$", wk) and sn and re.match(r"^\d+$", sn):
                 cur_no = int(sn)
+                in_parts_list = False  # new step leaves the parts-list region
                 name = _col(cells, "step_name") or ""
                 steps.setdefault(cur_no, {"name": name, "substeps": []})
                 if not steps[cur_no]["name"]:
                     steps[cur_no]["name"] = name
                 continue
-            # Substep row: content starts with N.M
+            # 配套零件清单区: skip every row until the next step header —
+            # those rows are part codes/names/qty, not process content.
+            joined = " ".join(c for c in cells if c)
+            if any(m in joined for m in _PARTS_LIST_MARKERS):
+                in_parts_list = True
+                continue
+            if in_parts_list:
+                continue
+            # Substep row: any non-empty 工序内容 under the current step.
+            # Originally only rows whose content began with an N.M id were
+            # captured, which silently dropped steps whose substeps carry no
+            # N.M number (e.g. step 9 → 0 substeps). Now accept every row with
+            # non-empty content after filtering header residue and
+            # audit/signature noise (续页表头与签名行不算子步骤).
             content = _col(cells, "content")
-            if cur_no is not None and re.match(r"^\d{1,2}\.\d", content):
+            if cur_no is not None and content and _is_substep_content(content):
                 steps[cur_no]["substeps"].append({
                     "content": content,
                     "material": _col(cells, "material"),

@@ -49,6 +49,12 @@ _NOISE_PATTERNS: List[re.Pattern] = [
 _METADATA_KEYWORDS = [
     "签名", "编制", "校对", "审核", "标检", "批准", "会签",
     "更改单号", "日期", "页数", "页码",
+    # Table-header leakage into data rows (e.g. 配套明细表 header residue
+    # like "装配件中零、部、组(整)件" or a stray "数量" header cell).
+    # Only flags a row as noise when >=2 keywords hit, so a legit single
+    # keyword in a real data row is not误伤.
+    "零、部、组(整)件", "装配件", "配套明细表", "工艺文件编号",
+    "产品数字", "产品工号", "单套产品", "本批装配件",
 ]
 
 # Top Chinese surname first characters for person name detection

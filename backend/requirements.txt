@@ -61,6 +61,7 @@ langchain-openai==0.0.5
 langchain-community==0.0.20
 langgraph>=0.0.10
 chromadb==0.4.22
+numpy<2  # chromadb 0.4.22 references np.float_, removed in numpy 2.0
 tiktoken==0.5.2
 
 # 多模态Embedding (BGE-VL)

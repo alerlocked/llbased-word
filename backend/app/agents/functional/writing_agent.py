@@ -839,6 +839,18 @@ class WritingAgent(BaseAgent):
         # Extract inherited context early for prompt injection
         inherited = task.get("inherited_context") or task.get("params", {}).get("inherited_context")
 
+        # G22a 工艺过程卡: step_name aligns to G19a process steps, not source "钳".
+        # The source 工序名称 column is uniformly "钳" (work-type), not real step
+        # names. Override step_name with the Phase 1 process-flow step names so
+        # G22a rows match G19a. Note: step_name is structured-extracted anyway
+        # (never went through LLM), so this only changes its source — inherited
+        # is extract when the source doc exists, else Phase1 LLM output. step_desc
+        # and other columns still go through LLM.
+        if chapter_code == "G22a" and inherited and inherited.get("step_names"):
+            _g22a_names = list(inherited["step_names"])
+            structured_values["step_name"] = _g22a_names
+            structured_values["step_no"] = [str(i + 1) for i in range(len(_g22a_names))]
+
         # --- G25a: source-driven generation (real substeps, no fabrication) ---
         # The orchestrator injects assembly_steps (per-step substeps extracted
         # from the source G25a chapter) + skeleton_steps (G19a step names).
@@ -988,6 +1000,16 @@ class WritingAgent(BaseAgent):
                     "- 上方关于「不要照搬原文」「用自己的语言组织」的指示对本章不适用——本章必须忠实于工步原文\n\n"
                     f"## 工序骨架（逐行对应）\n{g25a_skeleton_block}\n\n"
                     f"## 工步原文（content 的唯一事实来源）\n{g25a_source_block}\n"
+                )
+            # G19a 工艺流程图: list only operation steps, never countersign/audit nodes.
+            # Keep LLM generation (generic across docs); just constrain what counts as a step.
+            if chapter_type == "flow_chart":
+                system_msg += (
+                    "\n\n## 工艺流程图严格约束\n"
+                    "工艺流程图只列装配/加工的**操作工序**（如「装前准备」「安装密封圈」），按工序先后顺序。\n"
+                    "禁止列出：会签、审核、批准、校对、标检、签名、更改单号等**文件管理/审批环节**"
+                    "——它们是文件审批流程，不是工艺工序，绝不属于流程图。\n"
+                    "只输出参考文档流程图中出现的工序；参考文档没有的环节一律不要添加。\n"
                 )
             if ai_guidance:
                 system_msg += f"\n指导：{ai_guidance}\n"

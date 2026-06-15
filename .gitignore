@@ -126,3 +126,6 @@ reports/
 # PRPs (任务计划，归档用)
 PRPs/*.md
 !PRPs/README.md
+
+# Voice transcription artifacts
+Untitled

@@ -1,3 +1,3 @@
 @echo off
-cd /d D:\ai_idea\localknowledgebase-word\frontend
+cd /d "D:\Project Nantianmen\projects\localknowledgebase-word\frontend"
 npm run dev

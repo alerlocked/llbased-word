@@ -60,7 +60,7 @@
         {"key": "volume", "label": "册数", "type": "text", "fill_type": "structured"},
         {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
-      "ai_guidance": "List all document sections with their page counts"
+      "ai_guidance": "本文件自身的章节目录。根据本文件包含的各章节（工艺文件目录、引用文件目录、工装明细、材料定额、工艺流程、配套明细、过程卡、装配工艺卡等）生成目录条目与页码"
     },
 
     {
@@ -75,7 +75,7 @@
         {"key": "pages", "label": "页数", "type": "number", "fill_type": "structured"},
         {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
-      "ai_guidance": "List all referenced standards and documents"
+      "ai_guidance": "引用文件目录。从装配工序内容中提到的参考设计文件、引用标准、规范中归纳条目"
     },
 
     {
@@ -94,7 +94,7 @@
         {"key": "usage_unit", "label": "使用单位", "type": "text", "fill_type": "structured"},
         {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
-      "ai_guidance": "List all special tooling equipment with codes, names and quantities"
+      "ai_guidance": "专用工艺装备明细。从装配工序（G25a）的专用仪器、仪表及工艺装备列及工序内容中归纳工装编号、名称、数量"
     },
 
     {
@@ -124,7 +124,7 @@
       "shared_columns": [
         {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
-      "ai_guidance": "List all special tools (left) and gauges (right) with specs and quantities"
+      "ai_guidance": "左栏专用工具、右栏专用量具。从装配工序的设备、量具、检验内容中归纳，工具归左栏，量具归右栏"
     },
 
     {
@@ -147,7 +147,7 @@
         {"key": "utilization", "label": "材利用率%", "type": "text", "fill_type": "structured"},
         {"key": "destination", "label": "交往何处", "type": "text", "fill_type": "structured"}
       ],
-      "ai_guidance": "List all primary materials with specifications, units and quotas"
+      "ai_guidance": "主要材料消耗定额。从装配工序内容中涉及的零件、材料牌号、规格归纳"
     },
 
     {
@@ -167,7 +167,7 @@
         {"key": "batch_quota", "label": "本批定额", "type": "text", "fill_type": "structured"},
         {"key": "remarks", "label": "备注", "type": "text", "fill_type": "structured"}
       ],
-      "ai_guidance": "List all auxiliary materials with specifications and quotas"
+      "ai_guidance": "辅助材料消耗定额。从装配工序（G25a）的辅助材料列归纳辅材名称、单位、定额"
     },
 
     {
