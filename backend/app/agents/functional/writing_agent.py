@@ -80,6 +80,9 @@ class WritingAgent(BaseAgent):
 
         # Dynamic writing preferences (loaded per session)
         self._writing_preferences: Optional["WritingPreferences"] = None
+        # Full domain profile (强约束 principles + 参考值 triples), loaded per
+        # session for chapter prompts that need standards / reference values.
+        self._profile: Optional["Profile"] = None
 
         # 版本历史（用于多轮修改）
         self._version_history: List[VersionHistory] = []
@@ -1008,6 +1011,32 @@ class WritingAgent(BaseAgent):
             # G25a: override the generic "don't copy source" prompt — this
             # chapter must stay faithful to the extracted substep text.
             if is_g25a_sourced:
+                # Profile two layers: principles (强约束) + triples (参考值兜底).
+                # Injected before the source-text block so the LLM obeys the
+                # standards and can fall back to verified reference values
+                # (e.g. torque) when the source text omits them.
+                if self._profile:
+                    _enabled = [
+                        p for p in (getattr(self._profile, "principles", []) or [])
+                        if p.get("enabled", True)
+                    ]
+                    if _enabled:
+                        _ptxt = "\n".join(
+                            f"- {p.get('name', '')}: {p.get('description', '')}"
+                            for p in _enabled
+                        )
+                        system_msg += f"\n## 画像强约束（必须遵守）\n{_ptxt}\n"
+                    _triples = getattr(self._profile, "triples", []) or []
+                    if _triples:
+                        _ttxt = "\n".join(
+                            f"- {t.get('s', '')} → {t.get('r', '')}: {t.get('o', '')}"
+                            for t in _triples
+                        )
+                        system_msg += (
+                            "\n## 参数参考值（工步原文优先；原文缺失才参考下列值；"
+                            "两者都无则留空，绝不臆造）\n"
+                            f"{_ttxt}\n"
+                        )
                 system_msg += (
                     "\n\n## G25a 严格原文约束（覆盖以上任何相反指示）\n"
                     "本装配卡每个工序的内容来自下方【工步原文】。你必须：\n"
@@ -1442,6 +1471,19 @@ class WritingAgent(BaseAgent):
         from app.models.profile import WritingPreferences
         self._writing_preferences = preferences
         logger.info("writing_preferences_loaded", confidence=preferences.confidence)
+
+    def load_profile(self, profile: "Profile") -> None:
+        """Load the full domain profile (principles强约束 + triples参考值).
+
+        Used by chapter prompts (e.g. G25a) to inject standards and
+        reference values alongside the per-step source text.
+        """
+        self._profile = profile
+        logger.info(
+            "writing_profile_loaded",
+            principles=len(getattr(profile, "principles", []) or []),
+            triples=len(getattr(profile, "triples", []) or []),
+        )
 
     def _get_preference_prompt_fragment(self) -> str:
         """Generate a prompt fragment from loaded preferences."""

@@ -331,6 +331,7 @@ class ProcessOrchestrator:
             domain = self.config.get("domain", "assembly")
             profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
 
+            profile = None
             if profile_path.exists():
                 profile = Profile.from_json(profile_path)
                 prefs = WritingPreferences.from_profile(profile)
@@ -340,6 +341,10 @@ class ProcessOrchestrator:
             writing_agent = self._agents["writing"]
             if hasattr(writing_agent, "load_preferences"):
                 writing_agent.load_preferences(prefs)
+            # Pass the full profile so WritingAgent can inject强约束(principles)
+            # + 参考值(triples) into chapter prompts (e.g. G25a content).
+            if profile is not None and hasattr(writing_agent, "load_profile"):
+                writing_agent.load_profile(profile)
         except Exception as e:
             logger.debug("preferences_load_skipped", error=str(e))
 

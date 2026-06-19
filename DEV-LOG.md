@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-06-19T23:52:59+08:00
-last_commit: 9201e85
+updated_at: 2026-06-20T00:04:35+08:00
+last_commit: d0f75b6
 status: G25a content 空=LLM层max_tokens截断（PLAN v2 seal，修LLM层+画像注入）
 task_state: running
 task_slug: g25a-write
@@ -11,8 +11,9 @@ task_slug: g25a-write
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `9201e85` plan: G25a content empty = LLM max_tokens truncation (v2 root-cause revision) (0 seconds ago)
-- `ae5f010` plan: G25a content writing (fix inject break + profile layers + triples fallback) (25 minutes ago)
+- `d0f75b6` feat(generation): fix G25a empty content (max_tokens) + source-driven G22a/G25a (0 seconds ago)
+- `9201e85` plan: G25a content empty = LLM max_tokens truncation (v2 root-cause revision) (12 minutes ago)
+- `ae5f010` plan: G25a content writing (fix inject break + profile layers + triples fallback) (37 minutes ago)
 - `d18db98` fix(generation): harden 工艺文件 extraction (step9/countersign/step_name) (4 days ago)
 - `f747293` feat(retrieval+generation): source-driven 工艺文件生成链路 (5 days ago)
 - `9a36e50` fix(generation): robustly filter continuation titles, stop killing codes (8 days ago)
@@ -20,7 +21,6 @@ task_slug: g25a-write
 - `4a1ff7d` feat(editor): add hover add/delete row toolbar to FallbackTable (8 days ago)
 - `75b7c96` feat(editor): add/delete step buttons on FlowChartEditor (G19a) (8 days ago)
 - `4878260` feat(editor): hover toolbar for add/delete row and vertical merge (8 days ago)
-- `7aad493` feat(editor): render merged cells and align parse with merge state (8 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
