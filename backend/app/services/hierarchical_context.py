@@ -1459,6 +1459,73 @@ class HierarchicalContext:
                 })
         return steps
 
+    def extract_process_card_steps(self, doc_dir_name: str) -> Dict[int, Dict[str, str]]:
+        """Extract per-step 工序名称 + 工序内容简述 from 工艺过程卡 (G22a).
+
+        G22a is one row per process step (unlike G25a's multi-substep card).
+        Reads the full chapter and maps columns by header name (robust to
+        colspan) so step_name/step_desc come from source, not LLM fabrication.
+
+        Returns:
+            {step_no: {"step_name": str, "step_desc": str}}
+        """
+        idx = self.load_chapter_index(doc_dir_name)
+        if not idx:
+            return {}
+        g22a = next(
+            (c for c in idx.get("chapters", []) if "工艺过程卡" in c.get("title", "")),
+            None,
+        )
+        if not g22a or not g22a.get("pages"):
+            return {}
+        pages = g22a["pages"]
+        text = self.get_pages_content(
+            doc_dir_name, pages[0], pages[-1], max_tokens=60000
+        )
+        if not text:
+            return {}
+
+        col_keys = {
+            "车间": "workshop", "工序号": "step_no", "工序名称": "step_name",
+            "工序内容简述": "step_desc", "设备": "equipment",
+            "工艺装备": "tooling",
+        }
+        steps: Dict[int, Dict[str, str]] = {}
+        header: Dict[str, int] = {}
+
+        def _col(cells: List[str], name: str) -> str:
+            i = header.get(name)
+            return cells[i] if i is not None and i < len(cells) else ""
+
+        for line in text.split("\n"):
+            if "|" not in line:
+                continue
+            cells = [c.strip() for c in line.split("|")]
+            # Header row: 车间 + 工序号 + 工序内容简述
+            if "车间" in cells and "工序号" in cells and "工序内容简述" in cells:
+                header = {}
+                for i, c in enumerate(cells):
+                    for k, v in col_keys.items():
+                        if k in c:
+                            header[v] = i
+                continue
+            if not header:
+                continue
+            # Step rows are anchored by 钳 (工序名称). Colspan in the source
+            # shifts workshop/step_no cells (e.g. "|  | 33 | 3 | 钳 | ..."),
+            # padding workshop with empty cells. Anchoring on 钳 — step_no is
+            # the digit right before it, step_desc the cell right after — is
+            # robust to that shift (so steps 3-7 aren't dropped).
+            if "钳" in cells:
+                j = cells.index("钳")
+                sn_cell = cells[j - 1] if j - 1 >= 0 else ""
+                if sn_cell.isdigit():
+                    cur_no = int(sn_cell)
+                    desc = cells[j + 1] if j + 1 < len(cells) else ""
+                    if desc and _is_substep_content(desc):
+                        steps[cur_no] = {"step_name": "钳", "step_desc": desc}
+        return steps
+
 
 # 全局单例
 hierarchical_context = HierarchicalContext()

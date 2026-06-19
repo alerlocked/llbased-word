@@ -1498,7 +1498,13 @@ class ProcessOrchestrator:
                     available_titles.append(title)
                     continue
 
-                if page_count > 5 and sub_chapters:
+                # G25a (装配工艺卡片) is a per-step process card driven by
+                # extract_assembly_steps, NOT a page-split chapter. Excluding
+                # it from the sub_chapter split keeps it a single task so the
+                # phase-2 assembly_steps injection fires and results aggregate
+                # into one G25a chapter. Otherwise it splits into N page tasks
+                # (第15-18页...) that never merge back → G25a missing.
+                if page_count > 5 and sub_chapters and title != "装配工艺卡片":
                     sub_sources: Dict[str, str] = {}
                     for sc in sub_chapters:
                         sc_pages = sc.get("pages", [])
@@ -1513,6 +1519,14 @@ class ProcessOrchestrator:
                             sub_sources[sc["title"]] = sc_text
                     if sub_sources:
                         chapter_sub_sources[title] = sub_sources
+                        # Large chapters split into sub-chapters must still
+                        # register in chapter_source_texts, because the parallel
+                        # task queue is built from chapter_source_texts.keys().
+                        # Without this, big chapters (e.g. 装配工艺卡片 / G25a,
+                        # which is multi-page with sub-chapters) get silently
+                        # dropped from generation. Their detailed content is
+                        # carried by chapter_sub_sources / assembly_steps.
+                        chapter_source_texts[title] = ""
                         available_titles.append(title)
                     else:
                         # No sub-chapter text, fall back to full chapter
@@ -2566,18 +2580,23 @@ class ProcessOrchestrator:
                     upstream = phase_outputs[phase.depends_on]
                     step_count = upstream.get("step_count", 0)
                     step_names = [s["step_name"] for s in upstream.get("steps", [])]
+                    # Phase 2 row-count logic: G22a/G25a are per-step process
+                    # cards, so their row count follows the process-flow step
+                    # count. G18a (配套明细表) is a PARTS list — its row count
+                    # is the number of parts, not the step count, so it must
+                    # NOT inherit max_rows (otherwise it gets forced to N rows
+                    # and pads empty rows when parts < steps).
                     for idx in phase_task_indices:
-                        tasks[idx]["inherited_context"] = {
+                        chapter_code = tasks[idx].get("chapter_code")
+                        ctx = {
                             "process_flow_steps": upstream,
-                            "max_rows": step_count,
                             "step_names": step_names,
                         }
+                        if chapter_code != "G18a":
+                            ctx["max_rows"] = step_count
+                        tasks[idx]["inherited_context"] = dict(ctx)
                         # Also pass to params so WritingAgent can read it
-                        tasks[idx]["params"]["inherited_context"] = {
-                            "process_flow_steps": upstream,
-                            "max_rows": step_count,
-                            "step_names": step_names,
-                        }
+                        tasks[idx]["params"]["inherited_context"] = dict(ctx)
                     logger.info(
                         "phase_injecting_context",
                         phase=phase.phase,
@@ -2615,6 +2634,34 @@ class ProcessOrchestrator:
                             )
                     except Exception as e:
                         logger.warning("g25a_assembly_steps_failed", error=str(e))
+
+                # G22a: inject per-step 工序名称 + 工序内容简述 extracted from
+                # the source 工艺过程卡 chapter, so step_name/step_desc are
+                # source-driven (not LLM-fabricated 工业话术).
+                for idx in phase_task_indices:
+                    if tasks[idx].get("chapter_code") != "G22a":
+                        continue
+                    title = tasks[idx].get("chapter_title", "")
+                    doc_dir = ""
+                    for mc in self._collected_info.get("missing_chapters", []):
+                        if mc.get("title") == title:
+                            doc_dir = mc.get("_doc_dir", "")
+                            break
+                    if not doc_dir:
+                        logger.warning("g22a_no_doc_dir_fallback", chapter=title)
+                        continue
+                    try:
+                        from app.services.hierarchical_context import hierarchical_context
+                        card_steps = hierarchical_context.extract_process_card_steps(doc_dir)
+                        if card_steps:
+                            tasks[idx]["params"]["process_card_steps"] = card_steps
+                            logger.info(
+                                "g22a_process_card_steps_injected",
+                                doc_dir=doc_dir,
+                                step_count=len(card_steps),
+                            )
+                    except Exception as e:
+                        logger.warning("g22a_process_card_steps_failed", error=str(e))
 
                 # Inject accumulated upstream chapter text so list-type
                 # chapters (清单类) can derive content from earlier chapters.

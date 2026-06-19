@@ -3,6 +3,8 @@
 """
 import logging
 import time
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, Optional
 from pythonjsonlogger import jsonlogger
 from contextvars import ContextVar
@@ -65,6 +67,27 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 # 注册自定义Logger类
 logging.setLoggerClass(StructuredLogger)
 
+# Shared file-handler singleton. Every logger returned by get_logger() writes
+# to the same data/logs/app_YYYYMMDD.log. A single FileHandler instance is
+# reused across loggers so the file is opened once (avoids Windows file-lock
+# conflicts). Previously get_logger() only attached a StreamHandler, so log
+# files stayed at 0 bytes and everything was lost when the terminal closed.
+_file_handler: Optional[logging.FileHandler] = None
+
+
+def _get_shared_file_handler() -> logging.FileHandler:
+    global _file_handler
+    if _file_handler is None:
+        from app.config import settings
+        log_dir: Path = settings.DATA_DIR / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"app_{datetime.now().strftime('%Y%m%d')}.log"
+        _file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        _file_handler.setLevel(logging.INFO)
+        _file_handler.setFormatter(CustomJsonFormatter())
+    return _file_handler
+
+
 def get_logger(name: str) -> StructuredLogger:
     """
     获取结构化日志记录器
@@ -93,6 +116,7 @@ def get_logger(name: str) -> StructuredLogger:
 
     # 添加处理器到logger
     logger.addHandler(console_handler)
+    logger.addHandler(_get_shared_file_handler())
     logger.propagate = False
 
     return logger

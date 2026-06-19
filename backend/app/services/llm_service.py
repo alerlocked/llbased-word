@@ -392,13 +392,18 @@ class QwenLLMService:
             )
 
             content = response.choices[0].message.content.strip()
+            # Expose finish_reason so callers can detect max_tokens truncation
+            # (finish_reason == "length") — critical for large-output chapters
+            # like G25a whose JSON silently breaks when truncated.
+            finish_reason = getattr(response.choices[0], "finish_reason", None)
 
             duration_ms = (time.time() - start_time) * 1000
             log_api_call("通义千问LLM", "消息生成", "success", duration_ms)
 
             return {
                 "status": "success",
-                "content": content
+                "content": content,
+                "finish_reason": finish_reason,
             }
 
         except Exception as e:
@@ -409,7 +414,8 @@ class QwenLLMService:
             return {
                 "status": "error",
                 "error": str(e),
-                "content": ""
+                "content": "",
+                "finish_reason": None,
             }
 
     async def generate_with_messages_stream(

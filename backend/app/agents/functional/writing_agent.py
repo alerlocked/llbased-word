@@ -839,17 +839,11 @@ class WritingAgent(BaseAgent):
         # Extract inherited context early for prompt injection
         inherited = task.get("inherited_context") or task.get("params", {}).get("inherited_context")
 
-        # G22a 工艺过程卡: step_name aligns to G19a process steps, not source "钳".
-        # The source 工序名称 column is uniformly "钳" (work-type), not real step
-        # names. Override step_name with the Phase 1 process-flow step names so
-        # G22a rows match G19a. Note: step_name is structured-extracted anyway
-        # (never went through LLM), so this only changes its source — inherited
-        # is extract when the source doc exists, else Phase1 LLM output. step_desc
-        # and other columns still go through LLM.
-        if chapter_code == "G22a" and inherited and inherited.get("step_names"):
-            _g22a_names = list(inherited["step_names"])
-            structured_values["step_name"] = _g22a_names
-            structured_values["step_no"] = [str(i + 1) for i in range(len(_g22a_names))]
+        # G22a 工艺过程卡: step_name (工序名称) is the work-type category
+        # (钳/机/etc) — structured-extracted from source, default "钳". Do NOT
+        # override it with G19a flow-step names; those belong in step_desc
+        # (工序内容简述), which the LLM fills below using inherited step_names.
+        # G22a row count is still driven by max_rows (工序数, one row per step).
 
         # --- G25a: source-driven generation (real substeps, no fabrication) ---
         # The orchestrator injects assembly_steps (per-step substeps extracted
@@ -873,7 +867,12 @@ class WritingAgent(BaseAgent):
             n = len(skel)
             # Direct-fill structured columns from source (zero fabrication)
             structured_values["step_no"] = [str(i + 1) for i in range(n)]
-            structured_values["step_name"] = list(skel)
+            # step_name (工序名称) is the work-type category (钳/机), NOT the
+            # G19a flow step name. extract_assembly_steps already captured it
+            # per step (asm[k]["name"]); use that instead of skeleton so the
+            # 工序名称 column shows 钳, while skeleton only drives row count
+            # and the 工序内容 prompt below.
+            structured_values["step_name"] = [asm.get(k, {}).get("name", "钳") for k in sorted(asm)]
             _aux: List[str] = []
             _instr: List[str] = []
             _src_lines: List[str] = []
@@ -895,6 +894,25 @@ class WritingAgent(BaseAgent):
             struct_row_count = n
             g25a_source_block = "\n".join(_src_lines)
             g25a_skeleton_block = "\n".join(f"{i + 1}. {nm}" for i, nm in enumerate(skel))
+
+        # --- G22a: source-driven 工序名称 + 工序内容简述 (extract 直填, 不交 LLM) ---
+        _card_steps = task.get("process_card_steps") or task.get("params", {}).get("process_card_steps")
+        if chapter_code == "G22a" and _card_steps:
+            cs: Dict[int, Dict[str, str]] = {}
+            for _k, _v in _card_steps.items():
+                try:
+                    cs[int(_k)] = _v
+                except (ValueError, TypeError):
+                    continue
+            if cs:
+                ordered = sorted(cs)
+                structured_values["step_no"] = [str(i) for i in ordered]
+                structured_values["step_name"] = [cs[k].get("step_name", "钳") for k in ordered]
+                structured_values["step_desc"] = [cs[k].get("step_desc", "") for k in ordered]
+                struct_row_count = len(ordered)
+                # step_desc is direct-filled from source; drop it from
+                # unstructured so the LLM doesn't fabricate 工业话术.
+                unstructured_cols = [c for c in unstructured_cols if c.key != "step_desc"]
 
         if unstructured_cols:
             slot_desc = ", ".join(
@@ -1034,13 +1052,18 @@ class WritingAgent(BaseAgent):
             if task.get("requirements"):
                 user_parts.append(f"## 用户要求\n{task['requirements']}")
 
+            # process_card / G25a carry many long_text columns across N rows
+            # (content/inspection/references/tech_notes/requirements) — the
+            # default 6000 cap truncates mid-JSON → _parse_llm_json returns
+            # None → content silently empty. Give these a larger budget.
+            gen_max_tokens = 8192 if (chapter_type == "process_card" or is_g25a_sourced) else 6000
             result = await llm_service.generate_with_messages(
                 messages=[
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": "\n\n".join(user_parts)},
                 ],
                 temperature=0.2,
-                max_tokens=6000,
+                max_tokens=gen_max_tokens,
                 tier="complex",
             )
 
@@ -1052,6 +1075,15 @@ class WritingAgent(BaseAgent):
                 }
 
             raw = result["content"].strip()
+            # Detect max_tokens truncation — if hit, JSON is likely incomplete
+            # → parse fails → content empty. Log so we know to switch to batched
+            # generation (node A.2) if 8192 still isn't enough for G25a.
+            if result.get("finish_reason") == "length":
+                logger.warning(
+                    "llm_output_truncated",
+                    chapter_code=chapter_code,
+                    max_tokens=gen_max_tokens,
+                )
             parsed = _parse_llm_json(raw)
 
             if parsed is not None and isinstance(parsed, list):

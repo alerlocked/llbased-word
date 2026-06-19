@@ -129,3 +129,6 @@ PRPs/*.md
 
 # Voice transcription artifacts
 Untitled
+
+# NTM file spec: test run artifacts (screenshots/logs) - local only, not in git
+.test-runs/
