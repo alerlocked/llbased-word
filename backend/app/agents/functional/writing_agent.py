@@ -1085,52 +1085,65 @@ class WritingAgent(BaseAgent):
             # (content/inspection/references/tech_notes/requirements) — the
             # default 6000 cap truncates mid-JSON → _parse_llm_json returns
             # None → content silently empty. Give these a larger budget.
-            gen_max_tokens = 8192 if (chapter_type == "process_card" or is_g25a_sourced) else 6000
-            result = await llm_service.generate_with_messages(
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": "\n\n".join(user_parts)},
-                ],
-                temperature=0.2,
-                max_tokens=gen_max_tokens,
-                tier="complex",
-            )
-
-            if result["status"] == "error":
-                return {
-                    "success": False,
-                    "error": result.get("error", "LLM调用失败"),
-                    "chapter_code": chapter_code,
-                }
-
-            raw = result["content"].strip()
-            # Detect max_tokens truncation — if hit, JSON is likely incomplete
-            # → parse fails → content empty. Log so we know to switch to batched
-            # generation (node A.2) if 8192 still isn't enough for G25a.
-            if result.get("finish_reason") == "length":
-                logger.warning(
-                    "llm_output_truncated",
+            if is_g25a_sourced and unstructured_cols:
+                # G25a per-step parallel: each process step gets its own LLM
+                # call (Semaphore(4) concurrent). Avoids max_tokens truncation
+                # (critical for local qwen3-30b-a3b, maxIterTimes=2048) and
+                # improves quality — each call focuses on one step's content.
+                unstructured_slots, llm_row_count = await self._generate_g25a_per_row_parallel(
+                    base_system_msg=system_msg,
+                    user_parts=user_parts,
+                    unstructured_cols=unstructured_cols,
+                    asm=asm, skel=skel,
                     chapter_code=chapter_code,
-                    max_tokens=gen_max_tokens,
                 )
-            parsed = _parse_llm_json(raw)
+            else:
+                gen_max_tokens = 8192 if (chapter_type == "process_card" or is_g25a_sourced) else 6000
+                result = await llm_service.generate_with_messages(
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": "\n\n".join(user_parts)},
+                    ],
+                    temperature=0.2,
+                    max_tokens=gen_max_tokens,
+                    tier="complex",
+                )
 
-            if parsed is not None and isinstance(parsed, list):
-                if parsed and "slot" in parsed[0] and "row" in parsed[0]:
-                    # Normalize slot names: LLM may return label instead of key
-                    label_to_key = {c.label: c.key for c in unstructured_cols}
-                    for slot_item in parsed:
-                        s = slot_item.get("slot", "")
-                        if s in label_to_key:
-                            slot_item["slot"] = label_to_key[s]
-                    unstructured_slots = parsed
-                else:
-                    unstructured_slots = _legacy_to_slots(parsed, unstructured_cols)
+                if result["status"] == "error":
+                    return {
+                        "success": False,
+                        "error": result.get("error", "LLM调用失败"),
+                        "chapter_code": chapter_code,
+                    }
 
-                if unstructured_slots:
-                    llm_row_count = max(
-                        s.get("row", 0) for s in unstructured_slots
+                raw = result["content"].strip()
+                # Detect max_tokens truncation — if hit, JSON is likely incomplete
+                # → parse fails → content empty. Log so we know to switch to batched
+                # generation if the cap still isn't enough.
+                if result.get("finish_reason") == "length":
+                    logger.warning(
+                        "llm_output_truncated",
+                        chapter_code=chapter_code,
+                        max_tokens=gen_max_tokens,
                     )
+                parsed = _parse_llm_json(raw)
+
+                if parsed is not None and isinstance(parsed, list):
+                    if parsed and "slot" in parsed[0] and "row" in parsed[0]:
+                        # Normalize slot names: LLM may return label instead of key
+                        label_to_key = {c.label: c.key for c in unstructured_cols}
+                        for slot_item in parsed:
+                            s = slot_item.get("slot", "")
+                            if s in label_to_key:
+                                slot_item["slot"] = label_to_key[s]
+                        unstructured_slots = parsed
+                    else:
+                        unstructured_slots = _legacy_to_slots(parsed, unstructured_cols)
+
+                    if unstructured_slots:
+                        llm_row_count = max(
+                            s.get("row", 0) for s in unstructured_slots
+                        )
 
         # --- Step 3b: Derivation fallback for structured-only list chapters ---
         # List chapters (清单类: G4a/G5a/G10a/G12a/G14a/B12a) have no
@@ -1484,6 +1497,87 @@ class WritingAgent(BaseAgent):
             principles=len(getattr(profile, "principles", []) or []),
             triples=len(getattr(profile, "triples", []) or []),
         )
+
+    async def _generate_g25a_per_row_parallel(
+        self,
+        base_system_msg: str,
+        user_parts: List[str],
+        unstructured_cols: List["TemplateColumn"],
+        asm: Dict[int, Dict[str, Any]],
+        skel: List[str],
+        chapter_code: str,
+    ) -> tuple:
+        """G25a per-step parallel generation.
+
+        Each process step → one LLM call (Semaphore(4) concurrent). Avoids
+        max_tokens truncation (local qwen3-30b-a3b maxIterTimes=2048) and
+        focuses each call on one step's content/inspection for better quality.
+        Returns (unstructured_slots, llm_row_count).
+        """
+        import asyncio
+        from app.services.llm_service import llm_service
+
+        n = len(skel)
+        slot_keys = [c.key for c in unstructured_cols]
+        slot_desc = ", ".join(f'"{c.key}"({c.label})' for c in unstructured_cols)
+        label_to_key = {c.label: c.key for c in unstructured_cols}
+        semaphore = asyncio.Semaphore(4)
+        user_msg = "\n\n".join(user_parts) if user_parts else "请生成。"
+
+        async def gen_one(i: int):
+            name = skel[i - 1] if i - 1 < len(skel) else ""
+            step = asm.get(i)
+            subs = step.get("substeps", []) if step else []
+            sub_text = "\n".join(
+                f"  {s.get('content', '')}"
+                + (f" | 辅材:{s.get('material')}" if s.get("material") else "")
+                for s in subs
+            ) or "  （原文未提供）"
+            step_msg = base_system_msg + (
+                f"\n\n## 当前任务：只生成第 {i} 道工序（{name}）的内容\n"
+                f"只输出 row={i} 的列：{slot_desc}\n"
+                f"输出格式：JSON 数组，每个元素 {{\"row\": {i}, \"slot\": 列key, \"value\": 值}}\n"
+                f"不要输出其他工序，不要输出已由系统提取的列（车间/工序号/工序名称/辅助材料）。\n\n"
+                f"## 工序{i}（{name}）工步原文（content 的唯一事实来源）\n{sub_text}\n"
+            )
+            async with semaphore:
+                result = await llm_service.generate_with_messages(
+                    messages=[
+                        {"role": "system", "content": step_msg},
+                        {"role": "user", "content": user_msg},
+                    ],
+                    temperature=0.2,
+                    max_tokens=2500,
+                    tier="complex",
+                )
+            if result["status"] == "error":
+                logger.warning("g25a_per_step_failed", step=i, error=result.get("error"))
+                return []
+            raw = result["content"].strip()
+            if result.get("finish_reason") == "length":
+                logger.warning("g25a_per_step_truncated", step=i, max_tokens=2500)
+            parsed = _parse_llm_json(raw)
+            if not parsed or not isinstance(parsed, list):
+                logger.warning("g25a_per_step_parse_failed", step=i)
+                return []
+            slots = []
+            for item in parsed:
+                s = item.get("slot", "")
+                s = label_to_key.get(s, s)
+                if s in slot_keys:
+                    slots.append({"row": i, "slot": s, "value": item.get("value", "")})
+            return slots
+
+        tasks = [gen_one(i) for i in range(1, n + 1)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        all_slots: List[Dict[str, Any]] = []
+        for idx, r in enumerate(results, start=1):
+            if isinstance(r, Exception):
+                logger.error("g25a_per_step_exception", step=idx, error=str(r))
+            else:
+                all_slots.extend(r)
+        logger.info("g25a_per_step_parallel_done", steps=n, slots=len(all_slots))
+        return all_slots, n
 
     def _get_preference_prompt_fragment(self) -> str:
         """Generate a prompt fragment from loaded preferences."""
