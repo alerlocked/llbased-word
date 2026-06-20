@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-06-20T18:46:25+08:00
-last_commit: 8a3a4ef
+updated_at: 2026-06-20T18:55:45+08:00
+last_commit: 2523a88
 status: G25a 分工序并行生成完成（per-step LLM 验证通过，等本地千问3-30B-A3B 实测）
 task_state: done
 task_slug: g25a-perstep
@@ -11,16 +11,16 @@ task_slug: g25a-perstep
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `8a3a4ef` chore(config): document local qwen3-30b-a3b switch (mindie port 1028) (1 second ago)
-- `d803946` feat(generation): G25a per-step parallel (Semaphore 4, each step one LLM call) (2 minutes ago)
-- `204c5f8` plan: G25a per-step parallel generation (per-step LLM, semaphore 4) (10 minutes ago)
+- `2523a88` chore(g25a-perstep): wrap up done + commit diagnose_g25a.py probe (1 second ago)
+- `8a3a4ef` chore(config): document local qwen3-30b-a3b switch (mindie port 1028) (9 minutes ago)
+- `d803946` feat(generation): G25a per-step parallel (Semaphore 4, each step one LLM call) (11 minutes ago)
+- `204c5f8` plan: G25a per-step parallel generation (per-step LLM, semaphore 4) (19 minutes ago)
 - `3b84ca5` feat(generation): inject profile layers (principles + triples) into G25a prompt (19 hours ago)
 - `d0f75b6` feat(generation): fix G25a empty content (max_tokens) + source-driven G22a/G25a (19 hours ago)
 - `9201e85` plan: G25a content empty = LLM max_tokens truncation (v2 root-cause revision) (19 hours ago)
 - `ae5f010` plan: G25a content writing (fix inject break + profile layers + triples fallback) (19 hours ago)
 - `d18db98` fix(generation): harden 工艺文件 extraction (step9/countersign/step_name) (5 days ago)
 - `f747293` feat(retrieval+generation): source-driven 工艺文件生成链路 (6 days ago)
-- `9a36e50` fix(generation): robustly filter continuation titles, stop killing codes (9 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
