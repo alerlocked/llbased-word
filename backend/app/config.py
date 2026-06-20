@@ -59,9 +59,15 @@ class Settings(BaseSettings):
     MODEL_TIER_COMPLEX: str = "qwen-plus"   # capable model for complex tasks
 
     # Tier-specific base URLs (for local deployment with models on different ports)
-    # If empty, falls back to DASHSCOPE_BASE_URL for both tiers
+    # If empty, falls back to DASHSCOPE_BASE_URL for both tiers.
+    # 本地千问3-30B-A3B (mindie, deploy/mindie/config-2.2rc1-qwen3-30b-a3b.json):
+    #   起服务(port 1028) 后 .env 设：
+    #     DASHSCOPE_BASE_URL_COMPLEX=http://localhost:1028/v1
+    #     MODEL_TIER_COMPLEX=qwen3-30b-a3b
+    #   mindie maxIterTimes=2048 → G25a 已改分工序并行(每工序一次, <2048)
+    #   maxPrefillBatchSize=8 → Semaphore(4) 并发安全，本地预期比云端快
     DASHSCOPE_BASE_URL_SIMPLE: str = ""  # e.g. http://localhost:1028/v1
-    DASHSCOPE_BASE_URL_COMPLEX: str = ""  # e.g. http://localhost:1025/v1
+    DASHSCOPE_BASE_URL_COMPLEX: str = ""  # 本地千问3-30B-A3B: http://localhost:1028/v1
 
     # 阿里云检索服务配置
     ALIYUN_ACCESS_KEY_ID: str = ""

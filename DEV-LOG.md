@@ -2,17 +2,18 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-06-20T18:36:52+08:00
-last_commit: 204c5f8
-status: G25a content 空=LLM层max_tokens截断（PLAN v2 seal，修LLM层+画像注入）
+updated_at: 2026-06-20T18:44:26+08:00
+last_commit: d803946
+status: G25a 分工序并行生成（per-step LLM, semaphore 4, PLAN 204c5f8）
 task_state: running
-task_slug: g25a-write
+task_slug: g25a-perstep
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `204c5f8` plan: G25a per-step parallel generation (per-step LLM, semaphore 4) (1 second ago)
-- `3b84ca5` feat(generation): inject profile layers (principles + triples) into G25a prompt (18 hours ago)
+- `d803946` feat(generation): G25a per-step parallel (Semaphore 4, each step one LLM call) (0 seconds ago)
+- `204c5f8` plan: G25a per-step parallel generation (per-step LLM, semaphore 4) (8 minutes ago)
+- `3b84ca5` feat(generation): inject profile layers (principles + triples) into G25a prompt (19 hours ago)
 - `d0f75b6` feat(generation): fix G25a empty content (max_tokens) + source-driven G22a/G25a (19 hours ago)
 - `9201e85` plan: G25a content empty = LLM max_tokens truncation (v2 root-cause revision) (19 hours ago)
 - `ae5f010` plan: G25a content writing (fix inject break + profile layers + triples fallback) (19 hours ago)
@@ -20,15 +21,14 @@ task_slug: g25a-write
 - `f747293` feat(retrieval+generation): source-driven 工艺文件生成链路 (6 days ago)
 - `9a36e50` fix(generation): robustly filter continuation titles, stop killing codes (9 days ago)
 - `ca38a96` fix(editor): drop countersign column and signature row, fix alignment (9 days ago)
-- `4a1ff7d` feat(editor): add hover add/delete row toolbar to FallbackTable (9 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
-- **在做**：G25a 装配工艺卡片「工序内容」撰写机制（PLAN ae5f010 seal，slug=g25a-write）
-- **诊断(已闭环)**：素材抽取健康(verify 10工序/52工步)；fill注入OK、merge OK。content空真根因=LLM max_tokens=6000截断→_parse_llm_json None→content空→retry不触发(structured有行)
-- **节点进度**：A ✅(d0f75b6) / B ✅(3b84ca5) / C ✅后端铁证完成 — 等用户真实浏览器补齐验证前端渲染
-- **节点C验证**：server日志铁证(注入×2 doc_dir=1 + 画像loaded + writing_task_completed装配工艺卡片 + draft_complete 9chapters) + diagnose实证(10/10 content含力矩)。_test_g25a.py G25A_NOT_FOUND=playwright localStorage隔离(memory已知)，非生成问题
-- **下一步**：用户真实浏览器补齐验证前端G25a content渲染（playwright测不了）；diagnose_g25a.py 留作回归诊断
+- **在做**：G25a 分工序并行生成（PLAN 204c5f8 seal, slug=g25a-perstep）
+- **前置完成**：g25a-write 已落地（content空=max_tokens截断已修 d0f75b6/3b84ca5，diagnose实证10/10）
+- **本任务**：G25a 每道工序一次 LLM 调用并行（Semaphore 4），解决本地千问3-30B-A3B(2048上限)必截断 + 提质量。云端qwen-plus验证+本地配置留好
+- **节点进度**：A is_g25a_sourced 分工序并行（进行中）/ B 本地配置留好 / C diagnose+web验证
+- **下一步**：节点A——writing_agent is_g25a_sourced 注入点:920 分流，新增 _generate_g25a_per_row_parallel（Semaphore4+gather，每工序一次LLM）
 
 ## 关键决策
 - **G25a content 空 = phased 注入断点**（非抽取问题、非偶发）：模板有 generation_phases→必走 phased→G25a 经 template_required 进 missing_chapters 但 _doc_dir="" → 注入点B(orchestrator:2620)无 fallback 直接 continue。修法：复用注入点A 的扫描 fallback（get_all_chapter_indexes 找「装配」章节）
