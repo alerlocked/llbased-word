@@ -1580,6 +1580,105 @@ class HierarchicalContext:
                 })
         return steps
 
+    def extract_assembly_overview(self, doc_dir_name: str) -> str:
+        """Extract the 适用范围/说明 overview block from 装配工艺卡片 (G25a).
+
+        G25a's first page carries a 说明 cell (colspan over 工序内容) before
+        the first numeric step row. It states what this assembly card is for
+        (e.g. "本工艺用于指导KZD大批量P12及以后批次导弹全弹(火工)对接装配
+        工作...") plus referenced design docs / 装配要求. This is chapter-level
+        scope context, NOT step content — injected into the generation
+        system_msg as background so the LLM knows the card's applicable range,
+        but never written into any 工序 row's content.
+
+        Reads the G25a chapter text (reusing the same colspan-expanded
+        Markdown as extract_assembly_steps), then from the 说明 row
+        accumulates 工序内容-column text until the first numeric step header
+        (workshop + step_no both digits), filtering audit noise.
+
+        Args:
+            doc_dir_name: document directory name (e.g. "1")
+
+        Returns:
+            Joined overview string. Empty if not found.
+        """
+        idx = self.load_chapter_index(doc_dir_name)
+        if not idx:
+            return ""
+        g25a = next(
+            (c for c in idx.get("chapters", []) if "装配" in c.get("title", "")),
+            None,
+        )
+        if not g25a or not g25a.get("pages"):
+            return ""
+        pages = g25a["pages"]
+        # Overview lives on the first page; read a few pages in case the
+        # 说明 block spills onto page 2 before the first numeric step.
+        text = self.get_pages_content(
+            doc_dir_name, pages[0], min(pages[-1], pages[0] + 2),
+            max_tokens=20000,
+        )
+        if not text:
+            return ""
+
+        col_keys = {
+            "车间": "workshop", "工序号": "step_no", "工序名称": "step_name",
+            "工序内容": "content",
+        }
+        header: Dict[str, int] = {}
+
+        def _col(cells: List[str], name: str) -> str:
+            i = header.get(name)
+            return cells[i] if i is not None and i < len(cells) else ""
+
+        # Overview triggers: the 说明 label cell, or the lead-in phrases that
+        # mark the start of the scope statement.
+        overview_started = False
+        parts: List[str] = []
+        for line in text.split("\n"):
+            if "|" not in line:
+                continue
+            cells = [c.strip() for c in line.split("|")]
+            # Header row: fix column map (车间 + 工序号 + 工序内容)
+            if "车间" in cells and "工序号" in cells and "工序内容" in cells:
+                header = {}
+                for i, c in enumerate(cells):
+                    for k, v in col_keys.items():
+                        if k in c:
+                            header[v] = i
+                continue
+            if not header:
+                continue
+            # Stop at the first real step row (workshop + step_no both
+            # numeric) — the overview region ends where process steps begin.
+            wk = _col(cells, "workshop")
+            sn = _col(cells, "step_no")
+            if wk and re.match(r"^\d+$", wk) and sn and re.match(r"^\d+$", sn):
+                break
+            content = _col(cells, "content")
+            if not content:
+                continue
+            # Skip audit/signature noise (会签/审核/...).
+            if any(m in content for m in _AUDIT_MARKERS):
+                continue
+            # Skip header-column residue that leaks into the content column on
+            # continuation pages (产品数字/工艺文件编号/装配工艺卡片(续) etc.)
+            # and pure separator rows (--- / 第N页 markers).
+            if content in _SUBSTEP_HEADER_WORDS:
+                continue
+            if re.fullmatch(r"[\-–—\s]+", content):
+                continue
+            if content.startswith("第") and content.endswith("页"):
+                continue
+            if not overview_started:
+                if content == "说明" or "本工艺" in content or "用于指导" in content:
+                    overview_started = True
+                    if content != "说明":
+                        parts.append(content)
+                continue
+            parts.append(content)
+        return "".join(parts).strip()
+
     def extract_process_card_steps(self, doc_dir_name: str) -> Dict[int, Dict[str, str]]:
         """Extract per-step 工序名称 + 工序内容简述 from 工艺过程卡 (G22a).
 

@@ -856,6 +856,9 @@ class WritingAgent(BaseAgent):
         _assembly = task.get("assembly_steps") or task.get("params", {}).get("assembly_steps")
         _skeleton = (task.get("skeleton_steps") or task.get("params", {}).get("skeleton_steps")
                      or (inherited or {}).get("step_names", []))
+        # G25a 装配卡适用范围说明 (章节级背景, 来自源文档说明区, 非臆造).
+        # 仅注入 system_msg 作为背景前缀, 不写入任何工序 content.
+        _assembly_overview = task.get("assembly_overview") or task.get("params", {}).get("assembly_overview")
         is_g25a_sourced = chapter_code == "G25a" and bool(_assembly)
         g25a_source_block = ""
         g25a_skeleton_block = ""
@@ -1048,6 +1051,16 @@ class WritingAgent(BaseAgent):
                     f"## 工序骨架（逐行对应）\n{g25a_skeleton_block}\n\n"
                     f"## 工步原文（content 的唯一事实来源）\n{g25a_source_block}\n"
                 )
+                # G25a 装配卡适用范围说明: chapter-level background so the LLM
+                # understands what this card applies to (extracted from the
+                # source 说明 cell). This is scope context, NOT step content —
+                # it lives in the system_msg only and must never appear in any
+                # 工序 row's content slot.
+                if _assembly_overview:
+                    system_msg += (
+                        "\n\n## 本卡适用范围（章节背景，仅供理解，不得写入任何工序行）\n"
+                        f"{_assembly_overview}\n"
+                    )
             # G19a 工艺流程图: list only operation steps, never countersign/audit nodes.
             # Keep LLM generation (generic across docs); just constrain what counts as a step.
             if chapter_type == "flow_chart":

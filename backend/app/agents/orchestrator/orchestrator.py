@@ -2522,6 +2522,15 @@ class ProcessOrchestrator:
                                         "g25a_assembly_steps_injected",
                                         doc_dir=_doc_dir, step_count=len(_asm),
                                     )
+                                # G25a 装配卡适用范围说明 (章节级背景): extract the
+                                # 说明 overview from the source card so the LLM
+                                # knows what this assembly card applies to (e.g.
+                                # "本工艺用于指导KZD大批量P12及以后批次..."). Injected
+                                # as system_msg background only — never written into
+                                # any 工序 row's content.
+                                _ov = hierarchical_context.extract_assembly_overview(_doc_dir)
+                                if _ov:
+                                    task["params"]["assembly_overview"] = _ov
                             except Exception as e:
                                 logger.warning("g25a_assembly_steps_failed", error=str(e))
 
