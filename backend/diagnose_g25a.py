@@ -65,6 +65,12 @@ for r in rows:
     print(f"  row{r.get('step_no')} {r.get('step_name')!r} content[{len(c)}]: {c[:140]!r}")
 nonempty = sum(1 for r in rows if (r.get("content") or "").strip())
 print(f"\n[probe] 非空content行: {nonempty}/{len(rows)}")
+inspection_rows = sum(1 for r in rows if (r.get("step_name") or "") == "检验")
+op_rows = sum(1 for r in rows if (r.get("step_name") or "") != "检验")
+ratio = (inspection_rows / op_rows) if op_rows else 0.0
+print(f"[probe] inspection_rows={inspection_rows} op_rows={op_rows} 比值={ratio:.2f}")
+flag = "✅" if inspection_rows <= op_rows else "❌"
+print(f"[probe] 检验≤工序? {flag} (目标 inspection_rows ≤ {op_rows}, baseline=38)")
 if nonempty > 0:
     print("[probe] RESULT ✅ content 出来了（max_tokens 修复有效）")
 else:

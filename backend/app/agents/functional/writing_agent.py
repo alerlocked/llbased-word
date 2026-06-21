@@ -1552,9 +1552,11 @@ class WritingAgent(BaseAgent):
                 f"用 1-2 句大白话概括本工序的核心操作——直接写操作内容，"
                 f"不要带「钳：」「机：」等工序名称前缀（工序名称已由系统从素材单独提取到 step_name 列），"
                 f"不要写 1.1/1.2 工步细节，不要凭空编造原文没有的内容。\n\n"
-                f"## 检验(inspection) 写法：列出本工序的关键检验点（装配后该检查什么，如密封性/力矩/间隙/位置度）。"
-                f"每个检验点独占一行（用换行分隔）；简单工序 1 个检验点，复杂工序可多个；"
-                f"确实无检验点则该 slot 留空字符串。不要写操作步骤（操作步骤归 content）。\n\n"
+                f"## 检验(inspection) 写法：仅对【关键质检工序】生成检验点——"
+                f"即涉及力矩/密封性/电气性能/位置度/关键尺寸测量，且原文工步中出现检验或测量要求的工序，生成 1-2 个检验点。"
+                f"普通装配动作（装密封圈、拧螺钉、搬运、清洗、涂胶、普通装配）一律不生成检验点，该 slot 留空字符串。"
+                f"全表检验点总数不得超过工序数，宁缺毋滥。\n"
+                f"每个检验点独占一行（用换行分隔）。不要写操作步骤（操作步骤归 content）。\n\n"
                 f"## 工序{i}（{name}）工步原文（content 的依据，不要照抄，要概括）\n{sub_text}\n"
             )
             async with semaphore:
@@ -2033,16 +2035,45 @@ def _expand_inspection_rows(
     one '检验' row per non-empty inspection point (points split on newlines).
     Inspection rows carry only step_name='检验' + content=point; other columns
     empty so they match the frontend G25a dataColumns keys exactly.
+
+    Global cap: total inspection rows must not exceed the number of operating
+    rows (step_name != '检验'). When over budget, rows are ranked by point
+    count (desc) so multi-point key-QC steps are preserved and weak single-point
+    steps are dropped first.
     """
     import re
 
-    out: List[Dict[str, Any]] = []
-    for row in merged_rows:
+    # Operating rows = cap (inspection rows must not exceed operating rows)
+    cap = sum(1 for r in merged_rows if (r.get("step_name") or "") != "检验")
+    # Pre-split inspection points per row
+    row_points = []  # list of [idx, [points]]
+    for idx, row in enumerate(merged_rows):
         insp = (row.get(inspection_key) or "").strip()
+        pts = [p.strip() for p in re.split(r"[\n\r]+", insp) if p.strip()]
+        if pts:
+            row_points.append([idx, pts])
+    # Global cap: when over budget keep rows with most points (key QC), drop weak single-points
+    if cap > 0:
+        total = sum(len(p) for _, p in row_points)
+        if total > cap:
+            ranked = sorted(range(len(row_points)), key=lambda i: -len(row_points[i][1]))
+            kept, budget = set(), cap
+            for i in ranked:
+                if budget <= 0:
+                    break
+                n = len(row_points[i][1])
+                take = min(n, budget)
+                if take < n:
+                    row_points[i][1] = row_points[i][1][:take]
+                kept.add(i)
+                budget -= take
+            row_points = [row_points[i] for i in range(len(row_points)) if i in kept]
+    keep_by_row = {idx: pts for idx, pts in row_points}
+
+    out: List[Dict[str, Any]] = []
+    for idx, row in enumerate(merged_rows):
         out.append({k: v for k, v in row.items() if k != inspection_key})
-        if not insp:
-            continue
-        for point in [p.strip() for p in re.split(r"[\n\r]+", insp) if p.strip()]:
+        for point in keep_by_row.get(idx, []):
             out.append({
                 "workshop": "",
                 "step_no": "",
