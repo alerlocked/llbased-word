@@ -1548,16 +1548,19 @@ class WritingAgent(BaseAgent):
                 f"只输出 row={i} 的列：{slot_desc}\n"
                 f"输出格式：JSON 数组，每个元素 {{\"row\": {i}, \"slot\": 列key, \"value\": 值}}\n"
                 f"不要输出其他工序，不要输出已由系统提取的列（车间/工序号/工序名称/辅助材料）。\n"
-                f"## 工序内容(content) 写法：根据工艺流程图本工序「{name}」+ 下方工步原文，"
-                f"用 1-2 句大白话概括本工序的核心操作——直接写操作内容，"
-                f"不要带「钳：」「机：」等工序名称前缀（工序名称已由系统从素材单独提取到 step_name 列），"
-                f"不要写 1.1/1.2 工步细节，不要凭空编造原文没有的内容。\n\n"
+                f"## 工序内容(content) 写法：基于「工序{i}（{name}）工步原文」逐工步详实展开，保留 1.1/1.2/1.3 等工步编号与层次结构。\n"
+                f"每个工步写清：操作动作 + 关键参数（力矩/尺寸/规格/数量）+ 使用的辅材/仪器。多个工步用换行分段，结构：「工步号」操作描述；关键参数；辅材/仪器。\n"
+                f"约束（强制）：\n"
+                f"  1. 只用工步原文里出现的信息，不得新增原文没有的参数、数值、步骤；原文不足则如实写已有的，不要补全。\n"
+                f"  2. 不要带「钳：」「机：」前缀（工序名称已单独提取到 step_name 列）。\n"
+                f"  3. 目标长度：本工序有多少工步就写多少段，每工步 1-3 句（约 30-60 字/工步），整道工序通常 100-200 字；工步多的可更长。宁详勿简，但绝不超过工步原文提供的信息量。\n"
+                f"  4. 若该工序工步原文为「（原文未提供）」，content 留空字符串，不要臆造。\n\n"
                 f"## 检验(inspection) 写法：仅对【关键质检工序】生成检验点——"
                 f"即涉及力矩/密封性/电气性能/位置度/关键尺寸测量，且原文工步中出现检验或测量要求的工序，生成 1-2 个检验点。"
                 f"普通装配动作（装密封圈、拧螺钉、搬运、清洗、涂胶、普通装配）一律不生成检验点，该 slot 留空字符串。"
                 f"全表检验点总数不得超过工序数，宁缺毋滥。\n"
                 f"每个检验点独占一行（用换行分隔）。不要写操作步骤（操作步骤归 content）。\n\n"
-                f"## 工序{i}（{name}）工步原文（content 的依据，不要照抄，要概括）\n{sub_text}\n"
+                f"## 工序{i}（{name}）工步原文（content 的依据，按上述工步结构详实展开，保留全部工步信息）\n{sub_text}\n"
             )
             async with semaphore:
                 result = await llm_service.generate_with_messages(
@@ -1566,7 +1569,7 @@ class WritingAgent(BaseAgent):
                         {"role": "user", "content": user_msg},
                     ],
                     temperature=0.2,
-                    max_tokens=2500,
+                    max_tokens=3000,
                     tier="complex",
                 )
             if result["status"] == "error":
@@ -1574,7 +1577,7 @@ class WritingAgent(BaseAgent):
                 return []
             raw = result["content"].strip()
             if result.get("finish_reason") == "length":
-                logger.warning("g25a_per_step_truncated", step=i, max_tokens=2500)
+                logger.warning("g25a_per_step_truncated", step=i, max_tokens=3000)
             parsed = _parse_llm_json(raw)
             if not parsed or not isinstance(parsed, list):
                 logger.warning("g25a_per_step_parse_failed", step=i)
