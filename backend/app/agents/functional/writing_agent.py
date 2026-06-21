@@ -1214,6 +1214,10 @@ class WritingAgent(BaseAgent):
                 # Apply noise filter to LLM direct output (fallback path)
                 merged_rows = _filter_noise_rows(merged_rows)
 
+        # G25a: expand inspection values into '检验' process rows (after each op row)
+        if chapter_code == "G25a" and merged_rows:
+            merged_rows = _expand_inspection_rows(merged_rows)
+
         # --- Step 5: Build output ---
         chapter_data = ChapterData(
             chapter_code=chapter_code,
@@ -1521,6 +1525,12 @@ class WritingAgent(BaseAgent):
         slot_keys = [c.key for c in unstructured_cols]
         slot_desc = ", ".join(f'"{c.key}"({c.label})' for c in unstructured_cols)
         label_to_key = {c.label: c.key for c in unstructured_cols}
+        # G25a inspection column removed from template (now expanded into '检验'
+        # process rows), but the LLM still needs to generate this slot so the
+        # post-processor can split it into inspection rows.
+        if chapter_code == "G25a" and "inspection" not in slot_keys:
+            slot_keys.append("inspection")
+            slot_desc += ', "inspection"(检验)'
         semaphore = asyncio.Semaphore(4)
         user_msg = "\n\n".join(user_parts) if user_parts else "请生成。"
 
@@ -1537,8 +1547,15 @@ class WritingAgent(BaseAgent):
                 f"\n\n## 当前任务：只生成第 {i} 道工序（{name}）的内容\n"
                 f"只输出 row={i} 的列：{slot_desc}\n"
                 f"输出格式：JSON 数组，每个元素 {{\"row\": {i}, \"slot\": 列key, \"value\": 值}}\n"
-                f"不要输出其他工序，不要输出已由系统提取的列（车间/工序号/工序名称/辅助材料）。\n\n"
-                f"## 工序{i}（{name}）工步原文（content 的唯一事实来源）\n{sub_text}\n"
+                f"不要输出其他工序，不要输出已由系统提取的列（车间/工序号/工序名称/辅助材料）。\n"
+                f"## 工序内容(content) 写法：根据工艺流程图本工序「{name}」+ 下方工步原文，"
+                f"用 1-2 句大白话概括本工序的核心操作——直接写操作内容，"
+                f"不要带「钳：」「机：」等工序名称前缀（工序名称已由系统从素材单独提取到 step_name 列），"
+                f"不要写 1.1/1.2 工步细节，不要凭空编造原文没有的内容。\n\n"
+                f"## 检验(inspection) 写法：列出本工序的关键检验点（装配后该检查什么，如密封性/力矩/间隙/位置度）。"
+                f"每个检验点独占一行（用换行分隔）；简单工序 1 个检验点，复杂工序可多个；"
+                f"确实无检验点则该 slot 留空字符串。不要写操作步骤（操作步骤归 content）。\n\n"
+                f"## 工序{i}（{name}）工步原文（content 的依据，不要照抄，要概括）\n{sub_text}\n"
             )
             async with semaphore:
                 result = await llm_service.generate_with_messages(
@@ -2004,6 +2021,40 @@ def _group_slots_by_fill_type(
         else:
             structured.append(col)
     return {"structured": structured, "unstructured": unstructured}
+
+
+def _expand_inspection_rows(
+    merged_rows: List[Dict[str, Any]],
+    inspection_key: str = "inspection",
+) -> List[Dict[str, Any]]:
+    """G25a: split each row's inspection value into inspection process rows.
+
+    Each operating row keeps its fields (inspection removed); after it we insert
+    one '检验' row per non-empty inspection point (points split on newlines).
+    Inspection rows carry only step_name='检验' + content=point; other columns
+    empty so they match the frontend G25a dataColumns keys exactly.
+    """
+    import re
+
+    out: List[Dict[str, Any]] = []
+    for row in merged_rows:
+        insp = (row.get(inspection_key) or "").strip()
+        out.append({k: v for k, v in row.items() if k != inspection_key})
+        if not insp:
+            continue
+        for point in [p.strip() for p in re.split(r"[\n\r]+", insp) if p.strip()]:
+            out.append({
+                "workshop": "",
+                "step_no": "",
+                "step_name": "检验",
+                "content": point,
+                "aux_materials": "",
+                "instruments": "",
+                "time_setup": "",
+                "time_per_piece": "",
+                "time_total": "",
+            })
+    return out
 
 
 def _legacy_to_slots(

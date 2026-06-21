@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-06-21T20:21:36+08:00
-last_commit: 8e98923
+updated_at: 2026-06-21T20:27:06+08:00
+last_commit: 34f4520
 status: G25a 检验工序行 + 前后端契约校验 + docx2pdf 修复（PLAN 8e98923 seal，执行 loop 进行中）
 task_state: running
 task_slug: contract-align
@@ -11,24 +11,24 @@ task_slug: contract-align
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `8e98923` plan(contract-align): G25a inspection-row + frontend-backend column-key guard + docx2pdf fix (1 second ago)
+- `34f4520` chore(devlog): task_state running for contract-align (1 second ago)
+- `8e98923` plan(contract-align): G25a inspection-row + frontend-backend column-key guard + docx2pdf fix (6 minutes ago)
 - `66a633e` docs(config): local qwen3-30b-a3b switch needs dummy API key + diagnose step (25 hours ago)
-- `2523a88` chore(g25a-perstep): wrap up done + commit diagnose_g25a.py probe (25 hours ago)
+- `2523a88` chore(g25a-perstep): wrap up done + commit diagnose_g25a.py probe (26 hours ago)
 - `8a3a4ef` chore(config): document local qwen3-30b-a3b switch (mindie port 1028) (26 hours ago)
 - `d803946` feat(generation): G25a per-step parallel (Semaphore 4, each step one LLM call) (26 hours ago)
 - `204c5f8` plan: G25a per-step parallel generation (per-step LLM, semaphore 4) (26 hours ago)
 - `3b84ca5` feat(generation): inject profile layers (principles + triples) into G25a prompt (2 days ago)
 - `d0f75b6` feat(generation): fix G25a empty content (max_tokens) + source-driven G22a/G25a (2 days ago)
 - `9201e85` plan: G25a content empty = LLM max_tokens truncation (v2 root-cause revision) (2 days ago)
-- `ae5f010` plan: G25a content writing (fix inject break + profile layers + triples fallback) (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 - **在做**：contract-align（PLAN 8e98923 seal）——G25a 检验工序行 + 前后端 column-key 契约校验 + docx2pdf 修复
 - **背景**：G25a 后端生成 inspection(检验)但前端无对应列→丢弃；真实工艺文件检验是单独成行(工序名=检验)。docx2pdf 三方法全挂待修
-- **节点进度**：A(后端检验行,方案Y merge后处理) 待做 / B(契约校验+guard hook) 待做 / C(docx2pdf实测+固化skill) 待做
+- **节点进度**：A✅(diagnose 40rows=10操作+30检验,检验行step_name=检验出现,复杂工序多点/简单单点) / B(契约校验+guard hook) 待做 / C(docx2pdf实测) 待做
 - **节点A方案**：LLM 照常每步生成 content+inspection(不动并行核心)，merge 后 _expand_inspection_rows 拆检验行插入；模板删 inspection 列
-- **下一步**：spawn Writer 做节点A(writing_agent slot_keys增补+后处理函数+调用点+step_msg inspection指引+模板删列)
+- **下一步**：节点B 契约校验脚本 guard-column-align.py + settings 注册(PostToolUse warn)
 - **（历史）前置 g25a-perstep**：A✅B✅C✅ web验证通过
 - **前置完成**：g25a-write 已落地（content空=max_tokens截断已修 d0f75b6/3b84ca5，diagnose实证10/10）
 - **本任务**：G25a 每道工序一次 LLM 调用并行（Semaphore 4），解决本地千问3-30B-A3B(2048上限)必截断 + 提质量。云端qwen-plus验证+本地配置留好

@@ -246,8 +246,6 @@
         {"key": "step_name", "label": "工序名称", "type": "text", "default": "钳", "fill_type": "structured"},
         {"key": "content", "label": "工序内容", "type": "long_text", "required": true, "ai_filled": true, "fill_type": "unstructured",
          "_comment": "Main body - detailed operation steps, inspection points, safety notes"},
-        {"key": "inspection", "label": "检验", "type": "long_text", "ai_filled": true, "fill_type": "unstructured",
-         "_comment": "Inspection checkpoints for this step"},
         {"key": "aux_materials", "label": "辅助材料", "type": "text", "ai_filled": true, "fill_type": "structured"},
         {"key": "instruments", "label": "专用仪器、仪表及工艺装备", "type": "text", "ai_filled": true, "fill_type": "structured"},
         {"key": "time_setup", "label": "工时-准结", "type": "text", "fill_type": "structured"},
