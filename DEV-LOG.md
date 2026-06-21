@@ -2,29 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-06-22T00:14:11+08:00
-last_commit: c7b18b2
-status: content-detail（G25a content 详实化:extract colspan 修复+生成展开+开头说明,PLAN c7b18b2 seal 执行中）
-task_state: running
+updated_at: 2026-06-22T01:05:10+08:00
+last_commit: 560e3ca
+status: content-detail 完成（G25a content 详实化:extract colspan 修+生成详实+开头说明,content 32→461字）
+task_state: done
 task_slug: content-detail
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `c7b18b2` plan(content-detail): extract colspan fix + gen expand + assembly overview (0 seconds ago)
-- `8125c3e` chore(content-quality): wrap up done — node B baseline + node A tighten 38->5 (67 minutes ago)
-- `fab6783` feat(g25a): tighten inspection count (38->5, global cap <= ops) (73 minutes ago)
-- `c603273` feat(diag): all-chapter generation probe (81 minutes ago)
+- `560e3ca` feat(g25a): extract assembly overview + inject as system_msg background (0 seconds ago)
+- `27abdf2` feat(g25a): content prompt detail-expand (content_avg 32->461, zero fab) (5 minutes ago)
+- `5b97f8d` fix(extract): _table_to_markdown grid-expand colspan/rowspan — op5 9->729 chars (26 minutes ago)
+- `63776e8` chore(devlog): task_state running for content-detail (50 minutes ago)
+- `c7b18b2` plan(content-detail): extract colspan fix + gen expand + assembly overview (51 minutes ago)
+- `8125c3e` chore(content-quality): wrap up done — node B baseline + node A tighten 38->5 (2 hours ago)
+- `fab6783` feat(g25a): tighten inspection count (38->5, global cap <= ops) (2 hours ago)
+- `c603273` feat(diag): all-chapter generation probe (2 hours ago)
 - `57bb7be` chore(devlog): task_state running for content-quality (2 hours ago)
-- `5749974` plan(content-quality): G25a inspection tighten + all-chapter diagnose probe (2 hours ago)
-- `dc0537f` chore(contract-align): wrap up done — 3 nodes complete (3 hours ago)
-- `2b2b009` feat(g25a): turn inspection into process rows (post-merge expand, per-step parallel untouched) (4 hours ago)
-- `34f4520` chore(devlog): task_state running for contract-align (4 hours ago)
-- `8e98923` plan(contract-align): G25a inspection-row + frontend-backend column-key guard + docx2pdf fix (4 hours ago)
+- `5749974` plan(content-quality): G25a inspection tighten + all-chapter diagnose probe (3 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
-- **在做**：content-detail —— G25a content 详实化。根因=_table_to_markdown 不展开 colspan(op5 工步被吞 extract 仅9字)+ step_msg 概括 + 开头说明缺。节点1 colspan 展开(核心前置)→ 节点2 生成详实 → 节点3 开头说明
+- **完成**：content-detail —— G25a content 详实化三节点全过。① 节点1 _table_to_markdown colspan 网格展开(extract op5 9→729字/ASM 1134→4992,三层根因)② 节点2 生成 prompt 详实化(content_avg 32→461字,零臆造)③ 节点3 装配卡说明(extract_assembly_overview 769字+注入)。待用户 web 验证;后续重跑 diagnose_all_chapters 看其他章节是否受益 + G14a/G12a 逐章
 - **历史完成**：content-quality(检验收紧38→5+实证) + contract-align(检验行+契约guard+docx2pdf)
 - **历史完成**：contract-align（检验工序行+契约guard+docx2pdf中文路径）三节点全过
 - **节点A✅**：G25a 检验工序行（方案Y merge 后处理）。LLM 照常生成 content+inspection，_expand_inspection_rows 拆检验行插入；模板删 inspection 列。diagnose 40rows=10操作+30检验，检验行 step_name=检验，复杂工序多点/简单单点。commit 2b2b009
