@@ -194,5 +194,180 @@ class TestTableMatch:
         assert match.score == 10.0
 
 
+def _ctx():
+    """Build a HierarchicalContext instance for unit tests (no data dir needed
+    for _table_to_markdown / _has_colspan_rowspan / _expand_table_grid)."""
+    from app.services.hierarchical_context import HierarchicalContext
+    return HierarchicalContext(data_dir="/tmp/nonexistent_hctx_test")
+
+
+class TestTableToMarkdown:
+    """测试 _table_to_markdown 的 colspan/rowspan 网格展开"""
+
+    def _parse(self, html: str):
+        from bs4 import BeautifulSoup
+        return BeautifulSoup(html, "html.parser").find("table")
+
+    def test_has_colspan_rowspan_false_for_plain_table(self):
+        """无 colspan/rowspan 的表，护栏返回 False"""
+        t = self._parse("<table><tr><td>a</td><td>b</td></tr></table>")
+        assert _ctx()._has_colspan_rowspan(t) is False
+
+    def test_has_colspan_rowspan_true_for_colspan(self):
+        """有 colspan>1 的表，护栏返回 True"""
+        t = self._parse('<table><tr><td colspan="2">a</td></tr></table>')
+        assert _ctx()._has_colspan_rowspan(t) is True
+
+    def test_has_colspan_rowspan_true_for_rowspan(self):
+        """有 rowspan>1 的表，护栏返回 True"""
+        t = self._parse('<table><tr><td rowspan="2">a</td></tr></table>')
+        assert _ctx()._has_colspan_rowspan(t) is True
+
+    def test_colspan_expands_text_in_first_col(self):
+        """colspan=2 的 td：文本落在首列，次列为空，保持网格对齐"""
+        t = self._parse(
+            '<table>'
+            "<tr><td>H1</td><td>H2</td><td>H3</td></tr>"
+            '<tr><td colspan="2">SPAN</td><td>x</td></tr>'
+            "</table>"
+        )
+        md = _ctx()._table_to_markdown(t)
+        lines = md.split("\n")
+        # line 0 = header, line 1 = separator, line 2 = colspan row
+        row_cells = [c.strip() for c in lines[2].split("|")]
+        # split("|") yields ['', 'H1', 'H2', 'H3', ''] -> cells
+        # SPAN should be in first data column, second column empty
+        nonempty = [c for c in row_cells if c]
+        assert "SPAN" in nonempty
+        # the colspan row must align to 3 columns total like the header
+        assert len([c for c in row_cells]) == 5  # leading+trailing empty from split
+        # SPAN occupies col0, col1 empty, x in col2
+        assert row_cells[1] == "SPAN"
+        assert row_cells[2] == ""
+        assert row_cells[3] == "x"
+
+    def test_rowspan_leaves_cell_empty_in_following_row(self):
+        """rowspan=2 的 td：下一行对应列为空"""
+        t = self._parse(
+            '<table>'
+            "<tr><td>H1</td><td>H2</td></tr>"
+            '<tr><td rowspan="2">RS</td><td>a</td></tr>'
+            "<tr><td>b</td></tr>"
+            "</table>"
+        )
+        md = _ctx()._table_to_markdown(t)
+        lines = md.split("\n")
+        # data rows: line2 (RS,a), line3 (b in col1, col0 empty)
+        row3_cells = [c.strip() for c in lines[3].split("|")]
+        # col0 occupied by rowspan -> empty; b lands in col1
+        assert row3_cells[1] == ""  # rowspan owner column
+        assert row3_cells[2] == "b"
+
+    def test_mixed_colspan_rowspan_uniform_columns(self):
+        """混合 colspan+rowspan：所有行列数一致"""
+        t = self._parse(
+            '<table>'
+            "<tr><td>H1</td><td>H2</td><td>H3</td><td>H4</td></tr>"
+            '<tr><td rowspan="2" colspan="2">BIG</td><td>c</td><td>d</td></tr>'
+            "<tr><td>e</td><td>f</td></tr>"
+            "</table>"
+        )
+        ctx = _ctx()
+        md = ctx._table_to_markdown(t)
+        lines = md.split("\n")
+        # every row line must have the same number of pipe-delimited cells
+        counts = {len([c for c in ln.split("|")]) for ln in lines}
+        assert len(counts) == 1, f"column counts differ: {counts}"
+
+    def test_plain_table_uses_legacy_path(self):
+        """无 colspan 表走原逻辑（护栏），输出正常 markdown 表"""
+        t = self._parse(
+            '<table>'
+            "<tr><td>车间</td><td>工序号</td></tr>"
+            "<tr><td>33</td><td>1</td></tr>"
+            "</table>"
+        )
+        md = _ctx()._table_to_markdown(t)
+        assert "车间" in md
+        assert "33" in md
+        # header separator present
+        assert "---" in md
+
+    def test_signature_row_per_cell_not_cross_cell(self):
+        """签名行检测基于单元格内数字，不误伤跨格拼接的伪数字串。
+        模拟 G25a op5 bug：材料编号尾 3596 与相邻 75mm 拼成 359675 会误删行。
+        """
+        t = self._parse(
+            '<table>'
+            "<tr><td>工序内容</td><td>材料</td><td>规格</td></tr>"
+            "<tr><td>5.1.1安装电缆</td><td>胶带HG/T3596</td><td>75mm</td></tr>"
+            "</table>"
+        )
+        md = _ctx()._table_to_markdown(t)
+        # The real step row must survive (not deleted as a fake signature row)
+        assert "5.1.1安装电缆" in md
+        assert "HG/T3596" in md
+
+
+class TestExtractAssemblySteps:
+    """测试 extract_assembly_steps 对 colspan 工序卡的解析"""
+
+    def test_extract_substeps_from_colspan_card(self, monkeypatch):
+        """含 colspan 的工序卡（类似 op5 结构）应抽到 >=3 substeps。
+        改前逐 tr 收集 + pad 会列错位，只抽到 1 个。
+        """
+        from app.services.hierarchical_context import HierarchicalContext
+
+        # Build a G25a-style HTML: header row (车间/工序号/工序内容) + step
+        # header + 3 substeps each in a colspan=7 td, mimicking the real op5
+        # table layout where 工序内容 spans multiple columns.
+        card_html = (
+            "## 第1页\n"
+            "<table>"
+            "<tr><td>车间</td><td>工序号</td><td>工序名称</td>"
+            '<td colspan="7">工序内容</td><td>辅助材料</td></tr>'
+            "<tr><td>33</td><td>5</td><td>钳</td><td>五舱装配</td><td></td></tr>"
+            "<tr><td></td><td></td><td></td>"
+            '<td colspan="7">5.1四舱电缆插接</td><td>黑色胶带</td></tr>'
+            "<tr><td></td><td></td><td></td>"
+            '<td colspan="7">5.1.1将电缆W14的XG14与电缆W15连接</td><td>胶带</td></tr>'
+            "<tr><td></td><td></td><td></td>"
+            '<td colspan="7">5.1.2将电缆W17的XG24与四舱连接</td><td>无碱玻璃胶带</td></tr>'
+            "<tr><td></td><td></td><td></td>"
+            '<td colspan="7">5.1.3将W64D的X63用黑绝缘胶带保护</td><td></td></tr>'
+            "</table>"
+        )
+
+        ctx = _ctx()
+        # Stub get_pages_content to return our crafted markdown-converted text.
+        # Route through _html_to_readable so _table_to_markdown runs.
+        from bs4 import BeautifulSoup
+
+        def fake_get_pages_content(self, doc_dir_name, start, end, max_tokens=12000):
+            soup = BeautifulSoup(card_html, "html.parser")
+            return self._html_to_readable(soup)
+
+        monkeypatch.setattr(
+            HierarchicalContext, "get_pages_content", fake_get_pages_content
+        )
+        # Stub load_chapter_index to return one 装配 chapter.
+        monkeypatch.setattr(
+            HierarchicalContext,
+            "load_chapter_index",
+            lambda self, name: {"chapters": [{"title": "装配工艺卡片", "pages": [1]}]},
+        )
+
+        steps = ctx.extract_assembly_steps("dummy")
+        assert 5 in steps, f"step 5 missing, got {list(steps.keys())}"
+        subs = steps[5]["substeps"]
+        # Before the fix only 1 substep survived; now all 3 real substeps
+        # (5.1, 5.1.1, 5.1.2, 5.1.3) should be captured.
+        assert len(subs) >= 3, f"expected >=3 substeps, got {len(subs)}: {[s['content'] for s in subs]}"
+        contents = " ".join(s["content"] for s in subs)
+        assert "5.1.1" in contents
+        assert "5.1.2" in contents
+        assert "5.1.3" in contents
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

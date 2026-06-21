@@ -51,6 +51,11 @@ _AUDIT_MARKERS = ("会签", "审核", "批准", "校对", "签名", "更改单�
 _SUBSTEP_HEADER_WORDS = frozenset({
     "车间", "工序号", "工序名称", "工序内容", "辅助材料", "专用仪器",
     "准结", "单件", "总计", "设备", "工艺装备",
+    # 续页/首页表头残留列名 (产品/零件元信息区), never a real substep.
+    # After parts-list detection was narrowed, these header words can leak
+    # into the substep list, so reject them here too.
+    "产品工号", "产品数字", "工艺文件编号", "装配工艺卡", "装配工艺卡片(续)",
+    "零、部、组(整)件代号", "零、部、组(整)件名称", "代号", "名称", "数量",
 })
 _SUBSTEP_NOISE_MARKERS = (
     "会签", "审核", "批准", "校对", "签名", "编制", "标检", "更改单号",
@@ -61,9 +66,15 @@ _SUBSTEP_NOISE_MARKERS = (
 # (代号/名称/编号/数量). Once its header row appears, every row until the
 # next step header belongs to the parts list — not process content — so skip
 # them all to avoid pulling part names/codes into the substep list.
+# NOTE: only the parts-list-EXCLUSIVE phrases are used. The generic header
+# column names ("产品工号"/"产品数字"/"零、部、组(整)件代号") also appear in
+# 续页表头 rows ("装配工艺卡片(续) ... 产品数字 ..."), so matching them would
+# wrongly flag every continuation-page header as a parts list and drop all
+# substeps on that page (G25a op5 lost 5.1.3/5.2/... this way). The exclusive
+# phrases (交往何处/单套产品中装配件数量/本批装配件生产总数) only occur in the
+# real parts-list header, so they distinguish the two safely.
 _PARTS_LIST_MARKERS = (
-    "产品工号", "产品数字", "零、部、组(整)件代号", "交往何处",
-    "单套产品中装配件数量", "本批装配件生产总数",
+    "交往何处", "单套产品中装配件数量", "本批装配件生产总数",
 )
 
 
@@ -1222,21 +1233,127 @@ class HierarchicalContext:
         # Now extract text — tables are already Markdown strings
         return soup.get_text(separator="\n")
 
-    def _table_to_markdown(self, table) -> str:
-        """Convert an HTML <table> to a Markdown pipe table string.
+    def _has_colspan_rowspan(self, table) -> bool:
+        """Return True if any <td> in the table spans multiple cols/rows.
 
-        Handles colspan by merging cells. Skips rows where all cells
-        are empty (blank filler rows in QJ 903 tables).
+        Tables without colspan/rowspan are left on the fast path (simple
+        per-tr collection + pad). Only tables that actually use spans go
+        through the grid-expansion path, keeping G18a-style plain tables on
+        their original behavior (no regression risk).
+        """
+        for td in table.find_all("td"):
+            try:
+                cs = int(td.get("colspan", 1) or 1)
+                rs = int(td.get("rowspan", 1) or 1)
+            except (TypeError, ValueError):
+                continue
+            if cs > 1 or rs > 1:
+                return True
+        return False
+
+    def _collect_table_rows(self, table) -> List[List[str]]:
+        """Collect raw <td> text per <tr> (no span handling, legacy path).
+
+        Skips rows where every cell is empty (blank filler rows in QJ 903
+        tables). Used for tables without colspan/rowspan.
         """
         rows: List[List[str]] = []
         for tr in table.find_all("tr"):
-            cells: List[str] = []
-            for td in tr.find_all("td"):
-                text = td.get_text(strip=True)
-                cells.append(text)
-            # Skip completely empty rows
+            cells = [td.get_text(strip=True) for td in tr.find_all("td")]
             if any(c for c in cells):
                 rows.append(cells)
+        return rows
+
+    def _expand_table_grid(self, table) -> List[List[str]]:
+        """Expand a <table> with colspan/rowspan into a 2-D grid.
+
+        Text from a spanned cell is placed at its top-left logical position
+        (the column where the cell starts). Columns covered by a colspan
+        beyond the first are left as empty strings, and rows covered by a
+        rowspan (excluding the cell's own row) are marked occupied so the
+        next <tr>'s cells shift past them. This keeps every row aligned on
+        the same column axis, which is what downstream row-based parsers
+        (e.g. extract_assembly_steps reading by header column index) rely
+        on — naive per-tr collection + pad misaligns columns whenever a td
+        spans, burying 工序内容 text under the wrong column.
+
+        Returns a list of rows (each a list of cell strings). The grid is
+        pre-trimmed to the real max column count but NOT yet post-filtered
+        (audit/scrub/signature filtering still happens in the caller).
+        """
+        grid: List[List[str]] = []
+        # occupied[r][c] = True when an upstream rowspan has claimed that
+        # logical cell; the cell that owns the span stays its own text.
+        occupied: Dict[int, Set[int]] = {}
+
+        def _occ(r: int, c: int) -> bool:
+            return c in occupied.get(r, set())
+
+        for r, tr in enumerate(table.find_all("tr")):
+            # Ensure row r exists in the grid.
+            while len(grid) <= r:
+                grid.append([])
+            c = 0
+            for td in tr.find_all("td"):
+                try:
+                    cs = int(td.get("colspan", 1) or 1)
+                    rs = int(td.get("rowspan", 1) or 1)
+                except (TypeError, ValueError):
+                    cs, rs = 1, 1
+                if cs < 1:
+                    cs = 1
+                if rs < 1:
+                    rs = 1
+                # Advance past columns already claimed by a rowspan.
+                while _occ(r, c):
+                    c += 1
+                text = td.get_text(strip=True)
+                # Place text at the cell's origin column; pad missing cols.
+                while len(grid[r]) <= c:
+                    grid[r].append("")
+                grid[r][c] = text
+                # Fill the rest of this colspan on this row with empties.
+                for k in range(1, cs):
+                    while len(grid[r]) <= c + k:
+                        grid[r].append("")
+                    if not grid[r][c + k]:
+                        grid[r][c + k] = ""
+                # Mark downstream rowspan columns as occupied (rows r+1..r+rs-1,
+                # cols c..c+cs-1). Those cells get filled as "" when their rows
+                # are built, preserving grid alignment.
+                if rs > 1:
+                    for rr in range(r + 1, r + rs):
+                        for cc in range(c, c + cs):
+                            occupied.setdefault(rr, set()).add(cc)
+                c += cs
+
+        # Normalize all rows to the real max column count.
+        max_cols = max((len(r) for r in grid), default=0)
+        for r in grid:
+            while len(r) < max_cols:
+                r.append("")
+        return grid
+
+    def _table_to_markdown(self, table) -> str:
+        """Convert an HTML <table> to a Markdown pipe table string.
+
+        Two paths:
+          - No colspan/rowspan: collect <td> per <tr> directly (legacy
+            behavior, unchanged for plain tables).
+          - Has spans: expand into a 2-D grid so every row shares one
+            column axis (text at the cell's origin column, spanned cells
+            left empty). Without this, per-tr collection + pad misaligns
+            columns whenever a td spans, burying cell text under the wrong
+            column.
+
+        Both paths keep the same post-processing: scrub audit/signature
+        cells in place, drop signature/footer rows (long digit runs) and
+        drop fully-empty rows.
+        """
+        if self._has_colspan_rowspan(table):
+            rows = self._expand_table_grid(table)
+        else:
+            rows = self._collect_table_rows(table)
 
         # Drop audit/signature rows (company review workflow, not process
         # content). Filtered here so the LLM never receives 会签/审核/批准/
@@ -1250,11 +1367,15 @@ class HierarchicalContext:
             return "" if any(m in compact for m in _AUDIT_MARKERS) else cell
 
         rows = [[_scrub_audit(c) for c in r] for r in rows]
-        # Drop signature/footer rows: rows containing a long digit run
-        # (dates like 20240828, audit stamps, page numbers). Process/step
-        # rows never contain 6+ consecutive digits, so this safely removes
+        # Drop signature/footer rows: any single cell holding a long digit
+        # run (dates like 20240828, audit stamps, page numbers). Process/step
+        # cells never contain 6+ consecutive digits, so this safely removes
         # 编制/标检/审核/签名 + 人名 + 日期 footer without touching steps.
-        rows = [r for r in rows if not re.search(r"\d{6,}", "".join(r))]
+        # NOTE: must check per-cell, NOT "".join(row) — adjacent non-empty
+        # cells (more common after grid expansion) can concatenate into a
+        # spurious 6-digit run, e.g. "HG/T3596" + "75mm" → "...T359675mm",
+        # which would wrongly drop a real step row (G25a op5 "5.1.1...").
+        rows = [r for r in rows if not any(re.search(r"\d{6,}", c) for c in r)]
         rows = [r for r in rows if any(c for c in r)]
 
         if not rows:
