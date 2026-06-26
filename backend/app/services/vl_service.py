@@ -61,9 +61,14 @@ class VLService:
         # 初始化后端
         self._mineru_extractor = None
         self._qwen_initialized = False
+        # MinerU loads a 6GB model — defer to first OCR (lazy) so uvicorn
+        # hot-reload no longer reloads the model on every code change.
+        # qwen/qwen_local are lightweight (cloud API / HTTP), keep eager.
+        self._mineru_predictor = None
+        self._mineru_lock = asyncio.Lock()
 
         if self.backend == "mineru":
-            self._init_mineru_backend()
+            pass  # lazy: _ensure_mineru_ready() loads on first OCR
         elif self.backend == "qwen":
             self._init_qwen_backend()
         elif self.backend == "qwen_local":
@@ -117,6 +122,21 @@ class VLService:
                 self._init_qwen_backend()
             else:
                 raise
+
+    async def _ensure_mineru_ready(self):
+        """Lazy-load MinerU predictor on first OCR.
+
+        Lock guards against concurrent first-load races; the ~30s sync model
+        load runs off the event loop. Replaces eager loading in __init__ so
+        uvicorn hot-reload no longer reloads the 6GB model on every code change
+        — only the first OCR after a reload pays the load, then it stays resident.
+        """
+        if self._mineru_predictor is not None:
+            return
+        async with self._mineru_lock:
+            if self._mineru_predictor is not None:
+                return
+            await asyncio.to_thread(self._init_mineru_backend)
 
     def _init_qwen_backend(self):
         """初始化 Qwen-VL 后端"""
@@ -292,10 +312,12 @@ class VLService:
         使用 MinerU VLM 进行 OCR（正确方式）
         使用 two_step_extract 直接处理图片，无需 img2pdf 转换
         """
-        start_time = time.time()
-
+        await self._ensure_mineru_ready()
         if not self._mineru_predictor:
-            raise RuntimeError("MinerU VLM 后端不可用")
+            # _init_mineru_backend fell back to qwen — route there
+            return await self._ocr_with_qwen(image_path)
+
+        start_time = time.time()
 
         try:
             logger.debug("mineru_ocr_started", image=image_path.name)
@@ -339,8 +361,9 @@ class VLService:
             list of (markdown_content, figures) aligned with image_paths.
             figures kept empty [] to match current single-page behavior.
         """
+        await self._ensure_mineru_ready()
         if not self._mineru_predictor:
-            raise RuntimeError("MinerU VLM 后端不可用")
+            raise RuntimeError("MinerU VLM 后端不可用（lazy 加载失败；document_processor 会回退逐页串行）")
 
         from PIL import Image
 
