@@ -175,7 +175,34 @@ class DocumentProcessor:
             # 收集 VL Service 输出用于生成 HTML
             vl_pages_data = {}
             
-            # 2. 逐页处理：OCR/VL提取
+            # 2. Batch VL extraction (mineru 3.4 true-batch) then serial DB writes.
+            #    Extraction runs in batched true-batch calls; DB writes stay serial
+            #    because the SQLAlchemy session is not thread/concurrent-safe.
+            batch_size = max(1, settings.VL_SERVICE_MAX_WORKERS)
+            pages_extracted: list = [None] * total_pages
+
+            if progress_callback:
+                progress_callback(8, f"批量解析 {total_pages} 页中…")
+
+            for batch_start in range(0, total_pages, batch_size):
+                batch_end = min(batch_start + batch_size, total_pages)
+                batch_paths = image_paths[batch_start:batch_end]
+                try:
+                    batch_results = await vl_service.ocr_pages_batch_mineru(batch_paths)
+                except Exception as e:
+                    # Fallback to per-page serial on batch failure (keeps system working)
+                    logger.warning(f"⚠️ mineru batch failed, fallback serial: {e}")
+                    batch_results = []
+                    for p in batch_paths:
+                        md, figs = await vl_service.ocr_page_to_markdown(p)
+                        batch_results.append((md, figs))
+                for j, res in enumerate(batch_results):
+                    pages_extracted[batch_start + j] = res
+                if progress_callback:
+                    pct = 10 + int(batch_end / total_pages * 70)
+                    progress_callback(min(pct, 80), f"已解析 {batch_end}/{total_pages} 页")
+
+            # 2b. Serial DB writes — reuse existing per-page write logic
             for i, image_path in enumerate(image_paths):
                 page_num = i + 1
                 logger.info(f"🔍 处理第 {page_num}/{total_pages} 页...")
@@ -183,7 +210,7 @@ class DocumentProcessor:
                 # 使用VL服务识别页面内容（包含文字、表格、图片描述）
                 # page_content: Markdown 文本
                 # page_figures: 提取到的图表元数据列表
-                page_content, page_figures = await vl_service.ocr_page_to_markdown(image_path)
+                page_content, page_figures = pages_extracted[i]
                 
                 # 保存页信息到数据库（只存储元数据，内容在文件系统）
                 page_record = MaterialPage(
@@ -232,10 +259,10 @@ class DocumentProcessor:
                 # 组合Markdown
                 all_markdown_parts.append(f"## 第 {page_num} 页\n\n{page_content}\n\n")
 
-                # Update progress after each page
+                # Update progress — write phase (extraction done in batch above)
                 if progress_callback:
-                    pct = 10 + int(page_num / total_pages * 80)
-                    progress_callback(min(pct, 90), f"正在解析第 {page_num}/{total_pages} 页")
+                    pct = 80 + int(page_num / total_pages * 10)
+                    progress_callback(min(pct, 90), f"正在写入第 {page_num}/{total_pages} 页")
             
             # 提交数据库变更
             db.commit()

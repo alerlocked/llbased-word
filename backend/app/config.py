@@ -139,6 +139,10 @@ class Settings(BaseSettings):
     MINERU_VERSION: str = "0.7.6"
 
     # 后端选择: transformers / vllm-engine / vllm-async-engine / lmdeploy-engine / mlx-engine / http-client
+    # Platform limits (mineru 3.1.11 extras): vllm-* is Linux-only (mineru[vllm]);
+    #   on Windows the official VLM-accel path is lmdeploy-engine (mineru[lmdeploy]).
+    #   This machine = Windows + RTX 5080. transformers runs on cuda (MINERU_VLM_DEVICE)
+    #   and supports batch_size for multi-page inference (see vlm_analyze.get_model kwargs).
     MINERU_BACKEND: str = "transformers"
 
     # VLM 配置
@@ -166,7 +170,7 @@ class Settings(BaseSettings):
 
     # ============ VLService PDF解析后端 ============
     # 后端选择:
-    #   mineru:     MinerU pipeline (本地CPU, 精度高, ~1.3页/分钟)
+    #   mineru:     MinerU pipeline (local GPU, device=cuda, ~5-10s/page; the old "本地CPU" note was wrong)
     #   qwen:       Qwen-VL-Plus DashScope API (云端, 速度快, 需联网)
     #   qwen_local: Qwen2.5-VL on MindIE (300I Duo NPU, 需服务器)
     VL_SERVICE_BACKEND: str = "mineru"

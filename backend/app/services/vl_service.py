@@ -323,6 +323,62 @@ class VLService:
             logger.error("mineru_vlm_ocr_failed", image=image_path.name, error=str(e))
             raise
 
+    async def ocr_pages_batch_mineru(
+        self,
+        image_paths: List[Path],
+    ) -> List[Tuple[str, List[Dict[str, Any]]]]:
+        """
+        Batch-OCR multiple pages in one call (mineru 3.4 transformers backend).
+
+        Uses predictor.batch_two_step_extract, which runs a single model.generate
+        over multiple images per batch_size — true batch, no thread-safety race,
+        faster than per-page serial two_step_extract. Returned list order aligns
+        with image_paths.
+
+        Returns:
+            list of (markdown_content, figures) aligned with image_paths.
+            figures kept empty [] to match current single-page behavior.
+        """
+        if not self._mineru_predictor:
+            raise RuntimeError("MinerU VLM 后端不可用")
+
+        from PIL import Image
+
+        start_time = time.time()
+        logger.info("mineru_batch_started", pages=len(image_paths))
+
+        try:
+            images_pil = [Image.open(p).convert("RGB") for p in image_paths]
+
+            # True batch inference (sync) — run off the event loop
+            extract_results = await asyncio.to_thread(
+                self._mineru_predictor.batch_two_step_extract,
+                images_pil,
+            )
+
+            results: List[Tuple[str, List[Dict[str, Any]]]] = []
+            for path, extract_result in zip(image_paths, extract_results):
+                if not extract_result:
+                    logger.warning("mineru_batch_empty_page", image=path.name)
+                    results.append(("", []))
+                    continue
+                markdown_content = self._content_blocks_to_markdown(extract_result)
+                markdown_content = self._clean_text(markdown_content)
+                # figures kept empty to match current single-page behavior
+                results.append((markdown_content.strip(), []))
+
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("MinerU-VLM", "batch_ocr", "success", duration_ms)
+            logger.info("mineru_batch_completed",
+                        pages=len(image_paths), duration_ms=duration_ms)
+            return results
+
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            log_api_call("MinerU-VLM", "batch_ocr", "error", duration_ms)
+            logger.error("mineru_batch_failed", pages=len(image_paths), error=str(e))
+            raise
+
     async def _mineru_image_to_markdown(self, image_path: Path, image_pil) -> str:
         """
         使用 MinerU VLM 处理图片并转换为 Markdown
