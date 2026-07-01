@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-06-27T17:12:30+08:00
-last_commit: 9161535
+updated_at: 2026-07-01T12:57:46+08:00
+last_commit: 8a52846
 status: content-detail 完成（G25a content 详实化:extract colspan 修+生成详实+开头说明,content 32→461字）
 task_state: done
 task_slug: content-detail
@@ -11,16 +11,16 @@ task_slug: content-detail
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `9161535` chore: remove dead code (diagnose scripts, unused services/components) (1 second ago)
-- `7326484` perf(vl_service): lazy-load mineru model to stop hot-reload reloads (29 hours ago)
-- `e4c31ba` perf(mineru): batch VLM extraction + fix misleading config comments (29 hours ago)
-- `016ecd3` chore(content-detail): wrap up done — content 32->461, op5 9->729 (6 days ago)
-- `560e3ca` feat(g25a): extract assembly overview + inject as system_msg background (6 days ago)
-- `27abdf2` feat(g25a): content prompt detail-expand (content_avg 32->461, zero fab) (6 days ago)
-- `5b97f8d` fix(extract): _table_to_markdown grid-expand colspan/rowspan — op5 9->729 chars (6 days ago)
-- `63776e8` chore(devlog): task_state running for content-detail (6 days ago)
-- `c7b18b2` plan(content-detail): extract colspan fix + gen expand + assembly overview (6 days ago)
-- `8125c3e` chore(content-quality): wrap up done — node B baseline + node A tighten 38->5 (6 days ago)
+- `8a52846` plan: fix batch-upload/upload-folder material_id + buffer API (0 seconds ago)
+- `9161535` chore: remove dead code (diagnose scripts, unused services/components) (4 days ago)
+- `7326484` perf(vl_service): lazy-load mineru model to stop hot-reload reloads (5 days ago)
+- `e4c31ba` perf(mineru): batch VLM extraction + fix misleading config comments (5 days ago)
+- `016ecd3` chore(content-detail): wrap up done — content 32->461, op5 9->729 (10 days ago)
+- `560e3ca` feat(g25a): extract assembly overview + inject as system_msg background (10 days ago)
+- `27abdf2` feat(g25a): content prompt detail-expand (content_avg 32->461, zero fab) (10 days ago)
+- `5b97f8d` fix(extract): _table_to_markdown grid-expand colspan/rowspan — op5 9->729 chars (10 days ago)
+- `63776e8` chore(devlog): task_state running for content-detail (10 days ago)
+- `c7b18b2` plan(content-detail): extract colspan fix + gen expand + assembly overview (10 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

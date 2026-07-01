@@ -24,7 +24,7 @@ from app.config import settings
 from app.agents.tools.image_search import get_image_search_tool
 from app.utils.path_utils import build_static_url
 from app.utils.db_utils import get_or_404
-from app.utils.file_utils import calculate_file_hash
+from app.utils.file_utils import calculate_file_hash, calculate_file_hash_from_path
 from app.services.pdf_queue_manager import (
     get_pdf_queue_manager,
     PDFTaskPriority
@@ -1963,8 +1963,24 @@ async def generate_material_index(
 
                 # 准备输出路径
                 for pdf, source_path in zip(pdf_files, copied_paths):
+                    # 为每个 PDF 创建 Material（照搬 upload_document 模式）
+                    material = Material(
+                        material_type="document",
+                        name=Path(pdf["relative_path"]).name
+                    )
+                    db.add(material)
+                    db.commit()
+                    db.refresh(material)
+
+                    # 将素材添加到项目的 material_ids 列表中
+                    material_ids = project.material_ids if project.material_ids else []
+                    if material.id not in material_ids:
+                        material_ids.append(material.id)
+                        project.material_ids = material_ids
+                        db.commit()
+
                     output_path = str(
-                        Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html"
+                        Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html"
                     )
 
                     task_id = await manager.add_task(
@@ -2154,7 +2170,7 @@ async def batch_upload_materials(
                     shutil.copyfileobj(file.file, buffer)
 
                 # 计算文件哈希
-                file_hash = calculate_file_hash(file_path)
+                file_hash = calculate_file_hash_from_path(file_path)
 
                 uploaded_files.append({
                     "name": file.filename,
@@ -2189,19 +2205,26 @@ async def batch_upload_materials(
         if pdf_files:
             manager = get_pdf_queue_manager()
 
-            # 准备输出路径列表
-            source_paths = []
-            output_paths = []
-
+            # 为每个 PDF 创建 Material 并加入解析队列（照搬 upload_document 模式）
             for pdf in pdf_files:
+                material = Material(
+                    material_type="document",
+                    name=pdf["name"]
+                )
+                db.add(material)
+                db.commit()
+                db.refresh(material)
+
+                # 将素材添加到项目的 material_ids 列表中
+                material_ids = project.material_ids if project.material_ids else []
+                if material.id not in material_ids:
+                    material_ids.append(material.id)
+                    project.material_ids = material_ids
+                    db.commit()
+
                 source_path = str(upload_base_dir / pdf["path"])
-                output_path = str(Path(settings.DATA_DIR) / "documents" / str(material_id) / "content.html")
+                output_path = str(Path(settings.DATA_DIR) / "documents" / str(material.id) / "content.html")
 
-                source_paths.append(source_path)
-                output_paths.append(output_path)
-
-            # 批量添加任务
-            for source_path, output_path in zip(source_paths, output_paths):
                 task_id = await manager.add_task(
                     source_path=source_path,
                     output_path=output_path,
