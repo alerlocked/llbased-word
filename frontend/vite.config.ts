@@ -41,9 +41,7 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'antd-vendor': ['antd'],
-          'audio-vendor': ['wavesurfer.js'],
-        },
-      },
+        },      },
     },
   },
 })

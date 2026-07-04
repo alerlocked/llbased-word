@@ -141,7 +141,9 @@ class MemoryService:
                     loop.close()
 
                 if result.get("status") != "error":
-                    text = result.get("content", "")
+                    text = result.get("content") or ""
+                    if not isinstance(text, str):
+                        text = ""
                     summary, entities = self._parse_summary(text)
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     mem_id = f"{ts}_{session_id[:8]}"

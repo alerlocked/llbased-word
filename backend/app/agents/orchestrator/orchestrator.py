@@ -520,6 +520,13 @@ class ProcessOrchestrator:
             tasks = await self.task_decomposer.decompose(intent)
             logger.info("tasks_decomposed", task_count=len(tasks), task_types=[t.get("type") for t in tasks])
 
+            # 5.1 Transition to TASK_DECOMPOSITION state
+            await self.state_machine.transition_to(
+                ProcessState.TASK_DECOMPOSITION,
+                context_update={"task_count": len(tasks), "task_types": [t.get("type") for t in tasks]},
+                trigger="tasks_decomposed",
+            )
+
             # 6. 记录用户消息
             if self.repository and self.current_task_id:
                 self.repository.add_message(
@@ -530,21 +537,25 @@ class ProcessOrchestrator:
                 )
 
             # 7. 执行任务（根据状态机）
+            # 7.1 Transition to TASK_EXECUTION once before the loop
+            await self.state_machine.transition_to(
+                ProcessState.TASK_EXECUTION,
+                trigger="start_task_execution",
+            )
             results = []
             for task in tasks:
                 # 根据任务类型调度相应的子Agent
                 agent_result = await self._dispatch_to_sub_agent(task)
                 results.append(agent_result)
 
-                # 更新状态机
-                await self.state_machine.transition_to(
-                    ProcessState.TASK_EXECUTION,
-                    context_update={"last_task": task.get("type")},
-                    trigger=task.get("type"),
-                )
-
             # 8. 聚合结果
             aggregated_result = await self._aggregate_results(results)
+
+            # 8.1 Transition to RESULT_AGGREGATION
+            await self.state_machine.transition_to(
+                ProcessState.RESULT_AGGREGATION,
+                trigger="results_aggregated",
+            )
 
             # 9. 更新到完成状态
             await self.state_machine.transition_to(
