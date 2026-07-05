@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T21:46:20+08:00
-last_commit: c31cf0b
+updated_at: 2026-07-05T21:57:37+08:00
+last_commit: 1a01091
 status: cleanup-and-dimensions 完成（Step 0 清噪 + Step 1 型号专业维度，前端 UI 待后续）
 task_state: done
 task_slug: cleanup-and-dimensions
@@ -11,16 +11,16 @@ task_slug: cleanup-and-dimensions
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `c31cf0b` feat(api): material GET 加 model/specialty + PUT 更新 API + CLAUDE.md 去向量（节点5 后端） (1 second ago)
-- `7e9d25f` feat(retrieval): HierarchicalContext 型号/专业 filter 穿透（节点4） (4 minutes ago)
-- `1f71182` feat(upload): LLM 推断 model/specialty 写 Material（节点3） (10 minutes ago)
-- `3015abc` feat(db): Material 加 model/specialty 维度（节点2） (14 minutes ago)
-- `4dedab9` refactor: 检索清噪删死壳（节点1） (28 minutes ago)
-- `9fe326e` plan: cleanup-and-dimensions (检索清噪+型号专业维度 Step 0+1) seal (65 minutes ago)
+- `1a01091` chore(devlog): cleanup-and-dimensions done (Step 0+1 完成) (1 second ago)
+- `c31cf0b` feat(api): material GET 加 model/specialty + PUT 更新 API + CLAUDE.md 去向量（节点5 后端） (11 minutes ago)
+- `7e9d25f` feat(retrieval): HierarchicalContext 型号/专业 filter 穿透（节点4） (15 minutes ago)
+- `1f71182` feat(upload): LLM 推断 model/specialty 写 Material（节点3） (21 minutes ago)
+- `3015abc` feat(db): Material 加 model/specialty 维度（节点2） (25 minutes ago)
+- `4dedab9` refactor: 检索清噪删死壳（节点1） (39 minutes ago)
+- `9fe326e` plan: cleanup-and-dimensions (检索清噪+型号专业维度 Step 0+1) seal (76 minutes ago)
 - `b5da812` chore(devlog): derive-strong-node done (代码完成，web 验收待用户) (6 hours ago)
 - `8cf1719` fix(test): autouse mock.patch.stopall + GC between tests (draft flaky 根治) (7 hours ago)
 - `1e6dd1d` fix(test): snapshot/restore registry around test_registry clear (隔离修复) (7 hours ago)
-- `bd7c1c7` refactor(writing): remove weak 三空 derivation fallback (节点3) (7 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
