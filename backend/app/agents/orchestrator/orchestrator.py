@@ -892,6 +892,120 @@ class ProcessOrchestrator:
             "final_content": current_content
         }
 
+    async def _derive_strong_node(
+        self,
+        tasks: List[Dict[str, Any]],
+        task_keys: List[str],
+        results: List[Any],
+        generated_chapters: Dict[str, Dict[str, str]],
+    ) -> None:
+        """Strong node: derive list/detail tables from upstream unconditionally.
+
+        For each list chapter (G4a/G5a/G10a/G12a/G14a/B12a/G18a), call
+        writing.derive_list_strong to reverse-derive rows from already-generated
+        upstream chapters (G19a/G22a/G25a via generated_chapters). Then:
+        original-first merge (don't overwrite existing structured values) and
+        mark still-empty declared slots as "待补" (anti-fabrication).
+
+        Replaces the weak 三空 fallback inside _do_template_fill (节点3 removes it).
+        """
+        writing = self._agents["writing"]
+        LIST_CHAPTERS = {"G4a", "G5a", "G10a", "G12a", "G14a", "B12a", "G18a"}
+
+        for idx, key in enumerate(task_keys):
+            task = tasks[idx]
+            code = task.get("chapter_code") or key
+            if code not in LIST_CHAPTERS:
+                continue
+            result = results[idx]
+            if not (isinstance(result, dict) and result.get("status") == "completed"):
+                continue
+            inner = result.get("result", {})
+            if not isinstance(inner, dict):
+                continue
+            # writing_agent.process wraps the fill result under "result"
+            inner = inner.get("result") if isinstance(inner.get("result"), dict) else inner
+
+            chapter_type = task.get("chapter_type", "")
+            if chapter_type not in ("single_row_list", "dual_list"):
+                continue
+
+            try:
+                derived = await writing.derive_list_strong(task, generated_chapters)
+            except Exception as e:
+                logger.warning("derive_strong_failed", chapter_code=code, error=str(e))
+                continue
+            if not derived:
+                continue
+
+            slot_keys = [
+                s.get("key") for s in task.get("template_slots", []) if s.get("key")
+            ]
+
+            if chapter_type == "dual_list":
+                merged_left = self._merge_derived_rows(
+                    inner.get("left_data", []), derived.get("left", []), slot_keys,
+                )
+                merged_right = self._merge_derived_rows(
+                    inner.get("right_data", []), derived.get("right", []), slot_keys,
+                )
+                inner["left_data"] = merged_left
+                inner["right_data"] = merged_right
+                logger.info(
+                    "derive_strong_applied",
+                    chapter_code=code, chapter_type=chapter_type,
+                    left_rows=len(merged_left), right_rows=len(merged_right),
+                )
+            else:
+                derived_rows = self._slot_items_to_rows(derived)
+                merged = self._merge_derived_rows(
+                    inner.get("filled_data", []), derived_rows, slot_keys,
+                )
+                inner["filled_data"] = merged
+                logger.info(
+                    "derive_strong_applied",
+                    chapter_code=code, chapter_type=chapter_type, rows=len(merged),
+                )
+
+    @staticmethod
+    def _slot_items_to_rows(derived: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """[{row, slot, value}] → row dicts [{slot1:v1, slot2:v2}] grouped by row."""
+        rows_map: Dict[int, Dict[str, Any]] = {}
+        for item in derived:
+            if not isinstance(item, dict):
+                continue
+            row = item.get("row", 1)
+            slot = item.get("slot", "")
+            if slot:
+                rows_map.setdefault(row, {})[slot] = item.get("value", "")
+        return [rows_map[k] for k in sorted(rows_map)]
+
+    @staticmethod
+    def _merge_derived_rows(
+        original: List[Dict[str, Any]],
+        derived_rows: List[Dict[str, Any]],
+        slot_keys: List[str],
+    ) -> List[Dict[str, Any]]:
+        """Original-first merge: keep original structured values, fill missing
+        from derived, then mark still-empty declared slots as "待补".
+        """
+        if not original and not derived_rows:
+            return []
+        merged = [dict(r) for r in (original or [])]
+        for i, d_row in enumerate(derived_rows or []):
+            if i < len(merged):
+                for k, v in d_row.items():
+                    if not merged[i].get(k):
+                        merged[i][k] = v
+            else:
+                merged.append(dict(d_row))
+        if slot_keys:
+            for row in merged:
+                for key in slot_keys:
+                    if not row.get(key):
+                        row[key] = "待补"
+        return merged
+
     async def _aggregate_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         聚合子Agent的执行结果
@@ -2792,6 +2906,13 @@ class ProcessOrchestrator:
             # No phases defined — execute all in parallel (original behavior)
             coros = [self._dispatch_to_sub_agent(t) for t in tasks]
             results = await asyncio.gather(*coros, return_exceptions=True)
+
+        # --- Derive strong node: fill detail/list tables from upstream (G19a/G22a/G25a) ---
+        # Unconditional derivation for list chapters (replaces weak 三空 fallback
+        # inside _do_template_fill). Provenance filter (in writing_agent) drops
+        # untraced items; merge is original-first; undoable slots → "待补".
+        if generated_chapters and "writing" in self._agents:
+            await self._derive_strong_node(tasks, task_keys, results, generated_chapters)
 
         # --- Review-Retry (workflow #4: incomplete PDF completion) ---
         # Check each chapter output with ReviewAgent. Retry once if issues found.

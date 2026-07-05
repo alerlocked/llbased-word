@@ -1487,6 +1487,31 @@ class WritingAgent(BaseAgent):
 
         return parsed
 
+    async def derive_list_strong(
+        self, task: Dict[str, Any], upstream: Dict[str, Any]
+    ) -> Any:
+        """Strong-node entry for orchestrator: parse slot_cols from task and call
+        _derive_list_from_upstream (which includes provenance filtering).
+
+        Called by orchestrator's derive strong node (unconditional, post-Phase-3,
+        pre-Review). Returns derived shape:
+          - single_row_list / process_card: list[{row, slot, value}]
+          - dual_list: {"left": [...], "right": [...]}
+          - None if nothing derived.
+        """
+        template_slots = task.get("template_slots", [])
+        slot_cols = [TemplateColumn.from_dict(s) for s in template_slots]
+        if not slot_cols:
+            return None
+        return await self._derive_list_from_upstream(
+            chapter_code=task.get("chapter_code", ""),
+            chapter_type=task.get("chapter_type", ""),
+            chapter_title=task.get("chapter_title", ""),
+            slot_cols=slot_cols,
+            ai_guidance=task.get("ai_guidance", ""),
+            upstream=upstream,
+        )
+
     def _looks_complete(self, content: str) -> bool:
         """Check if the generated document looks complete (has closing sections)."""
         tail = content[-800:] if len(content) > 800 else content
