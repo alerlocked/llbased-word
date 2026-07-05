@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T10:58:43+08:00
-last_commit: e2ab5db
+updated_at: 2026-07-05T11:19:29+08:00
+last_commit: 7b8b308
 status: content-detail 完成（G25a content 详实化:extract colspan 修+生成详实+开头说明,content 32→461字）
 task_state: done
 task_slug: content-detail
@@ -11,16 +11,16 @@ task_slug: content-detail
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `e2ab5db` fix: table_merger continuation logic + LongTermMemory pydantic + review API (level-3) (0 seconds ago)
-- `df0946d` fix(test): clean stale tests after refactor (level-2) (15 minutes ago)
-- `c188f70` chore(test): upgrade pytest-asyncio 1.4.0 + register markers + remove orphan tests (24 minutes ago)
-- `c0a7e83` fix(logging): rename LogRecord reserved attrs in structured logger kwargs (30 minutes ago)
+- `7b8b308` test: xfail review engine gaps + hybrid_parsing stale (level-3) (0 seconds ago)
+- `e2ab5db` fix: table_merger continuation logic + LongTermMemory pydantic + review API (level-3) (21 minutes ago)
+- `df0946d` fix(test): clean stale tests after refactor (level-2) (36 minutes ago)
+- `c188f70` chore(test): upgrade pytest-asyncio 1.4.0 + register markers + remove orphan tests (44 minutes ago)
+- `c0a7e83` fix(logging): rename LogRecord reserved attrs in structured logger kwargs (50 minutes ago)
 - `8687cfd` fix: backport state-machine + memory NoneType + vite dead-ref from kylin (25 hours ago)
 - `69d4dd1` feat: fix batch-upload/upload-folder material_id + buffer API (4 days ago)
 - `8a52846` plan: fix batch-upload/upload-folder material_id + buffer API (4 days ago)
 - `9161535` chore: remove dead code (diagnose scripts, unused services/components) (8 days ago)
 - `7326484` perf(vl_service): lazy-load mineru model to stop hot-reload reloads (9 days ago)
-- `e4c31ba` perf(mineru): batch VLM extraction + fix misleading config comments (9 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
