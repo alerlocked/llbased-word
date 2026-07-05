@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T15:16:16+08:00
-last_commit: 8cf1719
+updated_at: 2026-07-05T15:32:37+08:00
+last_commit: b5da812
 status: derive-strong-node 代码完成（节点1-4 + 隔离修复），documents/1 web 验收待用户
 task_state: done
 task_slug: derive-strong-node
@@ -11,16 +11,16 @@ task_slug: derive-strong-node
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `8cf1719` fix(test): autouse mock.patch.stopall + GC between tests (draft flaky 根治) (0 seconds ago)
-- `1e6dd1d` fix(test): snapshot/restore registry around test_registry clear (隔离修复) (22 minutes ago)
-- `bd7c1c7` refactor(writing): remove weak 三空 derivation fallback (节点3) (56 minutes ago)
-- `105f248` feat(orchestrator): derive strong node + merge helpers (节点2) (58 minutes ago)
-- `49645a1` feat(writing): provenance filter for _derive_list_from_upstream (节点1) (64 minutes ago)
-- `7bab17d` plan: derive-strong-node (倒推强节点) seal (68 minutes ago)
-- `885fc7d` test: refine file-level xfail to method-level (kill 149 xpass noise) (3 hours ago)
-- `418111b` fix(test): repair fixtures causing 13 setup/teardown errors (3 hours ago)
+- `b5da812` chore(devlog): derive-strong-node done (代码完成，web 验收待用户) (0 seconds ago)
+- `8cf1719` fix(test): autouse mock.patch.stopall + GC between tests (draft flaky 根治) (16 minutes ago)
+- `1e6dd1d` fix(test): snapshot/restore registry around test_registry clear (隔离修复) (39 minutes ago)
+- `bd7c1c7` refactor(writing): remove weak 三空 derivation fallback (节点3) (73 minutes ago)
+- `105f248` feat(orchestrator): derive strong node + merge helpers (节点2) (74 minutes ago)
+- `49645a1` feat(writing): provenance filter for _derive_list_from_upstream (节点1) (80 minutes ago)
+- `7bab17d` plan: derive-strong-node (倒推强节点) seal (84 minutes ago)
+- `885fc7d` test: refine file-level xfail to method-level (kill 149 xpass noise) (4 hours ago)
+- `418111b` fix(test): repair fixtures causing 13 setup/teardown errors (4 hours ago)
 - `e3377e2` test: xfail mineru 3.x suite + single-point edge failures (level-3 final) (4 hours ago)
-- `97bc969` test: xfail refactor-stale suites to quiet false-red noise (level-3 remainder) (4 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
