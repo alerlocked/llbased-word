@@ -47,6 +47,20 @@ class Issue:
             "principle_id": self.principle_id,
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Issue":
+        """Construct an Issue from a dict (inverse of to_dict). Missing optional keys default to None."""
+        return cls(
+            severity=data["severity"],
+            type=data["type"],
+            field=data.get("field"),
+            message=data["message"],
+            location=data.get("location"),
+            hint=data.get("hint"),
+            fix_hint=data.get("fix_hint"),
+            principle_id=data.get("principle_id"),
+        )
+
 
 @dataclass
 class ReviewResult:

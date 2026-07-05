@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T10:29:08+08:00
-last_commit: c0a7e83
+updated_at: 2026-07-05T10:35:02+08:00
+last_commit: c188f70
 status: content-detail 完成（G25a content 详实化:extract colspan 修+生成详实+开头说明,content 32→461字）
 task_state: done
 task_slug: content-detail
@@ -11,7 +11,8 @@ task_slug: content-detail
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `c0a7e83` fix(logging): rename LogRecord reserved attrs in structured logger kwargs (0 seconds ago)
+- `c188f70` chore(test): upgrade pytest-asyncio 1.4.0 + register markers + remove orphan tests (1 second ago)
+- `c0a7e83` fix(logging): rename LogRecord reserved attrs in structured logger kwargs (6 minutes ago)
 - `8687cfd` fix: backport state-machine + memory NoneType + vite dead-ref from kylin (24 hours ago)
 - `69d4dd1` feat: fix batch-upload/upload-folder material_id + buffer API (4 days ago)
 - `8a52846` plan: fix batch-upload/upload-folder material_id + buffer API (4 days ago)
@@ -20,7 +21,6 @@ task_slug: content-detail
 - `e4c31ba` perf(mineru): batch VLM extraction + fix misleading config comments (9 days ago)
 - `016ecd3` chore(content-detail): wrap up done — content 32->461, op5 9->729 (13 days ago)
 - `560e3ca` feat(g25a): extract assembly overview + inject as system_msg background (13 days ago)
-- `27abdf2` feat(g25a): content prompt detail-expand (content_avg 32->461, zero fab) (13 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

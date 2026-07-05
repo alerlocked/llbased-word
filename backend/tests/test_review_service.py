@@ -16,9 +16,8 @@ from tests.fixtures import load_fixture
 @pytest.fixture
 def review_service():
     """创建 ReviewService 实例"""
-    base_path = Path(__file__).parent.parent.parent.parent
-    context_service = ContextService(base_path=base_path)
-    return ReviewService(context_service=context_service)
+    # ReviewService was refactored to stateless checks; no longer takes context_service
+    return ReviewService()
 
 
 @pytest.fixture
