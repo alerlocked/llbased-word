@@ -9,7 +9,6 @@
 from typing import Dict, Any, Optional, List
 from app.agents.base_agent import BaseAgent
 from app.agents.core import AgentRegistry
-from app.agents.search import SearchAgent, SearchMode
 from app.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -54,71 +53,48 @@ class ReviewAgent(BaseAgent):
             ["enterprise", "safety"]
         )
 
-        # Search Agent 实例（依赖注入）
-        self._search_agent: Optional[SearchAgent] = None
-
-    @property
-    def search_agent(self) -> SearchAgent:
-        """获取或创建 Search Agent 实例"""
-        if self._search_agent is None:
-            self._search_agent = SearchAgent(self.config.get("search_agent", {}))
-        return self._search_agent
-
-    @search_agent.setter
-    def search_agent(self, agent: SearchAgent):
-        """设置 Search Agent 实例（依赖注入）"""
-        self._search_agent = agent
-
     async def _search_standards(
         self,
         query: str,
         standards: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        使用 Search Agent 检索标准
+        检索标准/知识 via hierarchical_context keyword search.
 
         Args:
             query: 查询字符串
-            standards: 标准类型列表
+            standards: 标准类型列表（保留参数兼容旧调用，统一走 hierarchical_context）
 
         Returns:
             检索结果
         """
         try:
-            # 使用 standards_only 模式检索标准
-            filters = {}
-            if standards:
-                filters["entity_types"] = standards
+            from app.services.hierarchical_context import hierarchical_context
 
-            search_context = await self.search_agent.search(
-                mode=SearchMode.STANDARDS_ONLY,
-                query=query,
-                token_budget=2000,
-                filters=filters
+            hc_results = hierarchical_context.global_keyword_search(
+                query=query, top_k=5
             )
-
-            # 转换为兼容格式
             results = []
-            for ctx in search_context.contexts:
-                results.append({
-                    "content": ctx.content,
-                    "source": ctx.source,
-                    "score": ctx.relevance_score,
-                    "entity_type": ctx.entity_type,
-                    "metadata": ctx.metadata
-                })
+            for r in hc_results:
+                if r.get("score", 0) >= 2:
+                    results.append({
+                        "content": r.get("snippet", ""),
+                        "source": r.get("doc_name", ""),
+                        "score": float(r.get("score", 0)),
+                        "entity_type": r.get("entity_type"),
+                        "metadata": {"page": r.get("page"), "retriever": "hierarchical_context"},
+                    })
 
             logger.info(
                 "search_standards_completed",
                 query=query[:50],
                 results_count=len(results),
-                cache_hit=search_context.cache_hit
             )
 
             return {
                 "success": True,
                 "results": results,
-                "cache_hit": search_context.cache_hit
+                "cache_hit": False
             }
 
         except Exception as e:

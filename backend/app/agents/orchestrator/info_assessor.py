@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.services.context_service import ContextService
-    from app.agents.search import SearchAgent, SearchMode
 
 logger = get_logger(__name__)
 
@@ -55,7 +54,7 @@ class InfoAssessor:
         self,
         config: Optional[Dict[str, Any]] = None,
         context_service: Optional["ContextService"] = None,
-        search_agent: Optional["SearchAgent"] = None
+        search_agent: Optional[Any] = None
     ):
         """
         初始化评估器
@@ -63,7 +62,7 @@ class InfoAssessor:
         Args:
             config: 配置参数
             context_service: 上下文服务（获取画像、模板）
-            search_agent: 检索服务（检索素材库）
+            search_agent: 检索服务（保留参数兼容，当前未使用）
         """
         self.config = config or {}
         self.strict_mode = self.config.get("strict_mode", False)

@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from app.api import process, creation, rag, web_image, export, annotation, node_documents, materials
+from app.api import process, creation, web_image, export, annotation, node_documents, materials
 from app.api import task_router, document_router
 from app.api import pdf_status, agent, assistant, process_documents, deepseek
 from app.api import context
@@ -259,7 +259,6 @@ app.mount("/static/data", StaticFiles(directory=settings.DATA_DIR), name="data")
 # 注册路由
 app.include_router(process.router, prefix="/api/process", tags=["智能处理"])
 app.include_router(creation.router, prefix="/api/creation", tags=["创作管理"])
-app.include_router(rag.router, prefix="/api/rag", tags=["RAG知识库"])
 app.include_router(web_image.router, prefix="/api/web-images", tags=["网络图片管理"])
 app.include_router(export.router, prefix="/api/export", tags=["文档导出"])
 app.include_router(annotation.router, prefix="/api/creation", tags=["注释管理"])

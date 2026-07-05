@@ -35,12 +35,6 @@ except ImportError:
     pass
 
 try:
-    from .vector_store import VectorStore
-    __all__.append("VectorStore")
-except ImportError:
-    pass
-
-try:
     from .terminology_mapper import TerminologyMapper
     __all__.append("TerminologyMapper")
 except ImportError:

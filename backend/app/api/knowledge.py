@@ -1,6 +1,15 @@
 """
 Knowledge API — Material catalog, standard library, and user event endpoints.
 
+DEPRECATED: This router is NOT registered in main.py and the endpoints depend on
+ORM tables (MaterialCatalog / ProcessStep / Standard / StandardClause) that are
+not yet defined, plus KnowledgeExtractor / StandardExtractor services whose
+backing models are also missing. Endpoints here will raise at call time.
+
+Kept as a placeholder for Step F (cleanup-and-dimensions): once the catalog ORM
+tables land and KnowledgeSearchService bodies are restored, re-register this
+router in main.py. Do not call these endpoints in the meantime.
+
 Provides REST endpoints for:
 - Material catalog CRUD and search
 - Standard clause search

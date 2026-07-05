@@ -120,20 +120,6 @@ def detect_mode(user_input: str) -> str:
     return 'qa' if len(user_input) < 20 else 'write'
 
 
-def _extract_graph_seeds(user_input: str, kg: Any) -> List[str]:
-    """Extract node IDs from user input that match graph nodes.
-
-    Matches user query terms against node labels using substring match.
-    """
-    seeds: List[str] = []
-    for nid in kg._graph.nodes:
-        node = kg._graph.nodes[nid]
-        label = node.get("label", "")
-        if label and label in user_input:
-            seeds.append(nid)
-    return seeds[:10]  # Limit seeds to avoid over-expansion
-
-
 def get_system_prompt(mode: str) -> str:
     """根据模式返回系统提示词"""
     if mode == 'qa':
@@ -1382,14 +1368,9 @@ def _build_orchestrator_context(
             profile_context = loaded_profile.to_context_text()
             logger.info(f"[AI助手] 画像注入成功: domain={domain}, 长度={len(profile_context)}")
 
-            if loaded_profile.graph and loaded_profile.graph.get("nodes"):
-                from app.services.knowledge_graph import KnowledgeGraph
-                kg = KnowledgeGraph.from_dict(loaded_profile.graph)
-                seed_ids = _extract_graph_seeds(user_input, kg)
-                if seed_ids:
-                    graph_context = kg.to_context_text(seed_ids, max_tokens=400)
-                    if graph_context:
-                        logger.info(f"[AI助手] 图上下文扩展命中: seeds={seed_ids}, 长度={len(graph_context)}")
+            # KnowledgeGraph expansion removed (service deleted in cleanup);
+            # graph kept as plain dict on Profile, rendered in to_context_text().
+            # graph_context stays empty here; reintroduce in Step F if needed.
     except Exception as e:
         logger.warning(f"[AI助手] 画像加载失败: {e}")
 

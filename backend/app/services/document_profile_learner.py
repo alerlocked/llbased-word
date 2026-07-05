@@ -313,16 +313,9 @@ class DocumentProfileLearner:
         if features.get("domain"):
             profile_data["domain"] = features["domain"]
 
-        # Rebuild knowledge graph from all triples
-        if existing_triples:
-            from app.services.knowledge_graph import KnowledgeGraph
-            kg = KnowledgeGraph.build_from_triples(existing_triples)
-            if kg.node_count > 0:
-                profile_data["graph"] = kg.to_dict()
-                logger.info(
-                    "graph_rebuilt",
-                    nodes=kg.node_count,
-                    edges=kg.edge_count,
-                )
+        # KnowledgeGraph rebuild removed in retrieval cleanup; triples no longer
+        # turned into a graph object. Reintroduce a builder in Step F if graph
+        # reconstruction is needed.
+
 
         return profile_data

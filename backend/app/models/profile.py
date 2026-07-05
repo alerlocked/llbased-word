@@ -397,13 +397,16 @@ class Profile:
                     knowledge_lines.append(f"- {cg.entity}: {attr_str}")
             parts.append("领域知识:\n" + "\n".join(knowledge_lines))
 
-        # Render knowledge graph relationships
+        # Render knowledge graph relationships (graph kept as plain dict for JSON compat)
         if self.graph and self.graph.get("nodes"):
-            from app.services.knowledge_graph import KnowledgeGraph
-            kg = KnowledgeGraph.from_dict(self.graph)
-            graph_text = kg.to_context_text(max_tokens=300)
-            if graph_text:
-                parts.append("知识关系图:\n" + graph_text)
+            nodes = self.graph.get("nodes", [])[:20]
+            node_lines = [
+                f"- {n.get('id', n.get('label', ''))}: {n.get('type', '')}"
+                for n in nodes
+                if isinstance(n, dict)
+            ]
+            if node_lines:
+                parts.append("知识关系图:\n" + "\n".join(node_lines))
 
         # Render enabled principles
         enabled = [p for p in self.principles if p.get("enabled", True)]

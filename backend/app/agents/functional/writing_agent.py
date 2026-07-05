@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from app.agents.base_agent import BaseAgent
 from app.agents.core import AgentRegistry
-from app.agents.search import SearchAgent, SearchMode
 from app.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -75,9 +74,6 @@ class WritingAgent(BaseAgent):
         self.default_format = self.config.get("default_format", "html")
         self.max_retrieval_results = self.config.get("max_retrieval_results", 5)
 
-        # Search Agent 实例（依赖注入）
-        self._search_agent: Optional[SearchAgent] = None
-
         # Dynamic writing preferences (loaded per session)
         self._writing_preferences: Optional["WritingPreferences"] = None
         # Full domain profile (强约束 principles + 参考值 triples), loaded per
@@ -87,18 +83,6 @@ class WritingAgent(BaseAgent):
         # 版本历史（用于多轮修改）
         self._version_history: List[VersionHistory] = []
         self._current_version = 0
-
-    @property
-    def search_agent(self) -> SearchAgent:
-        """获取或创建 Search Agent 实例"""
-        if self._search_agent is None:
-            self._search_agent = SearchAgent(self.config.get("search_agent", {}))
-        return self._search_agent
-
-    @search_agent.setter
-    def search_agent(self, agent: SearchAgent):
-        """设置 Search Agent 实例（依赖注入）"""
-        self._search_agent = agent
 
     async def process(
         self,
@@ -1707,63 +1691,35 @@ class WritingAgent(BaseAgent):
         mode: str = "comprehensive"
     ) -> Dict[str, Any]:
         """
-        使用 Search Agent 检索知识，fallback to hierarchical_context.
+        检索知识 via hierarchical_context keyword search.
 
         Args:
             query: 查询字符串
-            mode: 检索模式 (files_only/knowledge_only/comprehensive)
+            mode: 检索模式 (保留参数兼容旧调用，统一走 hierarchical_context)
 
         Returns:
             检索结果
         """
         results = []
 
-        # Primary: SearchAgent (ChromaDB vector search)
         try:
-            mode_mapping = {
-                "files_only": SearchMode.FILES_ONLY,
-                "knowledge_only": SearchMode.KNOWLEDGE_ONLY,
-                "comprehensive": SearchMode.COMPREHENSIVE,
-            }
-            search_mode = mode_mapping.get(mode, SearchMode.COMPREHENSIVE)
+            from app.services.hierarchical_context import hierarchical_context
 
-            search_context = await self.search_agent.search(
-                mode=search_mode,
-                query=query,
-                token_budget=4000
+            hc_results = hierarchical_context.global_keyword_search(
+                query=query, top_k=5
             )
+            for r in hc_results:
+                if r.get("score", 0) >= 2:
+                    results.append({
+                        "content": r.get("snippet", ""),
+                        "source": r.get("doc_name", ""),
+                        "score": float(r.get("score", 0)),
+                        "metadata": {"page": r.get("page"), "retriever": "hierarchical_context"},
+                    })
 
-            for ctx in search_context.contexts:
-                results.append({
-                    "content": ctx.content,
-                    "source": ctx.source,
-                    "score": ctx.relevance_score,
-                    "metadata": ctx.metadata
-                })
-
+            logger.info("search_hier", query=query[:50], results=len(results))
         except Exception as e:
-            logger.warning("search_agent_failed_fallback_to_hier", error=str(e), query=query[:100])
-
-        # Fallback: hierarchical_context keyword search if SearchAgent returned nothing
-        if not results:
-            try:
-                from app.services.hierarchical_context import hierarchical_context
-
-                hc_results = hierarchical_context.global_keyword_search(
-                    query=query, top_k=5
-                )
-                for r in hc_results:
-                    if r.get("score", 0) >= 2:
-                        results.append({
-                            "content": r.get("snippet", ""),
-                            "source": r.get("doc_name", ""),
-                            "score": float(r.get("score", 0)),
-                            "metadata": {"page": r.get("page"), "retriever": "hierarchical_context"},
-                        })
-
-                logger.info("search_hier_fallback", query=query[:50], results=len(results))
-            except Exception as e:
-                logger.warning("hier_context_search_failed", error=str(e))
+            logger.warning("hier_context_search_failed", error=str(e))
 
         return {
             "success": len(results) > 0,

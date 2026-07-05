@@ -441,45 +441,13 @@ class LongTermMemory(BaseMemory if LANGCHAIN_AVAILABLE else object):
     
     def _persist_to_chroma(self, memory: Dict[str, Any]) -> None:
         """
-        Persist a memory entry to ChromaDB for cross-session durability.
+        Persist a memory entry for cross-session durability.
 
-        Best-effort: failures are logged but do not block the write.
+        VectorStore (ChromaDB) backend removed in retrieval cleanup.
+        Currently a no-op; memories live only in-process. Reintroduce a
+        durable backend in Step F if cross-session LTM is needed.
         """
-        try:
-            import asyncio
-            from app.tools.vector_store import VectorStore
-
-            vs = VectorStore({"collection_name": "long_term_memory"})
-            documents = [{
-                "id": memory["id"],
-                "text": f"{memory['topic']}\n{memory['content']}",
-            }]
-            metadatas = [{
-                "source": "ltm",
-                "session_id": self.session_id,
-                "topic": memory["topic"],
-                "timestamp": memory["timestamp"],
-            }]
-
-            async def _do_persist():
-                await vs.add_documents(documents, metadatas)
-
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop and loop.is_running():
-                # Already in async context — spawn a background thread
-                import threading
-                def _run_in_thread():
-                    asyncio.run(_do_persist())
-                t = threading.Thread(target=_run_in_thread, daemon=True)
-                t.start()
-            else:
-                asyncio.run(_do_persist())
-        except Exception as e:
-            logger.debug(f"[LTM] ChromaDB persist skipped: {e}")
+        return
 
     def _is_duplicate(self, memory: Dict[str, Any]) -> bool:
         """
