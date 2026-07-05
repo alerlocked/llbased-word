@@ -1158,49 +1158,12 @@ class WritingAgent(BaseAgent):
                             s.get("row", 0) for s in unstructured_slots
                         )
 
-        # --- Step 3b: Derivation fallback for structured-only list chapters ---
-        # List chapters (清单类: G4a/G5a/G10a/G12a/G14a/B12a) have no
-        # unstructured columns, so they never hit the LLM above. When
-        # structured extraction also yielded nothing, derive rows from
-        # already-generated upstream chapters (G19a/G22a/G25a) instead of
-        # returning an empty table.
-        if (
-            not unstructured_cols
-            and not unstructured_slots
-            and not structured_values
-            and chapter_type in ("single_row_list", "process_card", "dual_list")
-        ):
-            upstream = task.get("upstream_chapters") or task.get("params", {}).get("upstream_chapters")
-            if upstream:
-                derived = await self._derive_list_from_upstream(
-                    chapter_code=chapter_code,
-                    chapter_type=chapter_type,
-                    chapter_title=task.get("chapter_title", ""),
-                    slot_cols=slot_cols,
-                    ai_guidance=ai_guidance,
-                    upstream=upstream,
-                )
-                if derived is not None:
-                    if chapter_type == "dual_list":
-                        parsed = derived
-                    else:
-                        unstructured_slots = derived
-                        if unstructured_slots:
-                            llm_row_count = max(
-                                (s.get("row", 0) for s in unstructured_slots),
-                                default=0,
-                            )
-                    derived_count = (
-                        len(derived) if isinstance(derived, list)
-                        else (len(derived.get("left", [])) + len(derived.get("right", [])))
-                        if isinstance(derived, dict) else 0
-                    )
-                    logger.info(
-                        "list_derived_from_upstream",
-                        chapter_code=chapter_code,
-                        chapter_type=chapter_type,
-                        items=derived_count,
-                    )
+        # --- Step 3b: Derivation fallback REMOVED (节点3) ---
+        # List chapter derivation moved to orchestrator's derive strong node
+        # (_derive_strong_node, post-Phase-3 pre-Review): unconditional, with
+        # provenance filter + original-first merge + 待补 marker. The weak
+        # 三空 fallback here was too narrow — it was skipped whenever structured
+        # extraction returned partial data, leaving list tables incomplete.
 
         # --- Step 4: Merge structured + unstructured ---
         total_rows = max(struct_row_count, llm_row_count, 1)
