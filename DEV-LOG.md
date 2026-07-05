@@ -2,28 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T12:00:26+08:00
-last_commit: 885fc7d
-status: content-detail 完成（G25a content 详实化:extract colspan 修+生成详实+开头说明,content 32→461字）
-task_state: done
-task_slug: content-detail
+updated_at: 2026-07-05T14:08:13+08:00
+last_commit: 7bab17d
+status: derive-strong-node 执行中（节点1：升级 _derive_list_from_upstream 溯源+字段边界）
+task_state: running
+task_slug: derive-strong-node
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `885fc7d` test: refine file-level xfail to method-level (kill 149 xpass noise) (0 seconds ago)
-- `418111b` fix(test): repair fixtures causing 13 setup/teardown errors (6 minutes ago)
-- `e3377e2` test: xfail mineru 3.x suite + single-point edge failures (level-3 final) (15 minutes ago)
-- `97bc969` test: xfail refactor-stale suites to quiet false-red noise (level-3 remainder) (26 minutes ago)
-- `7b8b308` test: xfail review engine gaps + hybrid_parsing stale (level-3) (41 minutes ago)
-- `e2ab5db` fix: table_merger continuation logic + LongTermMemory pydantic + review API (level-3) (62 minutes ago)
-- `df0946d` fix(test): clean stale tests after refactor (level-2) (77 minutes ago)
-- `c188f70` chore(test): upgrade pytest-asyncio 1.4.0 + register markers + remove orphan tests (85 minutes ago)
-- `c0a7e83` fix(logging): rename LogRecord reserved attrs in structured logger kwargs (2 hours ago)
-- `8687cfd` fix: backport state-machine + memory NoneType + vite dead-ref from kylin (26 hours ago)
+- `7bab17d` plan: derive-strong-node (倒推强节点) seal (0 seconds ago)
+- `885fc7d` test: refine file-level xfail to method-level (kill 149 xpass noise) (2 hours ago)
+- `418111b` fix(test): repair fixtures causing 13 setup/teardown errors (2 hours ago)
+- `e3377e2` test: xfail mineru 3.x suite + single-point edge failures (level-3 final) (2 hours ago)
+- `97bc969` test: xfail refactor-stale suites to quiet false-red noise (level-3 remainder) (3 hours ago)
+- `7b8b308` test: xfail review engine gaps + hybrid_parsing stale (level-3) (3 hours ago)
+- `e2ab5db` fix: table_merger continuation logic + LongTermMemory pydantic + review API (level-3) (3 hours ago)
+- `df0946d` fix(test): clean stale tests after refactor (level-2) (3 hours ago)
+- `c188f70` chore(test): upgrade pytest-asyncio 1.4.0 + register markers + remove orphan tests (4 hours ago)
+- `c0a7e83` fix(logging): rename LogRecord reserved attrs in structured logger kwargs (4 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+- **在做**：derive-strong-node（倒推强节点）—— 节点1✅ 升级 `_derive_list_from_upstream` 加 `_provenance_filter`（溯源校验，倒推值必须在 upstream G25a 找出处，丢弃臆造条目）+ 5 单测过。PLAN 实施微调：字段边界待补(b) 归节点2 强节点（结构性推不了的 slot 是 ai_filled=false，_derive_list 看不见）。当前节点2：orchestrator 插入强节点 + 三辅助函数。进度 1/4。
 - **完成**：content-detail —— G25a content 详实化三节点全过。① 节点1 _table_to_markdown colspan 网格展开(extract op5 9→729字/ASM 1134→4992,三层根因)② 节点2 生成 prompt 详实化(content_avg 32→461字,零臆造)③ 节点3 装配卡说明(extract_assembly_overview 769字+注入)。待用户 web 验证;后续重跑 diagnose_all_chapters 看其他章节是否受益 + G14a/G12a 逐章
 - **历史完成**：content-quality(检验收紧38→5+实证) + contract-align(检验行+契约guard+docx2pdf)
 - **历史完成**：contract-align（检验工序行+契约guard+docx2pdf中文路径）三节点全过

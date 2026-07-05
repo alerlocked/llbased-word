@@ -1424,6 +1424,8 @@ class WritingAgent(BaseAgent):
         parsed = _parse_llm_json(result["content"].strip())
 
         if chapter_type == "dual_list":
+            if isinstance(parsed, dict):
+                parsed = self._provenance_filter(parsed, upstream_text, chapter_type)
             return parsed if isinstance(parsed, dict) else None
 
         # single_row_list / process_card: expect [{row, slot, value}]
@@ -1434,9 +1436,56 @@ class WritingAgent(BaseAgent):
                     s = item.get("slot", "")
                     if s in label_to_key:
                         item["slot"] = label_to_key[s]
+                parsed = self._provenance_filter(parsed, upstream_text, chapter_type)
                 return parsed
             return _legacy_to_slots(parsed, fill_cols)
         return None
+
+    def _provenance_filter(
+        self, parsed: Any, upstream_text: str, chapter_type: str,
+    ) -> Any:
+        """Drop derived items whose value cannot be traced in upstream text.
+
+        Anti-fabrication guard for _derive_list_from_upstream: every derived
+        value must appear (whole or as a len>=2 token) in the already-generated
+        upstream chapters (mainly G25a). Items without provenance are dropped
+        to honor "宁可少不可假" (better fewer than fabricated).
+        """
+        if not upstream_text:
+            return parsed  # nothing to check against — keep (safety)
+
+        def _keep(value: Any) -> bool:
+            v = str(value).strip()
+            if not v or v == "待补":
+                return True  # empty / already-marked-missing — keep
+            if v in upstream_text:
+                return True
+            return any(len(t) >= 2 and t in upstream_text for t in v.split())
+
+        if chapter_type == "dual_list":
+            if not isinstance(parsed, dict):
+                return parsed
+
+            def _filter_side(side: Any) -> Any:
+                if not isinstance(side, list):
+                    return side
+                return [
+                    item for item in side
+                    if isinstance(item, dict) and all(_keep(v) for v in item.values())
+                ]
+
+            return {
+                "left": _filter_side(parsed.get("left", [])),
+                "right": _filter_side(parsed.get("right", [])),
+            }
+
+        if isinstance(parsed, list):
+            return [
+                item for item in parsed
+                if isinstance(item, dict) and _keep(item.get("value", ""))
+            ]
+
+        return parsed
 
     def _looks_complete(self, content: str) -> bool:
         """Check if the generated document looks complete (has closing sections)."""
