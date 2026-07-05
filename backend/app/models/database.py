@@ -57,6 +57,9 @@ class Material(Base):
     folder_id = Column(Integer, ForeignKey("material_folders.id"), nullable=True, comment="所属文件夹ID（NULL=根目录）")
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
+    # 检索穿透维度（型号 + 专业）—— cleanup-and-dimensions 节点2
+    model = Column(String(255), nullable=True, comment="产品型号（LLM 推断 + 用户确认）")
+    specialty = Column(String(50), nullable=True, comment="工艺专业: assembly/welding/coating/machining/inspection/heat_treatment/general")
 
     # 关系
     figures = relationship("Figure", back_populates="material", cascade="all, delete-orphan")
