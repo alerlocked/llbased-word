@@ -674,7 +674,7 @@ async def get_material_detail(
                         raw_content = f2.read()
                     if "<table" in raw_content:
                         content = raw_content
-            return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html"}
+            return {"id": material.id, "name": material.name, "type": material.material_type, "content": content, "content_type": "html", "model": material.model, "specialty": material.specialty}
 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="素材内容文件不存在")
     except HTTPException:
@@ -682,6 +682,42 @@ async def get_material_detail(
     except Exception as e:
         logger.error(f"❌ 获取素材内容失败: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取失败: {str(e)}")
+
+
+_VALID_SPECIALTIES = {
+    "assembly", "welding", "coating", "machining",
+    "inspection", "heat_treatment", "general",
+}
+
+
+@router.put("/materials/{material_id}")
+async def update_material_meta(
+    material_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    """Update material model/specialty (user confirms/edits LLM inference).
+
+    cleanup-and-dimensions 节点5: lets the frontend correct the model/specialty
+    that material_classifier inferred at upload time.
+    """
+    try:
+        material = get_or_404(db, Material, Material.id == material_id, "素材不存在")
+        if "model" in payload:
+            material.model = (payload["model"] or None)
+        if "specialty" in payload:
+            s = payload["specialty"]
+            if s is not None and s not in _VALID_SPECIALTIES:
+                raise HTTPException(status_code=400, detail=f"invalid specialty: {s}")
+            material.specialty = s
+        db.commit()
+        db.refresh(material)
+        return {"id": material.id, "model": material.model, "specialty": material.specialty}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 更新素材维度失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")
 
 
 @router.delete("/materials/{material_id}")

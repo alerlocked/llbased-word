@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T21:36:45+08:00
-last_commit: 1f71182
+updated_at: 2026-07-05T21:42:44+08:00
+last_commit: 7e9d25f
 status: cleanup-and-dimensions 执行中（节点1：清噪删死壳）
 task_state: running
 task_slug: cleanup-and-dimensions
@@ -11,16 +11,16 @@ task_slug: cleanup-and-dimensions
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `1f71182` feat(upload): LLM 推断 model/specialty 写 Material（节点3） (1 second ago)
-- `3015abc` feat(db): Material 加 model/specialty 维度（节点2） (4 minutes ago)
-- `4dedab9` refactor: 检索清噪删死壳（节点1） (18 minutes ago)
-- `9fe326e` plan: cleanup-and-dimensions (检索清噪+型号专业维度 Step 0+1) seal (55 minutes ago)
+- `7e9d25f` feat(retrieval): HierarchicalContext 型号/专业 filter 穿透（节点4） (1 second ago)
+- `1f71182` feat(upload): LLM 推断 model/specialty 写 Material（节点3） (6 minutes ago)
+- `3015abc` feat(db): Material 加 model/specialty 维度（节点2） (10 minutes ago)
+- `4dedab9` refactor: 检索清噪删死壳（节点1） (24 minutes ago)
+- `9fe326e` plan: cleanup-and-dimensions (检索清噪+型号专业维度 Step 0+1) seal (61 minutes ago)
 - `b5da812` chore(devlog): derive-strong-node done (代码完成，web 验收待用户) (6 hours ago)
 - `8cf1719` fix(test): autouse mock.patch.stopall + GC between tests (draft flaky 根治) (6 hours ago)
 - `1e6dd1d` fix(test): snapshot/restore registry around test_registry clear (隔离修复) (7 hours ago)
 - `bd7c1c7` refactor(writing): remove weak 三空 derivation fallback (节点3) (7 hours ago)
 - `105f248` feat(orchestrator): derive strong node + merge helpers (节点2) (7 hours ago)
-- `49645a1` feat(writing): provenance filter for _derive_list_from_upstream (节点1) (7 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
