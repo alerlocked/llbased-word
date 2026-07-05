@@ -339,9 +339,25 @@ class DocumentProcessor:
                 import traceback
                 logger.error(traceback.format_exc())
 
+            # 知识提取（revive-extract-funnel 节点3）：解析完成后落库物料/工序/标准。
+            # try-except 不阻塞——失败记日志，不影响解析结果（素材库不并发，简单触发够）。
+            try:
+                from app.services.knowledge_extractor import KnowledgeExtractor
+                _counts = KnowledgeExtractor().extract_and_save(str(material_id), db)
+                logger.info(f"📚 [知识提取] doc={material_id}: {_counts.get('materials', 0)} 物料, {_counts.get('process_steps', 0)} 工序")
+                # 标准文档检测（QJ903 → StandardExtractor）
+                from app.models.database import Material
+                _mat = db.query(Material).filter(Material.id == material_id).first()
+                if _mat and _mat.name and "QJ903" in _mat.name.upper():
+                    from app.services.standard_extractor import StandardExtractor
+                    _std = StandardExtractor().extract_and_save(str(material_id), db)
+                    logger.info(f"📋 [标准提取] doc={material_id}: {_std}")
+            except Exception as e:
+                logger.warning(f"⚠️ [知识提取] 失败（不影响解析）: {str(e)}")
+
             if progress_callback:
                 progress_callback(95, "正在生成结构化文档...")
-            
+
             return {
                 "content": final_content,
                 "page_count": total_pages,

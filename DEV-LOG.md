@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T23:17:55+08:00
-last_commit: 8241207
+updated_at: 2026-07-05T23:19:41+08:00
+last_commit: 1e558f1
 status: revive-extract-funnel 执行中（节点1：补 6 ORM + specialty 迁移）
 task_state: running
 task_slug: revive-extract-funnel
@@ -11,16 +11,16 @@ task_slug: revive-extract-funnel
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `8241207` feat(db): 补 6 结构化 ORM + specialty 迁移（节点1） (0 seconds ago)
-- `7269bd7` plan: revive-extract-funnel (Step 2 复活 F 落库链) seal (2 minutes ago)
-- `1a01091` chore(devlog): cleanup-and-dimensions done (Step 0+1 完成) (80 minutes ago)
+- `1e558f1` feat(extract): extract_and_save 维度传递 specialty（节点2） (0 seconds ago)
+- `8241207` feat(db): 补 6 结构化 ORM + specialty 迁移（节点1） (2 minutes ago)
+- `7269bd7` plan: revive-extract-funnel (Step 2 复活 F 落库链) seal (4 minutes ago)
+- `1a01091` chore(devlog): cleanup-and-dimensions done (Step 0+1 完成) (82 minutes ago)
 - `c31cf0b` feat(api): material GET 加 model/specialty + PUT 更新 API + CLAUDE.md 去向量（节点5 后端） (2 hours ago)
 - `7e9d25f` feat(retrieval): HierarchicalContext 型号/专业 filter 穿透（节点4） (2 hours ago)
 - `1f71182` feat(upload): LLM 推断 model/specialty 写 Material（节点3） (2 hours ago)
 - `3015abc` feat(db): Material 加 model/specialty 维度（节点2） (2 hours ago)
 - `4dedab9` refactor: 检索清噪删死壳（节点1） (2 hours ago)
 - `9fe326e` plan: cleanup-and-dimensions (检索清噪+型号专业维度 Step 0+1) seal (3 hours ago)
-- `b5da812` chore(devlog): derive-strong-node done (代码完成，web 验收待用户) (8 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
