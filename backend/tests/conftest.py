@@ -17,3 +17,19 @@ def tmp_path():
 def project_root():
     """项目根目录"""
     return Path(__file__).parent.parent.parent.parent
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_global_state():
+    """Stop lingering patches + GC after each test to prevent cross-test
+    pollution (AsyncMock residue leaking into other modules' DB sessions,
+    which caused draft_service flakiness under full-suite runs).
+    """
+    yield
+    from unittest import mock
+    try:
+        mock.patch.stopall()
+    except Exception:
+        pass
+    import gc
+    gc.collect()
