@@ -9,9 +9,6 @@ import os
 # 添加 backend 目录到 path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
-
-pytestmark = pytest.mark.xfail(reason="keyword-extraction assertions stale", strict=False)
-
 class TestExtractKeywords:
     """测试关键词提取功能"""
 
@@ -31,12 +28,14 @@ class TestExtractKeywords:
         keywords = extract_keywords("What is G4a table?")
         assert 'table' in keywords
 
+    @pytest.mark.xfail(reason="keyword-extraction assertions stale", strict=False)
     def test_extract_mixed_keywords(self):
         """测试中英混合关键词提取"""
         from app.services.hierarchical_context import extract_keywords
         keywords = extract_keywords("G4a 表格包含什么内容")
         assert 'g4a' in keywords or 'G4a' in str(keywords)
 
+    @pytest.mark.xfail(reason="keyword-extraction assertions stale", strict=False)
     def test_filter_stopwords(self):
         """测试停用词过滤"""
         from app.services.hierarchical_context import extract_keywords

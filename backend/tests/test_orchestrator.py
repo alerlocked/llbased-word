@@ -9,9 +9,6 @@ from unittest.mock import AsyncMock, patch
 from app.agents.orchestrator.orchestrator import ProcessOrchestrator
 from app.agents.orchestrator.intent_recognizer import IntentType
 
-
-pytestmark = pytest.mark.xfail(reason="E2E assertions predate state-machine refactor; intent-confidence mock + state-history dict expectations stale", strict=False)
-
 class TestProcessOrchestratorE2E:
     """主控Agent端到端测试"""
 
@@ -25,6 +22,7 @@ class TestProcessOrchestratorE2E:
         return ProcessOrchestrator(config)
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="E2E assertions predate state-machine refactor; mock/dict expectations stale", strict=False)
     async def test_user_creates_new_process_document(self, orchestrator):
         """
         用户场景: 工艺师创建新的工艺文件
@@ -61,6 +59,7 @@ class TestProcessOrchestratorE2E:
         assert "suggestions" in aggregated_result
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="E2E assertions predate state-machine refactor; mock/dict expectations stale", strict=False)
     async def test_user_edits_existing_document(self, orchestrator):
         """
         用户场景: 工艺师编辑现有工艺文件
@@ -156,6 +155,7 @@ class TestProcessOrchestratorE2E:
         assert history[1]["user_input"] == "添加一个铣削工序"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="E2E assertions predate state-machine refactor; mock/dict expectations stale", strict=False)
     async def test_error_handling_and_recovery(self, orchestrator):
         """
         用户场景: 系统处理错误并恢复
@@ -176,6 +176,7 @@ class TestProcessOrchestratorE2E:
         assert result["state"] == "error"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="E2E assertions predate state-machine refactor; mock/dict expectations stale", strict=False)
     async def test_state_machine_transitions(self, orchestrator):
         """
         用户场景: 验证状态机正确流转
@@ -203,6 +204,7 @@ class TestProcessOrchestratorE2E:
         assert "completion" in state_values
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="E2E assertions predate state-machine refactor; mock/dict expectations stale", strict=False)
     async def test_user_confirms_suggestions(self, orchestrator):
         """
         用户场景: 工艺师确认系统建议
@@ -257,6 +259,7 @@ class TestProcessOrchestratorE2E:
         assert final_state in ["completion", "user_review"]
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="E2E assertions predate state-machine refactor; mock/dict expectations stale", strict=False)
     async def test_performance_under_load(self, orchestrator):
         """
         用户场景: 系统在负载下的性能表现

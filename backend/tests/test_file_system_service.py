@@ -9,9 +9,6 @@ import asyncio
 
 from app.services.file_system_service import FileSystemService
 
-
-pytestmark = pytest.mark.xfail(reason="assertions stale", strict=False)
-
 class TestFileSystemService:
     """文件系统服务测试类"""
 
@@ -41,6 +38,7 @@ class TestFileSystemService:
         assert len(service.watch_patterns) > 0
 
     @pytest.mark.integration
+    @pytest.mark.xfail(reason="assertions stale", strict=False)
     def test_file_categorization(self, temp_workspace, file_service):
         """测试文件分类"""
         # 创建测试文件
@@ -90,6 +88,7 @@ class TestFileSystemService:
         assert hash1 != hash3
 
     @pytest.mark.integration
+    @pytest.mark.xfail(reason="assertions stale", strict=False)
     async def test_pdf_metadata_extraction(self, temp_workspace, file_service):
         """测试PDF元数据提取"""
         # 创建简单的测试PDF（如果可能）
@@ -134,6 +133,7 @@ class TestFileSystemService:
             assert result == expected, f"Failed for {filename}"
 
     @pytest.mark.integration
+    @pytest.mark.xfail(reason="assertions stale", strict=False)
     def test_file_index_operations(self, temp_workspace, file_service):
         """测试文件索引操作"""
         # 创建测试文件

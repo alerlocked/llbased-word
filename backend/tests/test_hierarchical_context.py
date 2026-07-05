@@ -12,9 +12,6 @@ import sys
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-
-pytestmark = pytest.mark.xfail(reason="search returns empty; test data/index setup predate refactor", strict=False)
-
 class TestHierarchicalContextBasics:
     """基础功能测试"""
 
@@ -50,6 +47,7 @@ class TestHierarchicalContextBasics:
         # 验证缓存
         assert ctx._table_index_cache is not None
 
+    @pytest.mark.xfail(reason="search returns empty; test data/index predate refactor", strict=False)
     def test_search_tables_by_id(self, ctx):
         """测试表格 ID 搜索"""
         # 使用实际存在的表格 ID
@@ -65,6 +63,7 @@ class TestHierarchicalContextBasics:
         assert hasattr(match, 'score')
         assert match.score > 0
 
+    @pytest.mark.xfail(reason="search returns empty; test data/index predate refactor", strict=False)
     def test_search_tables_by_type(self, ctx):
         """测试表格类型搜索"""
         results = ctx.search_tables("工序卡片")
@@ -80,6 +79,7 @@ class TestHierarchicalContextBasics:
         # 结果取决于实际数据
         assert isinstance(results, list)
 
+    @pytest.mark.xfail(reason="search returns empty; test data/index predate refactor", strict=False)
     def test_search_meta_info_pages(self, ctx):
         """测试元信息查询 - 页数"""
         # 测试页数查询
@@ -89,6 +89,7 @@ class TestHierarchicalContextBasics:
         assert result is not None
         assert "页" in result or "44" in result
 
+    @pytest.mark.xfail(reason="search returns empty; test data/index predate refactor", strict=False)
     def test_search_meta_info_materials(self, ctx):
         """测试元信息查询 - 材料列表"""
         result = ctx.search_meta_info("有哪些材料")
@@ -233,6 +234,7 @@ class TestKeywordExtraction:
         # 至少应该有一些关键词
         assert len(keywords) > 0
 
+    @pytest.mark.xfail(reason="search returns empty; test data/index predate refactor", strict=False)
     def test_extract_keywords_mixed(self):
         """测试中英文混合关键词提取"""
         from app.services.hierarchical_context import extract_keywords

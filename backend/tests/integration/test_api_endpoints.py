@@ -60,9 +60,6 @@ def mock_context_manager():
 
     return manager
 
-
-pytestmark = pytest.mark.xfail(reason="integration env-dependent; needs dedicated setup", strict=False)
-
 class TestHealthEndpoints:
     """Tests for health and status endpoints"""
 
@@ -391,6 +388,7 @@ class TestDocumentAPI:
             data = response.json()
             assert "markdown" in data
 
+    @pytest.mark.xfail(reason="integration env-dependent; needs dedicated setup", strict=False)
     def test_get_document_markdown_not_found(self, client, mock_context_manager):
         """Test getting markdown for non-existent document"""
         mock_context_manager.get_document_markdown.return_value = None
@@ -434,6 +432,7 @@ class TestDocumentAPI:
 
             assert response.status_code == 400
 
+    @pytest.mark.xfail(reason="integration env-dependent; needs dedicated setup", strict=False)
     def test_get_extraction_summary(self, client, mock_context_manager):
         """Test getting extraction summary"""
         with patch('app.api.document.get_context_manager', return_value=mock_context_manager):
@@ -441,6 +440,7 @@ class TestDocumentAPI:
 
             assert response.status_code == 200
 
+    @pytest.mark.xfail(reason="integration env-dependent; needs dedicated setup", strict=False)
     def test_get_table_detail(self, client, mock_context_manager):
         """Test getting table detail"""
         with patch('app.api.document.get_context_manager', return_value=mock_context_manager):
@@ -493,6 +493,7 @@ class TestProcessDocumentsAPI:
             data = response.json()
             assert "message" in data
 
+    @pytest.mark.xfail(reason="integration env-dependent; needs dedicated setup", strict=False)
     def test_get_csv_config(self, client):
         """Test getting CSV export config"""
         with patch('app.api.process_documents.CSV_EXPORT_CONFIG', {'delimiter': ','}):

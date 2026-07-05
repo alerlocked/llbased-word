@@ -17,7 +17,7 @@ import os
 # mineru 3.x refactored to the middle_json dict API; this suite targets the
 # removed 0.7.x object-based API (_convert_mineru_table, init/fallback/HTML/merged-cell
 # expectations). Needs full rewrite against the new API.
-pytestmark = [pytest.mark.unit, pytest.mark.xfail(reason="mineru 3.x middle_json refactor; suite targets removed 0.7.x API — needs rewrite", strict=False)]
+pytestmark = pytest.mark.unit
 
 
 class TestMinerUExtractorInitialization:
@@ -146,6 +146,7 @@ class TestHTMLTableParsing:
         assert rows[1] == ['张三', '25']
         assert rows[2] == ['李四', '30']
 
+    @pytest.mark.xfail(reason="mineru 3.x middle_json refactor; suite targets removed 0.7.x API", strict=False)
     def test_parse_html_table_with_merged_cells(self):
         """测试解析包含合并单元格的HTML表格"""
         from app.tools.table_extractors.mineru_extractor import MinerUTableExtractor

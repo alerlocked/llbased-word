@@ -9,9 +9,6 @@ import os
 # 添加 backend 目录到 path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
-
-pytestmark = pytest.mark.xfail(reason="assertions predate refactor", strict=False)
-
 class TestDetectMode:
     """测试模式检测功能"""
 
@@ -116,6 +113,7 @@ class TestDetectMode:
 class TestGetSystemPrompt:
     """测试系统提示词功能"""
 
+    @pytest.mark.xfail(reason="assertions predate refactor", strict=False)
     def test_qa_prompt_contains_brief(self):
         """测试问答模式提示词包含简洁性要求"""
         from app.api.agent import get_system_prompt
@@ -123,6 +121,7 @@ class TestGetSystemPrompt:
         assert '简洁' in prompt
         assert '2-3 句话' in prompt
 
+    @pytest.mark.xfail(reason="assertions predate refactor", strict=False)
     def test_qa_prompt_prohibits_diff(self):
         """测试问答模式提示词禁止修改标记"""
         from app.api.agent import get_system_prompt
@@ -135,12 +134,14 @@ class TestGetSystemPrompt:
         prompt = get_system_prompt('qa')
         assert '回答示例' in prompt
 
+    @pytest.mark.xfail(reason="assertions predate refactor", strict=False)
     def test_write_prompt_contains_standard(self):
         """测试写作模式提示词包含专业规范要求"""
         from app.api.agent import get_system_prompt
         prompt = get_system_prompt('write')
         assert '专业规范' in prompt
 
+    @pytest.mark.xfail(reason="assertions predate refactor", strict=False)
     def test_write_prompt_allows_editable(self):
         """测试写作模式提示词强调可编辑性"""
         from app.api.agent import get_system_prompt

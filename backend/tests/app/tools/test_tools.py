@@ -17,12 +17,10 @@ sys.modules['app.agents.workflows.creation_graph'] = MagicMock()
 
 from app.agents.core import ToolRegistry
 
-
-pytestmark = pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
-
 class TestRAGRetriever:
     """Tests for RAGRetriever tool"""
 
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     def test_rag_retriever_registration(self):
         """Test RAGRetriever is properly registered"""
         from app.tools.rag_retriever import RAGRetriever
@@ -33,6 +31,7 @@ class TestRAGRetriever:
         tool_class = ToolRegistry.get("rag_retriever")
         assert tool_class == RAGRetriever
 
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     def test_rag_retriever_creation(self):
         """Test RAGRetriever can be created"""
         from app.tools.rag_retriever import RAGRetriever
@@ -42,6 +41,7 @@ class TestRAGRetriever:
         assert tool.similarity_threshold == 0.7
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_rag_retriever_execute_empty_query(self):
         """Test RAGRetriever with empty query"""
         from app.tools.rag_retriever import RAGRetriever
@@ -53,6 +53,7 @@ class TestRAGRetriever:
         assert result["error_code"] == "INVALID_QUERY"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_rag_retriever_execute_invalid_query(self):
         """Test RAGRetriever with invalid query type"""
         from app.tools.rag_retriever import RAGRetriever
@@ -64,6 +65,7 @@ class TestRAGRetriever:
         assert result["error_code"] == "INVALID_QUERY"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_rag_retriever_mock_search(self):
         """Test RAGRetriever mock search (when VectorStore unavailable)"""
         from app.tools.rag_retriever import RAGRetriever
@@ -76,6 +78,7 @@ class TestRAGRetriever:
         assert "results" in result
         assert result["query"] == "test query"
 
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     def test_rag_retriever_get_info(self):
         """Test getting tool info"""
         from app.tools.rag_retriever import RAGRetriever
@@ -112,6 +115,7 @@ class TestTerminologyTool:
         assert tool.max_suggestions == 3
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_terminology_tool_execute_string_input(self):
         """Test TerminologyTool with string input"""
         from app.tools.terminology_tool import TerminologyTool
@@ -124,6 +128,7 @@ class TestTerminologyTool:
         assert "mappings" in result
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_terminology_tool_execute_dict_input(self):
         """Test TerminologyTool with dict input"""
         from app.tools.terminology_tool import TerminologyTool
@@ -159,6 +164,7 @@ class TestTerminologyTool:
         assert result["error_code"] == "INVALID_INPUT"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_terminology_tool_mock_mapping(self):
         """Test TerminologyTool mock mapping"""
         from app.tools.terminology_tool import TerminologyTool
@@ -229,6 +235,7 @@ class TestComplianceTool:
         assert result["error_code"] == "EMPTY_CONTENT"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_compliance_tool_safety_check(self):
         """Test ComplianceTool safety check"""
         from app.tools.compliance_tool import ComplianceTool
@@ -266,6 +273,7 @@ class TestDocumentTool:
         assert tool.template_name == "standard_process_template"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_document_tool_execute_dict_input(self):
         """Test DocumentTool with dict input"""
         from app.tools.document_tool import DocumentTool
@@ -282,6 +290,7 @@ class TestDocumentTool:
         assert "files" in result
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_document_tool_execute_string_input(self):
         """Test DocumentTool with string input"""
         from app.tools.document_tool import DocumentTool
@@ -314,6 +323,7 @@ class TestDocumentTool:
         assert result["error_code"] == "INVALID_INPUT"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     async def test_document_tool_unsupported_format(self):
         """Test DocumentTool with unsupported format defaults to html"""
         from app.tools.document_tool import DocumentTool
@@ -342,6 +352,7 @@ class TestDocumentTool:
 class TestToolRegistryIntegration:
     """Integration tests for tool registry with actual tools"""
 
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     def test_all_tools_registered(self):
         """Test that all expected tools are registered after import"""
         # Import all tools
@@ -357,6 +368,7 @@ class TestToolRegistryIntegration:
         assert "compliance_checker" in tools
         assert "document_generator" in tools
 
+    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     def test_tool_creation_via_registry(self):
         """Test creating tools via registry"""
         from app.tools.rag_retriever import RAGRetriever
