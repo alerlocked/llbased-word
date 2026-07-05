@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T11:54:15+08:00
-last_commit: 418111b
+updated_at: 2026-07-05T12:00:26+08:00
+last_commit: 885fc7d
 status: content-detail 完成（G25a content 详实化:extract colspan 修+生成详实+开头说明,content 32→461字）
 task_state: done
 task_slug: content-detail
@@ -11,16 +11,16 @@ task_slug: content-detail
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `418111b` fix(test): repair fixtures causing 13 setup/teardown errors (0 seconds ago)
-- `e3377e2` test: xfail mineru 3.x suite + single-point edge failures (level-3 final) (9 minutes ago)
-- `97bc969` test: xfail refactor-stale suites to quiet false-red noise (level-3 remainder) (20 minutes ago)
-- `7b8b308` test: xfail review engine gaps + hybrid_parsing stale (level-3) (35 minutes ago)
-- `e2ab5db` fix: table_merger continuation logic + LongTermMemory pydantic + review API (level-3) (56 minutes ago)
-- `df0946d` fix(test): clean stale tests after refactor (level-2) (71 minutes ago)
-- `c188f70` chore(test): upgrade pytest-asyncio 1.4.0 + register markers + remove orphan tests (79 minutes ago)
-- `c0a7e83` fix(logging): rename LogRecord reserved attrs in structured logger kwargs (85 minutes ago)
+- `885fc7d` test: refine file-level xfail to method-level (kill 149 xpass noise) (0 seconds ago)
+- `418111b` fix(test): repair fixtures causing 13 setup/teardown errors (6 minutes ago)
+- `e3377e2` test: xfail mineru 3.x suite + single-point edge failures (level-3 final) (15 minutes ago)
+- `97bc969` test: xfail refactor-stale suites to quiet false-red noise (level-3 remainder) (26 minutes ago)
+- `7b8b308` test: xfail review engine gaps + hybrid_parsing stale (level-3) (41 minutes ago)
+- `e2ab5db` fix: table_merger continuation logic + LongTermMemory pydantic + review API (level-3) (62 minutes ago)
+- `df0946d` fix(test): clean stale tests after refactor (level-2) (77 minutes ago)
+- `c188f70` chore(test): upgrade pytest-asyncio 1.4.0 + register markers + remove orphan tests (85 minutes ago)
+- `c0a7e83` fix(logging): rename LogRecord reserved attrs in structured logger kwargs (2 hours ago)
 - `8687cfd` fix: backport state-machine + memory NoneType + vite dead-ref from kylin (26 hours ago)
-- `69d4dd1` feat: fix batch-upload/upload-folder material_id + buffer API (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
