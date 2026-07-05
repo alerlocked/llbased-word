@@ -2,29 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T14:54:07+08:00
-last_commit: 1e6dd1d
-status: derive-strong-node 节点4 验收中（pytest 全量回归已过 0 failed）
-task_state: running
+updated_at: 2026-07-05T15:16:16+08:00
+last_commit: 8cf1719
+status: derive-strong-node 代码完成（节点1-4 + 隔离修复），documents/1 web 验收待用户
+task_state: done
 task_slug: derive-strong-node
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `1e6dd1d` fix(test): snapshot/restore registry around test_registry clear (隔离修复) (0 seconds ago)
-- `bd7c1c7` refactor(writing): remove weak 三空 derivation fallback (节点3) (34 minutes ago)
-- `105f248` feat(orchestrator): derive strong node + merge helpers (节点2) (36 minutes ago)
-- `49645a1` feat(writing): provenance filter for _derive_list_from_upstream (节点1) (42 minutes ago)
-- `7bab17d` plan: derive-strong-node (倒推强节点) seal (46 minutes ago)
+- `8cf1719` fix(test): autouse mock.patch.stopall + GC between tests (draft flaky 根治) (0 seconds ago)
+- `1e6dd1d` fix(test): snapshot/restore registry around test_registry clear (隔离修复) (22 minutes ago)
+- `bd7c1c7` refactor(writing): remove weak 三空 derivation fallback (节点3) (56 minutes ago)
+- `105f248` feat(orchestrator): derive strong node + merge helpers (节点2) (58 minutes ago)
+- `49645a1` feat(writing): provenance filter for _derive_list_from_upstream (节点1) (64 minutes ago)
+- `7bab17d` plan: derive-strong-node (倒推强节点) seal (68 minutes ago)
 - `885fc7d` test: refine file-level xfail to method-level (kill 149 xpass noise) (3 hours ago)
 - `418111b` fix(test): repair fixtures causing 13 setup/teardown errors (3 hours ago)
-- `e3377e2` test: xfail mineru 3.x suite + single-point edge failures (level-3 final) (3 hours ago)
-- `97bc969` test: xfail refactor-stale suites to quiet false-red noise (level-3 remainder) (3 hours ago)
-- `7b8b308` test: xfail review engine gaps + hybrid_parsing stale (level-3) (4 hours ago)
+- `e3377e2` test: xfail mineru 3.x suite + single-point edge failures (level-3 final) (4 hours ago)
+- `97bc969` test: xfail refactor-stale suites to quiet false-red noise (level-3 remainder) (4 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
-- **在做**：derive-strong-node —— 节点1-3✅（倒推强节点 + 12 单测）。节点4 pytest 全量回归**已过 0 failed**（683 passed）：先修 registry 隔离（test_registry snapshot/restore，解决 3 fail），再加 conftest autouse `mock.patch.stopall + GC`（根治 draft_service 跨测试 async mock 残留 flaky）。当前：documents/1 全链路验收（行数对比+人工抽样+待补检查）。进度 3.5/4。
+- **完成**：derive-strong-node（倒推强节点）—— 节点1✅ `_provenance_filter`（溯源校验，丢弃 G25a 无出处条目）+ 节点2✅ orchestrator `_derive_strong_node`（generated_chapters 后/Review 前无条件倒推，原文优先合并 + 待补标注）+ 节点3✅ 移除 writing_agent 三空弱兜底 + 节点4✅ pytest 全量回归 0 failed（683 passed）。**附带修复测试隔离**：test_registry snapshot/restore（registry 全局单例 clear 不恢复）+ conftest autouse `mock.patch.stopall+GC`（根治 draft_service 跨测试 async mock 残留 flaky）。**documents/1 web 验收待用户**（行数对比+抽样核对 G25a 出处+待补字段）。
 - **完成**：content-detail —— G25a content 详实化三节点全过。① 节点1 _table_to_markdown colspan 网格展开(extract op5 9→729字/ASM 1134→4992,三层根因)② 节点2 生成 prompt 详实化(content_avg 32→461字,零臆造)③ 节点3 装配卡说明(extract_assembly_overview 769字+注入)。待用户 web 验证;后续重跑 diagnose_all_chapters 看其他章节是否受益 + G14a/G12a 逐章
 - **历史完成**：content-quality(检验收紧38→5+实证) + contract-align(检验行+契约guard+docx2pdf)
 - **历史完成**：contract-align（检验工序行+契约guard+docx2pdf中文路径）三节点全过
