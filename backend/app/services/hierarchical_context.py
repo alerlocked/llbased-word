@@ -161,17 +161,22 @@ class HierarchicalContext:
         self._documents_cache_ts = 0.0
         logger.info("[上下文] 缓存已清除")
         
-    def _get_all_documents(self) -> List[Dict[str, Any]]:
+    def _get_all_documents(
+        self, filters: Optional[Dict[str, str]] = None,
+    ) -> List[Dict[str, Any]]:
         """Get all available documents.
 
         Data source = materials table (素材库). Each Material maps to
         documents/{material_id}/, indexed by chapter_index.json + content.html.
         Falls back to scanning index.json so legacy/DB-less environments and
         existing tests still work.
+
+        filters: optional {"model": ..., "specialty": ...} for 检索穿透 (节点4).
+        When set, only DB docs matching are returned; file-scan fallback is
+        skipped (legacy docs have no model/specialty).
         """
-        # TTL cache: avoid re-querying DB on every call within one
-        # build_context / get_material_status chain.
-        if self._documents_cache is not None and \
+        # TTL cache: only for unfiltered calls (filtered result != full cache).
+        if filters is None and self._documents_cache is not None and \
                 (time.time() - self._documents_cache_ts) < self._documents_cache_ttl:
             return self._documents_cache
 
@@ -184,15 +189,21 @@ class HierarchicalContext:
             from app.models.database import Material
             db = SessionLocal()
             try:
-                materials = db.query(Material).order_by(
-                    Material.created_at.desc()
-                ).all()
+                q = db.query(Material)
+                if filters:
+                    if filters.get("specialty"):
+                        q = q.filter(Material.specialty == filters["specialty"])
+                    if filters.get("model"):
+                        q = q.filter(Material.model == filters["model"])
+                materials = q.order_by(Material.created_at.desc()).all()
                 for m in materials:
                     doc_dir_name = str(m.id)
                     doc_dir = self.data_dir / doc_dir_name
                     if not doc_dir.exists():
                         continue  # DB row exists but files removed → skip
-                    documents.append(self._build_doc_dict(doc_dir_name, m.name))
+                    documents.append(self._build_doc_dict(
+                        doc_dir_name, m.name, m.model, m.specialty,
+                    ))
                     seen_dirs.add(doc_dir_name)
             finally:
                 db.close()
@@ -221,13 +232,15 @@ class HierarchicalContext:
         logger.info(f"[上下文] 找到 {len(documents)} 个文档")
         return documents
 
-    def _build_doc_dict(self, doc_dir_name: str, name: str) -> Dict[str, Any]:
+    def _build_doc_dict(
+        self, doc_dir_name: str, name: str,
+        model: Optional[str] = None, specialty: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Build a doc dict for a materials-table document.
 
         Mirrors the index.json shape consumed by downstream layers
-        (name/pages/tables/materials/_doc_dir). tables/materials are empty for
-        uploaded docs (chapter_index.json has no such fields); the L1/L2 table
-        layers degrade gracefully and the generation path does not use them.
+        (name/pages/tables/materials/_doc_dir/model/specialty). model/specialty
+        carry the 检索穿透 dimensions (cleanup-and-dimensions 节点4).
         """
         doc_dir = self.data_dir / doc_dir_name
         pages = 0
@@ -245,6 +258,8 @@ class HierarchicalContext:
             "tables": [],
             "materials": [],
             "_doc_dir": doc_dir_name,
+            "model": model,
+            "specialty": specialty,
         }
     
     def load_meta_index(self, force_reload: bool = False) -> str:
@@ -360,7 +375,10 @@ class HierarchicalContext:
         logger.info(f"[上下文] Layer 1 加载完成，长度: {len(self._table_index_cache)}")
         return self._table_index_cache
     
-    def search_tables(self, query: str, top_k: int = 5) -> List[TableMatch]:
+    def search_tables(
+        self, query: str, top_k: int = 5,
+        filters: Optional[Dict[str, str]] = None,
+    ) -> List[TableMatch]:
         """搜索相关表格
         
         匹配规则：
@@ -377,12 +395,12 @@ class HierarchicalContext:
         Returns:
             匹配的表格列表，按相关性排序
         """
-        documents = self._get_all_documents()
+        documents = self._get_all_documents(filters)
         matches = []
-        
+
         query_lower = query.lower()
         query_keywords = extract_keywords(query)
-        
+
         for doc in documents:
             doc_name = doc.get("name", "未命名文档")
             tables = doc.get("tables", [])
@@ -734,7 +752,10 @@ class HierarchicalContext:
         logger.info(f"[上下文] 上下文构建完成: {final_tokens} tokens, 长度 {len(final_context)}")
         return final_context
     
-    def global_keyword_search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+    def global_keyword_search(
+        self, query: str, top_k: int = 10,
+        filters: Optional[Dict[str, str]] = None,
+    ) -> List[Dict[str, Any]]:
         """全局关键词搜索 (Layer 3)
 
         遍历所有文档的 document.html，在纯文本中搜索关键词，
@@ -755,7 +776,7 @@ class HierarchicalContext:
 
         logger.info(f"[上下文] L3 搜索: query={query[:50]}, keywords={keywords}")
 
-        documents = self._get_all_documents()
+        documents = self._get_all_documents(filters)
         results: List[Dict[str, Any]] = []
 
         for doc in documents:
