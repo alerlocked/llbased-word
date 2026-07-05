@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T14:18:12+08:00
-last_commit: 105f248
+updated_at: 2026-07-05T14:20:01+08:00
+last_commit: bd7c1c7
 status: derive-strong-node 执行中（节点1：升级 _derive_list_from_upstream 溯源+字段边界）
 task_state: running
 task_slug: derive-strong-node
@@ -11,16 +11,16 @@ task_slug: derive-strong-node
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `105f248` feat(orchestrator): derive strong node + merge helpers (节点2) (1 second ago)
-- `49645a1` feat(writing): provenance filter for _derive_list_from_upstream (节点1) (6 minutes ago)
-- `7bab17d` plan: derive-strong-node (倒推强节点) seal (10 minutes ago)
+- `bd7c1c7` refactor(writing): remove weak 三空 derivation fallback (节点3) (0 seconds ago)
+- `105f248` feat(orchestrator): derive strong node + merge helpers (节点2) (2 minutes ago)
+- `49645a1` feat(writing): provenance filter for _derive_list_from_upstream (节点1) (8 minutes ago)
+- `7bab17d` plan: derive-strong-node (倒推强节点) seal (12 minutes ago)
 - `885fc7d` test: refine file-level xfail to method-level (kill 149 xpass noise) (2 hours ago)
 - `418111b` fix(test): repair fixtures causing 13 setup/teardown errors (2 hours ago)
 - `e3377e2` test: xfail mineru 3.x suite + single-point edge failures (level-3 final) (3 hours ago)
 - `97bc969` test: xfail refactor-stale suites to quiet false-red noise (level-3 remainder) (3 hours ago)
 - `7b8b308` test: xfail review engine gaps + hybrid_parsing stale (level-3) (3 hours ago)
 - `e2ab5db` fix: table_merger continuation logic + LongTermMemory pydantic + review API (level-3) (3 hours ago)
-- `df0946d` fix(test): clean stale tests after refactor (level-2) (4 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

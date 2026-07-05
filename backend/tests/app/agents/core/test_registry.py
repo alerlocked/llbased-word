@@ -21,8 +21,15 @@ class TestToolRegistry:
     """Tests for ToolRegistry functionality"""
 
     def setup_method(self):
-        """Clear registry before each test"""
+        """Snapshot then clear registry (restored in teardown to avoid leaking
+        empty state into other test modules that rely on default registrations).
+        """
+        self._tools_snapshot = dict(ToolRegistry._tools)
         ToolRegistry.clear()
+
+    def teardown_method(self):
+        """Restore default tool registrations."""
+        ToolRegistry._tools = self._tools_snapshot
 
     def test_register_tool(self):
         """Test registering a tool"""
@@ -111,8 +118,15 @@ class TestAgentRegistry:
     """Tests for AgentRegistry functionality"""
 
     def setup_method(self):
-        """Clear registry before each test"""
+        """Snapshot then clear registry (restored in teardown to avoid leaking
+        empty state into other test modules that rely on default registrations).
+        """
+        self._agents_snapshot = dict(AgentRegistry._agents)
         AgentRegistry.clear()
+
+    def teardown_method(self):
+        """Restore default agent registrations."""
+        AgentRegistry._agents = self._agents_snapshot
 
     def test_register_agent(self):
         """Test registering an agent"""
@@ -164,8 +178,15 @@ class TestWorkflowRegistry:
     """Tests for WorkflowRegistry functionality"""
 
     def setup_method(self):
-        """Clear registry before each test"""
+        """Snapshot then clear registry (restored in teardown to avoid leaking
+        empty state into other test modules that rely on default registrations).
+        """
+        self._workflows_snapshot = dict(WorkflowRegistry._workflows)
         WorkflowRegistry.clear()
+
+    def teardown_method(self):
+        """Restore default workflow registrations."""
+        WorkflowRegistry._workflows = self._workflows_snapshot
 
     def test_register_workflow(self):
         """Test registering a workflow"""
