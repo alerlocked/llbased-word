@@ -333,9 +333,17 @@ class KnowledgeExtractor:
 
     def extract_and_save(self, doc_id: str, db_session) -> Dict[str, int]:
         """Extract from a document and persist into the database."""
-        from app.models.database import MaterialCatalog, ProcessStep
+        from app.models.database import MaterialCatalog, ProcessStep, Material
 
         data = self.extract_from_doc(doc_id)
+
+        # 维度传递（revive-extract-funnel 节点2）：从 Material 行读 specialty，
+        # 落到 MaterialCatalog/ProcessStep，让结构化查询支持型号/专业穿透。
+        mat_specialty = None
+        if doc_id.isdigit():
+            _m = db_session.query(Material).filter(Material.id == int(doc_id)).first()
+            if _m:
+                mat_specialty = _m.specialty
 
         # Deduplicate & insert materials + tools (both go to material_catalog)
         existing = {
@@ -346,6 +354,8 @@ class KnowledgeExtractor:
             key = (item["name"], item.get("model"))
             if key in existing:
                 continue
+            if mat_specialty and "specialty" not in item:
+                item["specialty"] = mat_specialty
             row = MaterialCatalog(**{k: v for k, v in item.items() if v is not None})
             db_session.add(row)
             db_session.flush()
@@ -358,6 +368,8 @@ class KnowledgeExtractor:
             ).first():
                 continue
             item["step_order"] = idx + 1
+            if mat_specialty and "specialty" not in item:
+                item["specialty"] = mat_specialty
             row = ProcessStep(**{k: v for k, v in item.items() if v is not None})
             db_session.add(row)
             db_session.flush()
