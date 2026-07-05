@@ -3067,9 +3067,10 @@ class ProcessOrchestrator:
         splice_log = []
         for mod, result in zip(modules, results):
             if isinstance(result, BaseException):
+                # 'module' is a LogRecord reserved attribute; rename to avoid KeyError
                 logger.error(
                     "module_generation_failed",
-                    module=mod["name"],
+                    module_name=mod["name"],
                     error=str(result),
                 )
                 parts.append(f"\n\n## {mod['name']}\n\n[待确认：模块生成失败，请手动补充]")

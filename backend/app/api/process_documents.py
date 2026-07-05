@@ -421,10 +421,11 @@ async def download_csv_export(
                 "Content-Type": "text/csv; charset=utf-8"
             }
 
+            # 'filename' is a LogRecord reserved attribute; rename to avoid KeyError
             logger.info("csv_file_downloaded",
                        doc_id=doc_id,
                        export_id=export_id,
-                       filename=filename)
+                       file_name=filename)
 
             return Response(content=content, headers=headers)
 

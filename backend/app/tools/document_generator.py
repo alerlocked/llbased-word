@@ -207,7 +207,8 @@ class DocumentGenerator:
                 "template_used": template_name
             }
 
-            logger.debug("file_generated", filename=filename, format_type=format_type, size_kb=file_info["size_kb"])
+            # 'filename' is a LogRecord reserved attribute; rename to avoid KeyError
+            logger.debug("file_generated", file_name=filename, format_type=format_type, size_kb=file_info["size_kb"])
             return file_info
 
         except Exception as e:

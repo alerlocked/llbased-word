@@ -268,11 +268,12 @@ class ProcessDocumentService:
                     "version": document.version
                 }, f, ensure_ascii=False, indent=2)
 
-            logger.info("document_created", doc_id=doc_id, name=name, template_id=template_id)
+            # 'name' is a LogRecord reserved attribute; rename to avoid KeyError in StructuredLogger._log
+            logger.info("document_created", doc_id=doc_id, doc_name=name, template_id=template_id)
             return doc_id
 
         except Exception as e:
-            logger.exception("document_creation_failed", template_id=template_id, name=name, error=str(e))
+            logger.exception("document_creation_failed", template_id=template_id, doc_name=name, error=str(e))
             return None
 
     def _initialize_document_from_template(self, document: ProcessDocument, template: Dict[str, Any]):
