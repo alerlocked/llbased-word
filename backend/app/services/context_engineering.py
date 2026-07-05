@@ -314,6 +314,15 @@ class LongTermMemory(BaseMemory if LANGCHAIN_AVAILABLE else object):
     - clear: 清除记忆
     """
     
+    def __setattr__(self, name, value):
+        # memories/session_id are injected via object.__setattr__ to bypass
+        # pydantic v1 BaseMemory field validation; route any later assignment
+        # the same way so callers can do `ltm.memories = [...]` without crashing.
+        if name in ("memories", "session_id"):
+            object.__setattr__(self, name, value)
+        else:
+            super().__setattr__(name, value)
+
     def __init__(self, session_id: str):
         """
         初始化长期记忆

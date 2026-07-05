@@ -113,13 +113,11 @@ class TableMerger:
                 logger.debug("column_structure_dissimilar")
                 return False
 
-            # 检查4: 表头重复或缺失
-            header_match = self._check_header_match(table1, table2)
-
-            # 如果表头匹配，说明是新表格的开始
-            if header_match > self.header_match_threshold:
-                logger.debug("headers_match_new_table")
-                return False
+            # NOTE: header-match check removed. ExtractedTable.__post_init__ fills
+            # headers=None with rows[0], so a headerless continuation page reports
+            # headers equal to its first data row — which never matches table1's
+            # header, causing false "new table" verdicts. Continuation is decided
+            # by page contiguity + column count + column-shape similarity + position.
 
             # 检查5: 位置一致性（表格在页面上的位置）
             if not self._check_position_consistency(table1, table2):
@@ -155,7 +153,11 @@ class TableMerger:
             # 检查table2的第一行是否是重复的表头
             rows_to_add = table2.rows
 
-            if table2.headers and self._is_header_row(table2.rows[0], table2.headers):
+            # Skip table2's first row only if it repeats table1's header (a
+            # cross-page header repeat). Do NOT compare against table2.headers:
+            # ExtractedTable.__post_init__ fills headers=None with rows[0], so
+            # table2.headers always equals table2.rows[0] and would always match.
+            if table1.headers and self._is_header_row(table2.rows[0], table1.headers):
                 # 跳过重复的表头
                 rows_to_add = table2.rows[1:]
                 logger.debug("skipping_duplicate_header", table_id=table2.table_id)
@@ -221,10 +223,12 @@ class TableMerger:
         if not table1.rows or not table2.rows:
             return False
 
-        # 比较列宽
-        # 简化方法：比较第一行的单元格文本长度分布
-        row1 = table1.rows[0]
-        row2 = table2.rows[0]
+        # Compare column shape via text-length profile. Prefer data_rows over
+        # rows[0]: a continuation page often has no header, so its rows[0] is a
+        # data row while table1's rows[0] is a header — comparing those directly
+        # produces a false mismatch. data-vs-data is a stable column-shape signal.
+        row1 = table1.data_rows[0] if table1.data_rows else table1.rows[0]
+        row2 = table2.data_rows[0] if table2.data_rows else table2.rows[0]
 
         if len(row1) != len(row2):
             return False
