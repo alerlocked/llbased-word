@@ -110,8 +110,9 @@ class TestPDFQueueManager:
             state_file=os.path.join(temp_dir, "state.json")
         )
         yield manager
-        # Cleanup
-        asyncio.get_event_loop().run_until_complete(manager.stop())
+        # Cleanup — asyncio.run spins a fresh event loop; get_event_loop() fails
+        # under pytest-asyncio (loop already closed at teardown, Python 3.10+ raises).
+        asyncio.run(manager.stop())
 
     @pytest.fixture
     def sample_pdf(self, temp_dir):

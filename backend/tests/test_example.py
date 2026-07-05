@@ -26,6 +26,6 @@ class TestExampleClass:
         assert True
 
     @pytest.mark.unit
-    def test_with_fixture(self, test_data_dir):
+    def test_with_fixture(self, tmp_path):
         """使用fixture的测试"""
-        assert test_data_dir.exists()
+        assert tmp_path.exists()
