@@ -366,3 +366,84 @@ class DraftVersion(Base):
     snapshot_content = Column(Text, comment="该快照的完整内容")
     snapshot_source = Column(String(20), comment="来源: ai_complete/user_edit/rollback")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# === 结构化抽取落库表（revive-extract-funnel Step 2）===
+# 从工艺文档抽取的物料/工序/标准，供 KnowledgeSearchService 查询。
+# schema 对齐 craftdoc.db 实证（PRAGMA），specialty 列为穿透维度（从 Material 带）。
+
+
+class MaterialCatalog(Base):
+    """物料目录表（从工艺文档抽取的结构化物料）"""
+    __tablename__ = "material_catalog"
+
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(50), comment="类别")
+    name = Column(String(255), comment="名称")
+    brand = Column(String(255), comment="品牌")
+    model = Column(String(255), comment="型号")
+    standard_code = Column(String(100), comment="标准代码")
+    spec = Column(Text, comment="规格")
+    unit = Column(String(20), comment="单位")
+    source_doc = Column(String(255), comment="来源文档")
+    specialty = Column(String(50), comment="工艺专业（穿透维度，从 Material 带）")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ProcessStep(Base):
+    """工艺步骤表"""
+    __tablename__ = "process_steps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doc_id = Column(String(100), index=True, comment="文档ID")
+    step_name = Column(String(255), comment="步骤名称")
+    step_order = Column(Integer, comment="步骤顺序")
+    parent_step_id = Column(Integer, comment="父步骤ID")
+    description = Column(Text, comment="描述")
+    specialty = Column(String(50), comment="工艺专业（穿透维度，从 Material 带）")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Standard(Base):
+    """标准表（QJ903 等标准文档）"""
+    __tablename__ = "standards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(100), index=True, comment="标准代码")
+    title = Column(String(500), comment="标准标题")
+    category = Column(String(100), comment="类别")
+    content_json = Column(Text, comment="JSON内容")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class StandardClause(Base):
+    """标准条款表"""
+    __tablename__ = "standard_clauses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    standard_id = Column(Integer, ForeignKey("standards.id"), nullable=False, index=True, comment="关联标准ID")
+    clause_number = Column(String(50), comment="条款编号")
+    requirement = Column(Text, comment="要求内容")
+    clause_type = Column(String(50), comment="条款类型: format/process/quality/safety")
+    applies_to = Column(String(255), comment="适用范围")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class StepMaterial(Base):
+    """步骤-物料关联表"""
+    __tablename__ = "step_materials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    step_id = Column(Integer, ForeignKey("process_steps.id"), nullable=False, index=True, comment="关联步骤ID")
+    catalog_id = Column(Integer, ForeignKey("material_catalog.id"), nullable=False, index=True, comment="关联物料ID")
+    usage_type = Column(String(20), comment="使用类型")
+    quantity = Column(String(50), comment="数量")
+
+
+class StepTool(Base):
+    """步骤-工具关联表"""
+    __tablename__ = "step_tools"
+
+    id = Column(Integer, primary_key=True, index=True)
+    step_id = Column(Integer, ForeignKey("process_steps.id"), nullable=False, index=True, comment="关联步骤ID")
+    catalog_id = Column(Integer, ForeignKey("material_catalog.id"), nullable=False, index=True, comment="关联物料ID")

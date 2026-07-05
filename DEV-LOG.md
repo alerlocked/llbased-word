@@ -2,28 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T21:57:37+08:00
-last_commit: 1a01091
-status: cleanup-and-dimensions 完成（Step 0 清噪 + Step 1 型号专业维度，前端 UI 待后续）
-task_state: done
-task_slug: cleanup-and-dimensions
+updated_at: 2026-07-05T23:15:41+08:00
+last_commit: 7269bd7
+status: revive-extract-funnel 执行中（节点1：补 6 ORM + specialty 迁移）
+task_state: running
+task_slug: revive-extract-funnel
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `1a01091` chore(devlog): cleanup-and-dimensions done (Step 0+1 完成) (1 second ago)
-- `c31cf0b` feat(api): material GET 加 model/specialty + PUT 更新 API + CLAUDE.md 去向量（节点5 后端） (11 minutes ago)
-- `7e9d25f` feat(retrieval): HierarchicalContext 型号/专业 filter 穿透（节点4） (15 minutes ago)
-- `1f71182` feat(upload): LLM 推断 model/specialty 写 Material（节点3） (21 minutes ago)
-- `3015abc` feat(db): Material 加 model/specialty 维度（节点2） (25 minutes ago)
-- `4dedab9` refactor: 检索清噪删死壳（节点1） (39 minutes ago)
-- `9fe326e` plan: cleanup-and-dimensions (检索清噪+型号专业维度 Step 0+1) seal (76 minutes ago)
-- `b5da812` chore(devlog): derive-strong-node done (代码完成，web 验收待用户) (6 hours ago)
-- `8cf1719` fix(test): autouse mock.patch.stopall + GC between tests (draft flaky 根治) (7 hours ago)
-- `1e6dd1d` fix(test): snapshot/restore registry around test_registry clear (隔离修复) (7 hours ago)
+- `7269bd7` plan: revive-extract-funnel (Step 2 复活 F 落库链) seal (1 second ago)
+- `1a01091` chore(devlog): cleanup-and-dimensions done (Step 0+1 完成) (78 minutes ago)
+- `c31cf0b` feat(api): material GET 加 model/specialty + PUT 更新 API + CLAUDE.md 去向量（节点5 后端） (89 minutes ago)
+- `7e9d25f` feat(retrieval): HierarchicalContext 型号/专业 filter 穿透（节点4） (2 hours ago)
+- `1f71182` feat(upload): LLM 推断 model/specialty 写 Material（节点3） (2 hours ago)
+- `3015abc` feat(db): Material 加 model/specialty 维度（节点2） (2 hours ago)
+- `4dedab9` refactor: 检索清噪删死壳（节点1） (2 hours ago)
+- `9fe326e` plan: cleanup-and-dimensions (检索清噪+型号专业维度 Step 0+1) seal (3 hours ago)
+- `b5da812` chore(devlog): derive-strong-node done (代码完成，web 验收待用户) (8 hours ago)
+- `8cf1719` fix(test): autouse mock.patch.stopall + GC between tests (draft flaky 根治) (8 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+- **在做**：revive-extract-funnel（Step 2 复活 F 落库链）—— 节点1 补 6 ORM（MaterialCatalog/ProcessStep/Standard/StandardClause/StepMaterial/StepTool）+ specialty 迁移。PLAN seal @7269bd7。进度 1/5。
 - **完成**：cleanup-and-dimensions（Step 0 清噪 + Step 1 型号专业维度）—— 节点1✅ 删 6 死壳（SearchAgent/IndexingService/UnifiedRetrieval/KnowledgeGraph/VectorStore/api-rag，净删 3638 行）+ C stub + writing_agent 走 HierarchicalContext；节点2✅ Material 加 model/specialty + 迁移；节点3✅ material_classifier LLM 推断（上传时写，实测 assembly/welding/machining 准）；节点4✅ HierarchicalContext filter 穿透（_get_all_documents/search_tables/global_keyword_search 加 filters）；节点5✅ CLAUDE.md 去向量 + GET/PUT material API。**前端 UI（AddMaterialDialog specialty 下拉+model 输入）待后续**。节点6✅ pytest 全量无新 fail（667 passed，仅 draft flaky 摆动 0-2 预存）。待用户开 Step 2/3/4。
 - **完成**：derive-strong-node（倒推强节点）—— 节点1✅ `_provenance_filter`（溯源校验，丢弃 G25a 无出处条目）+ 节点2✅ orchestrator `_derive_strong_node`（generated_chapters 后/Review 前无条件倒推，原文优先合并 + 待补标注）+ 节点3✅ 移除 writing_agent 三空弱兜底 + 节点4✅ pytest 全量回归 0 failed（683 passed）。**附带修复测试隔离**：test_registry snapshot/restore（registry 全局单例 clear 不恢复）+ conftest autouse `mock.patch.stopall+GC`（根治 draft_service 跨测试 async mock 残留 flaky）。**documents/1 web 验收待用户**（行数对比+抽样核对 G25a 出处+待补字段）。
 - **完成**：content-detail —— G25a content 详实化三节点全过。① 节点1 _table_to_markdown colspan 网格展开(extract op5 9→729字/ASM 1134→4992,三层根因)② 节点2 生成 prompt 详实化(content_avg 32→461字,零臆造)③ 节点3 装配卡说明(extract_assembly_overview 769字+注入)。待用户 web 验证;后续重跑 diagnose_all_chapters 看其他章节是否受益 + G14a/G12a 逐章
