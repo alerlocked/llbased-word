@@ -1267,9 +1267,14 @@ async def upload_document(
         logger.info(f"📄 文件已保存: {file_path}")
 
         # 创建素材记录（Material 没有 project_id 字段，通过 CreationProject.material_ids 关联）
+        # LLM 推断型号/专业（cleanup-and-dimensions 节点3），用户可在前端确认/改
+        from app.services.material_classifier import infer_model_specialty
+        _inferred = await infer_model_specialty(file.filename)
         material = Material(
             material_type="document",
-            name=file.filename  # 确保有名称
+            name=file.filename,  # 确保有名称
+            model=_inferred["model"],
+            specialty=_inferred["specialty"],
             # content 已删除，内容保存在文件系统
         )
         db.add(material)
@@ -2207,9 +2212,14 @@ async def batch_upload_materials(
 
             # 为每个 PDF 创建 Material 并加入解析队列（照搬 upload_document 模式）
             for pdf in pdf_files:
+                # LLM 推断型号/专业（cleanup-and-dimensions 节点3）
+                from app.services.material_classifier import infer_model_specialty
+                _inferred = await infer_model_specialty(pdf["name"])
                 material = Material(
                     material_type="document",
-                    name=pdf["name"]
+                    name=pdf["name"],
+                    model=_inferred["model"],
+                    specialty=_inferred["specialty"],
                 )
                 db.add(material)
                 db.commit()
