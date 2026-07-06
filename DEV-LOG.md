@@ -2,28 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-06T22:48:02+08:00
-last_commit: a98e6c7
-status: profile-expand-and-relations 完成（Step2 尾巴+Step3 画像，关联数据待 colspan 修复）
-task_state: done
-task_slug: profile-expand-and-relations
+updated_at: 2026-07-06T23:37:18+08:00
+last_commit: ea2317d
+status: standard-enforce 执行中（节点1：标准条款注入 system_msg）
+task_state: running
+task_slug: standard-enforce
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `a98e6c7` chore(devlog): profile-expand-and-relations done (Step2 尾巴+Step3 画像完成) (0 seconds ago)
-- `2b2f723` fix(test): profile learner 测试改 async + skip_llm_validate（节点6） (34 seconds ago)
-- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (15 minutes ago)
-- `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (20 minutes ago)
-- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (22 minutes ago)
-- `93a101f` fix(profile): triples 正则清洗（节点1） (25 minutes ago)
-- `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (29 minutes ago)
-- `529c4b8` chore(devlog): revive-extract-funnel done (Step 2 F 落库链复活完成) (23 hours ago)
-- `ed24188` feat(search): C knowledge_search 恢复真 ORM 查询（节点4） (23 hours ago)
-- `320ad3c` feat(doc-processor): 解析后触发 KnowledgeExtractor + StandardExtractor（节点3） (23 hours ago)
+- `ea2317d` plan: standard-enforce (Step 4 标准强约束) seal (1 second ago)
+- `a98e6c7` chore(devlog): profile-expand-and-relations done (Step2 尾巴+Step3 画像完成) (49 minutes ago)
+- `2b2f723` fix(test): profile learner 测试改 async + skip_llm_validate（节点6） (50 minutes ago)
+- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (64 minutes ago)
+- `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (70 minutes ago)
+- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (71 minutes ago)
+- `93a101f` fix(profile): triples 正则清洗（节点1） (74 minutes ago)
+- `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (78 minutes ago)
+- `529c4b8` chore(devlog): revive-extract-funnel done (Step 2 F 落库链复活完成) (24 hours ago)
+- `ed24188` feat(search): C knowledge_search 恢复真 ORM 查询（节点4） (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+- **在做**：standard-enforce（Step 4 标准强约束）—— 节点1 标准条款注入 _do_template_fill system_msg（chapter_type 映射 + C search_standard_clauses + top_k）。PLAN seal @ea2317d。进度 1/3。
 - **完成**：profile-expand-and-relations（Step2 尾巴+Step3 画像）—— 节点1✅ triples 正则清洗（力矩数值禁连续小数点 + 标准 object 校验 + current_section 不返回泛词，documents/1 triples 10→5 全干净）；节点2✅ LLM 兜底校验 triples（_llm_validate_triples，fail-soft）；节点3✅ documents/1 重抽（assembly.json 5 干净 triples）；节点4✅ 画像注入移出 G25a gate 全章节（principles/triples 所有 _do_template_fill 章节）；节点5✅ 关联落库逻辑（extract_from_doc 产 relations + extract_and_save 落 StepMaterial + _parse_process_card content field_map），**documents/1 关联空因 G25a colspan-heavy content 提取（独立技术债，留后续）**；节点6✅ pytest（profile 9 passed + draft flaky 预存）。待用户开 Step 4（标准 review）。
 - **完成**：revive-extract-funnel（Step 2 复活 F 落库链）—— 节点1✅ 补 6 ORM（MaterialCatalog/ProcessStep/Standard/StandardClause/StepMaterial/StepTool 对齐 craftdoc.db）+ specialty 迁移；节点2✅ extract_and_save 维度传递（Material.specialty → MaterialCatalog/ProcessStep，实测 13 行带 assembly）；节点3✅ document_processor 解析后 try-except 触发 KnowledgeExtractor + StandardExtractor（QJ903 检测）；节点4✅ C knowledge_search 6 函数恢复真 ORM 查询（search_materials(螺钉) 返真实物料）；节点5✅ 验证：extract_and_save('1') 落 58 物料+11 工序 + pytest 667 passed（仅 draft flaky 预存）。**关联落库（StepMaterial/StepTool）留 Step 3/4**。待用户开 Step 3/4。
 - **完成**：cleanup-and-dimensions（Step 0 清噪 + Step 1 型号专业维度）—— 节点1✅ 删 6 死壳（SearchAgent/IndexingService/UnifiedRetrieval/KnowledgeGraph/VectorStore/api-rag，净删 3638 行）+ C stub + writing_agent 走 HierarchicalContext；节点2✅ Material 加 model/specialty + 迁移；节点3✅ material_classifier LLM 推断（上传时写，实测 assembly/welding/machining 准）；节点4✅ HierarchicalContext filter 穿透（_get_all_documents/search_tables/global_keyword_search 加 filters）；节点5✅ CLAUDE.md 去向量 + GET/PUT material API。**前端 UI（AddMaterialDialog specialty 下拉+model 输入）待后续**。节点6✅ pytest 全量无新 fail（667 passed，仅 draft flaky 摆动 0-2 预存）。待用户开 Step 2/3/4。
