@@ -178,10 +178,10 @@ def reset_profile(domain: str) -> Dict[str, Any]:
 
 
 @router.post("/{domain}/learn")
-def learn_from_content(domain: str, req: LearnRequest) -> Dict[str, Any]:
+async def learn_from_content(domain: str, req: LearnRequest) -> Dict[str, Any]:
     """Learn profile features from document text content."""
     learner = DocumentProfileLearner()
-    features = learner.learn_from_content(
+    features = await learner.learn_from_content(
         content=req.content,
         domain=req.domain,
         document_id=req.document_id,
@@ -206,7 +206,7 @@ def learn_from_content(domain: str, req: LearnRequest) -> Dict[str, Any]:
 
 
 @router.post("/{domain}/learn-file")
-def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
+async def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
     """Learn from a parsed document file."""
     file_path = Path(req.file_path)
     if not file_path.exists():
@@ -239,7 +239,7 @@ def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
 
     doc_id = req.document_id or file_path.stem
     learner = DocumentProfileLearner()
-    features = learner.learn_from_content(content=content, domain=req.domain, document_id=doc_id)
+    features = await learner.learn_from_content(content=content, domain=req.domain, document_id=doc_id)
 
     profile = _load_profile(domain)
     profile_dict = profile.to_dict()

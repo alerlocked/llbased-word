@@ -34,7 +34,7 @@ HIGH_VALUE_RELATIONS = {"温度", "力矩", "压力", "时间", "速度", "公�
 class DocumentProfileLearner:
     """Extract profile features and triple-structured knowledge from documents."""
 
-    def learn_from_content(
+    async def learn_from_content(
         self,
         content: str,
         domain: str = "assembly",
@@ -51,8 +51,10 @@ class DocumentProfileLearner:
         if document_id:
             features["source_document_id"] = document_id
 
-        # 1. Extract triples (core knowledge structure)
-        features["triples"] = self._extract_triples(content)
+        # 1. Extract triples (core knowledge structure) + LLM 校验（节点2）
+        features["triples"] = await self._llm_validate_triples(
+            self._extract_triples(content)
+        )
 
         # 2. Extract term frequency (supplementary)
         features["frequent_terms"] = self._extract_terms(content)
@@ -73,6 +75,42 @@ class DocumentProfileLearner:
             terms=len(features["frequent_terms"]),
         )
         return features
+
+    async def _llm_validate_triples(
+        self, triples: List[Dict[str, str]]
+    ) -> List[Dict[str, str]]:
+        """LLM batch-validate triples, drop nonsensical ones (节点2).
+
+        Fail-soft: on any error return all triples (don't block learning)."""
+        if not triples:
+            return triples
+        from app.services.llm_service import llm_service
+        triples_text = "\n".join(
+            f"{i}. {t['s']} → {t['r']}: {t['o']}"
+            for i, t in enumerate(triples, 1)
+        )
+        prompt = (
+            "判断以下从工艺文档抽取的知识三元组是否合理（subject 与 object 语义通顺、数值合理）。\n"
+            f"{triples_text}\n"
+            "输出合理的序号（从1开始），逗号分隔。只输出序号。"
+        )
+        try:
+            result = await llm_service.generate_with_messages(
+                messages=[{"role": "user", "content": prompt}],
+                tier="simple", temperature=0.1, max_tokens=200,
+            )
+            if result.get("status") != "success":
+                return triples
+            import re as _re
+            nums = {int(x) for x in _re.findall(r"\d+", result.get("content", ""))}
+            if not nums:
+                return triples
+            validated = [t for i, t in enumerate(triples, 1) if i in nums]
+            logger.info("triples_llm_validated", total=len(triples), kept=len(validated))
+            return validated
+        except Exception as e:
+            logger.warning("triples_llm_validate_failed", error=str(e))
+            return triples
 
     def _extract_triples(self, content: str) -> List[Dict[str, str]]:
         """
