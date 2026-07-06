@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-06T22:27:38+08:00
-last_commit: 545e1a9
+updated_at: 2026-07-06T22:33:20+08:00
+last_commit: 47a4101
 status: profile-expand-and-relations 执行中（节点1：triples 正则清洗）
 task_state: running
 task_slug: profile-expand-and-relations
@@ -11,16 +11,16 @@ task_slug: profile-expand-and-relations
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (0 seconds ago)
-- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (81 seconds ago)
-- `93a101f` fix(profile): triples 正则清洗（节点1） (5 minutes ago)
-- `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (9 minutes ago)
+- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (0 seconds ago)
+- `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (6 minutes ago)
+- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (7 minutes ago)
+- `93a101f` fix(profile): triples 正则清洗（节点1） (10 minutes ago)
+- `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (14 minutes ago)
 - `529c4b8` chore(devlog): revive-extract-funnel done (Step 2 F 落库链复活完成) (23 hours ago)
 - `ed24188` feat(search): C knowledge_search 恢复真 ORM 查询（节点4） (23 hours ago)
 - `320ad3c` feat(doc-processor): 解析后触发 KnowledgeExtractor + StandardExtractor（节点3） (23 hours ago)
 - `1e558f1` feat(extract): extract_and_save 维度传递 specialty（节点2） (23 hours ago)
 - `8241207` feat(db): 补 6 结构化 ORM + specialty 迁移（节点1） (23 hours ago)
-- `7269bd7` plan: revive-extract-funnel (Step 2 复活 F 落库链) seal (23 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

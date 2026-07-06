@@ -36,11 +36,11 @@ SAMPLE_PROCESS_DOC = """
 class TestDocumentProfileLearner:
     """Test the document profile extraction logic."""
 
-    def test_learn_from_content_extracts_terms(self):
+    async def test_learn_from_content_extracts_terms(self):
         from app.services.document_profile_learner import DocumentProfileLearner
 
         learner = DocumentProfileLearner()
-        features = learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly")
+        features = await learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly", skip_llm_validate=True)
 
         assert "frequent_terms" in features
         terms = features["frequent_terms"]
@@ -48,19 +48,19 @@ class TestDocumentProfileLearner:
         # Should detect process-related terms
         assert len(terms) > 0
 
-    def test_learn_from_content_detects_domain(self):
+    async def test_learn_from_content_detects_domain(self):
         from app.services.document_profile_learner import DocumentProfileLearner
 
         learner = DocumentProfileLearner()
-        features = learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="welding")
+        features = await learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="welding", skip_llm_validate=True)
 
         assert features["domain"] == "welding"
 
-    def test_learn_from_content_extracts_patterns(self):
+    async def test_learn_from_content_extracts_patterns(self):
         from app.services.document_profile_learner import DocumentProfileLearner
 
         learner = DocumentProfileLearner()
-        features = learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly")
+        features = await learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly", skip_llm_validate=True)
 
         # Should extract triples (replaces old document_patterns)
         triples = features["triples"]
@@ -70,42 +70,42 @@ class TestDocumentProfileLearner:
         for t in triples:
             assert "s" in t and "r" in t and "o" in t
 
-    def test_learn_from_content_extracts_style(self):
+    async def test_learn_from_content_extracts_style(self):
         from app.services.document_profile_learner import DocumentProfileLearner
 
         learner = DocumentProfileLearner()
-        features = learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly")
+        features = await learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly", skip_llm_validate=True)
 
         # Style indicators should be present
         assert "preferred_sentence_length" in features
         # Document has warnings/caution notes
         assert features.get("include_caution_notes") is True
 
-    def test_learn_from_content_generates_summary(self):
+    async def test_learn_from_content_generates_summary(self):
         from app.services.document_profile_learner import DocumentProfileLearner
 
         learner = DocumentProfileLearner()
-        features = learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly")
+        features = await learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly", skip_llm_validate=True)
 
         summary = features["ai_generated_summary"]
         assert isinstance(summary, str)
         assert len(summary) > 0
         assert "装配" in summary
 
-    def test_learn_from_empty_content(self):
+    async def test_learn_from_empty_content(self):
         from app.services.document_profile_learner import DocumentProfileLearner
 
         learner = DocumentProfileLearner()
-        features = learner.learn_from_content("短文本", domain="assembly")
+        features = await learner.learn_from_content("短文本", domain="assembly", skip_llm_validate=True)
         assert isinstance(features, dict)
         assert "frequent_terms" in features
 
-    def test_triple_extraction_from_process_doc(self):
+    async def test_triple_extraction_from_process_doc(self):
         """Verify triples are extracted with correct s-r-o structure."""
         from app.services.document_profile_learner import DocumentProfileLearner
 
         learner = DocumentProfileLearner()
-        features = learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly")
+        features = await learner.learn_from_content(SAMPLE_PROCESS_DOC, domain="assembly", skip_llm_validate=True)
 
         triples = features["triples"]
         # Should extract temperature spec
@@ -220,7 +220,7 @@ class TestProfileAPI:
         assert data["status"] == "ok"
         assert data["profile"]["user_id"] == "test-user"
 
-    def test_learn_from_content(self, client):
+    async def test_learn_from_content(self, client):
         resp = client.post(
             "/api/profile/test-user/learn",
             json={

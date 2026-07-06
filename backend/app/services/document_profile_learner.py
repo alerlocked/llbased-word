@@ -39,6 +39,7 @@ class DocumentProfileLearner:
         content: str,
         domain: str = "assembly",
         document_id: Optional[str] = None,
+        skip_llm_validate: bool = False,
     ) -> Dict[str, Any]:
         """
         Extract profile features including triples from document text.
@@ -51,10 +52,11 @@ class DocumentProfileLearner:
         if document_id:
             features["source_document_id"] = document_id
 
-        # 1. Extract triples (core knowledge structure) + LLM 校验（节点2）
-        features["triples"] = await self._llm_validate_triples(
-            self._extract_triples(content)
-        )
+        # 1. Extract triples (core knowledge structure) + LLM 校验（节点2，可跳过）
+        _triples = self._extract_triples(content)
+        if not skip_llm_validate:
+            _triples = await self._llm_validate_triples(_triples)
+        features["triples"] = _triples
 
         # 2. Extract term frequency (supplementary)
         features["frequent_terms"] = self._extract_terms(content)
