@@ -321,12 +321,23 @@ class KnowledgeExtractor:
             f"[知识提取] 文档 {doc_id}: "
             f"{len(materials)} 物料, {len(tools)} 工具, {len(process_steps)} 工序"
         )
+        # 产关联（节点5）：工序 description 提物料/工具名匹配 catalog
+        relations: Dict[str, List[str]] = {}
+        _catalog_names = [m.get("name", "") for m in materials + tools if m.get("name")]
+        for step in process_steps:
+            _desc = step.get("description") or ""
+            if not _desc:
+                continue
+            _matched = [n for n in _catalog_names if n and len(n) >= 2 and n in _desc]
+            if _matched:
+                relations[step["step_name"]] = _matched
+
         return {
             "doc_id": doc_id,
             "materials": materials,
             "tools": tools,
             "process_steps": process_steps,
-            "relations": {},
+            "relations": relations,
         }
 
     # -- persistence ---------------------------------------------------------
@@ -373,6 +384,28 @@ class KnowledgeExtractor:
             row = ProcessStep(**{k: v for k, v in item.items() if v is not None})
             db_session.add(row)
             db_session.flush()
+
+        # 落关联（节点5）：StepMaterial（工序 description 提名匹配 → 物料/工具）
+        from app.models.database import StepMaterial
+        _rels = data.get("relations", {})
+        for _step_name, _names in _rels.items():
+            _step = db_session.query(ProcessStep).filter_by(
+                doc_id=doc_id, step_name=_step_name
+            ).first()
+            if not _step:
+                continue
+            for _cname in _names:
+                _cat = db_session.query(MaterialCatalog).filter_by(
+                    source_doc=doc_id, name=_cname
+                ).first()
+                if not _cat:
+                    continue
+                if not db_session.query(StepMaterial).filter_by(
+                    step_id=_step.id, catalog_id=_cat.id
+                ).first():
+                    db_session.add(StepMaterial(
+                        step_id=_step.id, catalog_id=_cat.id, usage_type="referenced"
+                    ))
 
         db_session.commit()
         mat_count = len(data["materials"]) + len(data["tools"])
@@ -656,7 +689,9 @@ class KnowledgeExtractor:
 
         # Try dynamic header detection first
         header_idx, field_map = detect_header_row_with_optional(
-            rows, ["step_name"], ["workshop", "description", "equipment", "step_no"],
+            rows, ["step_name"],
+            ["workshop", "description", "equipment", "step_no",
+             "content", "aux_materials", "instruments"],
         )
 
         if header_idx is not None and "step_name" in field_map:
@@ -680,6 +715,13 @@ class KnowledgeExtractor:
                 desc_parts = []
                 if data.get("description"):
                     desc_parts.append(data["description"])
+                # G25a 工序内容/辅助材料/工装（节点5：关联落库需 content 提物料名）
+                if data.get("content"):
+                    desc_parts.append(data["content"])
+                if data.get("aux_materials"):
+                    desc_parts.append(f"辅料: {data['aux_materials']}")
+                if data.get("instruments"):
+                    desc_parts.append(f"工装: {data['instruments']}")
                 if data.get("equipment"):
                     desc_parts.append(f"设备: {data['equipment']}")
                 if data.get("workshop"):
