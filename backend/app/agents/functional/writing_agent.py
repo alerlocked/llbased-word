@@ -997,33 +997,33 @@ class WritingAgent(BaseAgent):
             )
             # G25a: override the generic "don't copy source" prompt — this
             # chapter must stay faithful to the extracted substep text.
+            # Profile two layers: principles (强约束) + triples (参考值兜底).
+            # 全章节注入（profile-expand-and-relations 节点4：移出 G25a-only gate，
+            # 因 principles/triples 是章节无关的行文约束 + 参考值）.
+            if self._profile:
+                _enabled = [
+                    p for p in (getattr(self._profile, "principles", []) or [])
+                    if p.get("enabled", True)
+                ]
+                if _enabled:
+                    _ptxt = "\n".join(
+                        f"- {p.get('name', '')}: {p.get('description', '')}"
+                        for p in _enabled
+                    )
+                    system_msg += f"\n## 画像强约束（必须遵守）\n{_ptxt}\n"
+                _triples = getattr(self._profile, "triples", []) or []
+                if _triples:
+                    _ttxt = "\n".join(
+                        f"- {t.get('s', '')} → {t.get('r', '')}: {t.get('o', '')}"
+                        for t in _triples
+                    )
+                    system_msg += (
+                        "\n## 参数参考值（工步原文优先；原文缺失才参考下列值；"
+                        "两者都无则留空，绝不臆造）\n"
+                        f"{_ttxt}\n"
+                    )
             if is_g25a_sourced:
-                # Profile two layers: principles (强约束) + triples (参考值兜底).
-                # Injected before the source-text block so the LLM obeys the
-                # standards and can fall back to verified reference values
-                # (e.g. torque) when the source text omits them.
-                if self._profile:
-                    _enabled = [
-                        p for p in (getattr(self._profile, "principles", []) or [])
-                        if p.get("enabled", True)
-                    ]
-                    if _enabled:
-                        _ptxt = "\n".join(
-                            f"- {p.get('name', '')}: {p.get('description', '')}"
-                            for p in _enabled
-                        )
-                        system_msg += f"\n## 画像强约束（必须遵守）\n{_ptxt}\n"
-                    _triples = getattr(self._profile, "triples", []) or []
-                    if _triples:
-                        _ttxt = "\n".join(
-                            f"- {t.get('s', '')} → {t.get('r', '')}: {t.get('o', '')}"
-                            for t in _triples
-                        )
-                        system_msg += (
-                            "\n## 参数参考值（工步原文优先；原文缺失才参考下列值；"
-                            "两者都无则留空，绝不臆造）\n"
-                            f"{_ttxt}\n"
-                        )
+                # G25a 严格原文约束保留 gate 内（G25a-specific）
                 system_msg += (
                     "\n\n## G25a 严格原文约束（覆盖以上任何相反指示）\n"
                     "本装配卡每个工序的内容来自下方【工步原文】。你必须：\n"

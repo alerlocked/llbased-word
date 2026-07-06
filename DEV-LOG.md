@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-06T22:22:55+08:00
-last_commit: 93a101f
+updated_at: 2026-07-06T22:26:18+08:00
+last_commit: 75e3525
 status: profile-expand-and-relations 执行中（节点1：triples 正则清洗）
 task_state: running
 task_slug: profile-expand-and-relations
@@ -11,8 +11,9 @@ task_slug: profile-expand-and-relations
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `93a101f` fix(profile): triples 正则清洗（节点1） (0 seconds ago)
-- `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (4 minutes ago)
+- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (1 second ago)
+- `93a101f` fix(profile): triples 正则清洗（节点1） (3 minutes ago)
+- `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (7 minutes ago)
 - `529c4b8` chore(devlog): revive-extract-funnel done (Step 2 F 落库链复活完成) (23 hours ago)
 - `ed24188` feat(search): C knowledge_search 恢复真 ORM 查询（节点4） (23 hours ago)
 - `320ad3c` feat(doc-processor): 解析后触发 KnowledgeExtractor + StandardExtractor（节点3） (23 hours ago)
@@ -20,7 +21,6 @@ task_slug: profile-expand-and-relations
 - `8241207` feat(db): 补 6 结构化 ORM + specialty 迁移（节点1） (23 hours ago)
 - `7269bd7` plan: revive-extract-funnel (Step 2 复活 F 落库链) seal (23 hours ago)
 - `1a01091` chore(devlog): cleanup-and-dimensions done (Step 0+1 完成) (24 hours ago)
-- `c31cf0b` feat(api): material GET 加 model/specialty + PUT 更新 API + CLAUDE.md 去向量（节点5 后端） (25 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
