@@ -88,6 +88,8 @@ class DocumentProfileLearner:
         seen: set = set()
 
         def _add(s: str, r: str, o: str) -> None:
+            if not s or not o:
+                return  # current_section may be None (no generic fallback)
             key = f"{s}|{r}|{o}"
             if key not in seen and len(s) >= 2 and len(o) >= 2:
                 seen.add(key)
@@ -95,13 +97,13 @@ class DocumentProfileLearner:
 
         # Pattern 1: quantity specs — "温度控制在800-850°C" / "力矩为45±5 N·m"
         qty_patterns = [
-            (r"([\u4e00-\u9fff]{0,6})(?:温度|温度控制)(?:为|在|应[为在])?([\d\-±~.]+\s*(?:°C|度|℃))", "温度"),
-            (r"([\u4e00-\u9fff]{0,6})(?:力矩|扭矩)(?:为|是|应[为在])?([\d\-±~.]+\s*(?:N·m|Nm|N\.m|kgf))", "力矩"),
-            (r"([\u4e00-\u9fff]{0,6})(?:压力)(?:为|在|应[为在])?([\d\-±~.]+\s*(?:MPa|Pa|kPa|bar))", "压力"),
-            (r"([\u4e00-\u9fff]{0,6})(?:时间|保温时间|保压时间)(?:为|是|不少于)?([\d\-±~.]+\s*(?:小时|min|s|秒|分钟))", "时间"),
-            (r"([\u4e00-\u9fff]{0,6})(?:速度|进给速度)(?:为|是|应[为在])?([\d\-±~.]+\s*(?:mm/min|cm/min|m/min|r/min|rpm))", "速度"),
-            (r"([\u4e00-\u9fff]{0,6})(?:间隙|公差|精度)(?:为|是|应[为在])?([\d\-±~.]+\s*mm)", "公差"),
-            (r"([\u4e00-\u9fff]{0,6})(?:硬度)(?:为|应[为在达到])?([\d\-±~.]+\s*(?:HRC|HB|HV|HRB))", "硬度"),
+            (r"([\u4e00-\u9fff]{0,6})(?:温度|温度控制)(?:为|在|应[为在])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*(?:°C|度|℃))", "温度"),
+            (r"([\u4e00-\u9fff]{0,6})(?:力矩|扭矩)(?:为|是|应[为在])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*(?:N·m|Nm|N\.m|kgf))", "力矩"),
+            (r"([\u4e00-\u9fff]{0,6})(?:压力)(?:为|在|应[为在])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*(?:MPa|Pa|kPa|bar))", "压力"),
+            (r"([\u4e00-\u9fff]{0,6})(?:时间|保温时间|保压时间)(?:为|是|不少于)?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*(?:小时|min|s|秒|分钟))", "时间"),
+            (r"([\u4e00-\u9fff]{0,6})(?:速度|进给速度)(?:为|是|应[为在])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*(?:mm/min|cm/min|m/min|r/min|rpm))", "速度"),
+            (r"([\u4e00-\u9fff]{0,6})(?:间隙|公差|精度)(?:为|是|应[为在])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*mm)", "公差"),
+            (r"([\u4e00-\u9fff]{0,6})(?:硬度)(?:为|应[为在达到])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*(?:HRC|HB|HV|HRB))", "硬度"),
         ]
         current_section = self._guess_current_section(content)
         for pattern, relation in qty_patterns:
@@ -115,7 +117,10 @@ class DocumentProfileLearner:
             content,
         )
         for std in std_matches:
-            _add("检验", "标准", std.strip())
+            std = std.strip()
+            # 过滤句段残留（照工艺文件的 / 本标准 等），只留真标准名
+            if len(std) >= 2 and not any(w in std for w in ["文件", "照", "的", "本", "该", "以下"]):
+                _add("检验", "标准", std)
 
         # Pattern 3: tool/equipment usage — "使用XX" / "采用XX方法"
         tool_matches = re.findall(
@@ -185,7 +190,7 @@ class DocumentProfileLearner:
             headers.append((m.start(), m.group(2).strip()))
 
         if not headers:
-            return "工艺"
+            return None  # 不返回泛词「工艺」（避免 subject=工艺 串行错位）
 
         # Prefer headers that contain process-related keywords
         process_keywords = (

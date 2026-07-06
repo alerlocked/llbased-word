@@ -2,28 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-05T23:30:00+08:00
-last_commit: 529c4b8
-status: revive-extract-funnel 完成（Step 2 F 落库链复活，落库+查询通）
-task_state: done
-task_slug: revive-extract-funnel
+updated_at: 2026-07-06T22:18:52+08:00
+last_commit: 1776665
+status: profile-expand-and-relations 执行中（节点1：triples 正则清洗）
+task_state: running
+task_slug: profile-expand-and-relations
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `529c4b8` chore(devlog): revive-extract-funnel done (Step 2 F 落库链复活完成) (0 seconds ago)
-- `ed24188` feat(search): C knowledge_search 恢复真 ORM 查询（节点4） (7 minutes ago)
-- `320ad3c` feat(doc-processor): 解析后触发 KnowledgeExtractor + StandardExtractor（节点3） (8 minutes ago)
-- `1e558f1` feat(extract): extract_and_save 维度传递 specialty（节点2） (10 minutes ago)
-- `8241207` feat(db): 补 6 结构化 ORM + specialty 迁移（节点1） (12 minutes ago)
-- `7269bd7` plan: revive-extract-funnel (Step 2 复活 F 落库链) seal (14 minutes ago)
-- `1a01091` chore(devlog): cleanup-and-dimensions done (Step 0+1 完成) (2 hours ago)
-- `c31cf0b` feat(api): material GET 加 model/specialty + PUT 更新 API + CLAUDE.md 去向量（节点5 后端） (2 hours ago)
-- `7e9d25f` feat(retrieval): HierarchicalContext 型号/专业 filter 穿透（节点4） (2 hours ago)
-- `1f71182` feat(upload): LLM 推断 model/specialty 写 Material（节点3） (2 hours ago)
+- `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (1 second ago)
+- `529c4b8` chore(devlog): revive-extract-funnel done (Step 2 F 落库链复活完成) (23 hours ago)
+- `ed24188` feat(search): C knowledge_search 恢复真 ORM 查询（节点4） (23 hours ago)
+- `320ad3c` feat(doc-processor): 解析后触发 KnowledgeExtractor + StandardExtractor（节点3） (23 hours ago)
+- `1e558f1` feat(extract): extract_and_save 维度传递 specialty（节点2） (23 hours ago)
+- `8241207` feat(db): 补 6 结构化 ORM + specialty 迁移（节点1） (23 hours ago)
+- `7269bd7` plan: revive-extract-funnel (Step 2 复活 F 落库链) seal (23 hours ago)
+- `1a01091` chore(devlog): cleanup-and-dimensions done (Step 0+1 完成) (24 hours ago)
+- `c31cf0b` feat(api): material GET 加 model/specialty + PUT 更新 API + CLAUDE.md 去向量（节点5 后端） (25 hours ago)
+- `7e9d25f` feat(retrieval): HierarchicalContext 型号/专业 filter 穿透（节点4） (25 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+- **在做**：profile-expand-and-relations（Step2 尾巴+Step3 画像）—— 节点1 triples 正则清洗（力矩数值禁连续小数点 + 标准 object 校验 + current_section 不返回泛词）。PLAN seal @1776665。进度 1/6。
 - **完成**：revive-extract-funnel（Step 2 复活 F 落库链）—— 节点1✅ 补 6 ORM（MaterialCatalog/ProcessStep/Standard/StandardClause/StepMaterial/StepTool 对齐 craftdoc.db）+ specialty 迁移；节点2✅ extract_and_save 维度传递（Material.specialty → MaterialCatalog/ProcessStep，实测 13 行带 assembly）；节点3✅ document_processor 解析后 try-except 触发 KnowledgeExtractor + StandardExtractor（QJ903 检测）；节点4✅ C knowledge_search 6 函数恢复真 ORM 查询（search_materials(螺钉) 返真实物料）；节点5✅ 验证：extract_and_save('1') 落 58 物料+11 工序 + pytest 667 passed（仅 draft flaky 预存）。**关联落库（StepMaterial/StepTool）留 Step 3/4**。待用户开 Step 3/4。
 - **完成**：cleanup-and-dimensions（Step 0 清噪 + Step 1 型号专业维度）—— 节点1✅ 删 6 死壳（SearchAgent/IndexingService/UnifiedRetrieval/KnowledgeGraph/VectorStore/api-rag，净删 3638 行）+ C stub + writing_agent 走 HierarchicalContext；节点2✅ Material 加 model/specialty + 迁移；节点3✅ material_classifier LLM 推断（上传时写，实测 assembly/welding/machining 准）；节点4✅ HierarchicalContext filter 穿透（_get_all_documents/search_tables/global_keyword_search 加 filters）；节点5✅ CLAUDE.md 去向量 + GET/PUT material API。**前端 UI（AddMaterialDialog specialty 下拉+model 输入）待后续**。节点6✅ pytest 全量无新 fail（667 passed，仅 draft flaky 摆动 0-2 预存）。待用户开 Step 2/3/4。
 - **完成**：derive-strong-node（倒推强节点）—— 节点1✅ `_provenance_filter`（溯源校验，丢弃 G25a 无出处条目）+ 节点2✅ orchestrator `_derive_strong_node`（generated_chapters 后/Review 前无条件倒推，原文优先合并 + 待补标注）+ 节点3✅ 移除 writing_agent 三空弱兜底 + 节点4✅ pytest 全量回归 0 failed（683 passed）。**附带修复测试隔离**：test_registry snapshot/restore（registry 全局单例 clear 不恢复）+ conftest autouse `mock.patch.stopall+GC`（根治 draft_service 跨测试 async mock 残留 flaky）。**documents/1 web 验收待用户**（行数对比+抽样核对 G25a 出处+待补字段）。
