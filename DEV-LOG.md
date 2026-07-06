@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-06T22:47:28+08:00
-last_commit: 2b2f723
+updated_at: 2026-07-06T22:48:02+08:00
+last_commit: a98e6c7
 status: profile-expand-and-relations 完成（Step2 尾巴+Step3 画像，关联数据待 colspan 修复）
 task_state: done
 task_slug: profile-expand-and-relations
@@ -11,16 +11,16 @@ task_slug: profile-expand-and-relations
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `2b2f723` fix(test): profile learner 测试改 async + skip_llm_validate（节点6） (0 seconds ago)
-- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (14 minutes ago)
+- `a98e6c7` chore(devlog): profile-expand-and-relations done (Step2 尾巴+Step3 画像完成) (0 seconds ago)
+- `2b2f723` fix(test): profile learner 测试改 async + skip_llm_validate（节点6） (34 seconds ago)
+- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (15 minutes ago)
 - `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (20 minutes ago)
-- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (21 minutes ago)
+- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (22 minutes ago)
 - `93a101f` fix(profile): triples 正则清洗（节点1） (25 minutes ago)
 - `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (29 minutes ago)
 - `529c4b8` chore(devlog): revive-extract-funnel done (Step 2 F 落库链复活完成) (23 hours ago)
 - `ed24188` feat(search): C knowledge_search 恢复真 ORM 查询（节点4） (23 hours ago)
 - `320ad3c` feat(doc-processor): 解析后触发 KnowledgeExtractor + StandardExtractor（节点3） (23 hours ago)
-- `1e558f1` feat(extract): extract_and_save 维度传递 specialty（节点2） (23 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
