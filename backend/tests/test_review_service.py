@@ -44,30 +44,30 @@ class TestL1UniversalCheck:
     """测试 L1 通用红线检查"""
     
     @pytest.mark.xfail(reason="review engine gap: required-field check not implemented (placeholder/vague-word checks only); kept as implementation target")
-    def test_l1_no_missing_required_fields(self, review_service):
+    async def test_l1_no_missing_required_fields(self, review_service):
         """测试缺少必填字段"""
         content = load_fixture("missing_safety_content")
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         # 应检测到缺少必填字段
         assert any("缺少" in i.message for i in result.issues)
     
-    def test_l1_no_format_errors(self, review_service):
+    async def test_l1_no_format_errors(self, review_service):
         """测试格式错误（占位符）"""
         content = load_fixture("placeholder_content")
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         # 应检测到占位符
         assert any("占位符" in i.message for i in result.issues)
     
     @pytest.mark.xfail(reason="review engine gap: structure check not implemented; kept as implementation target")
-    def test_l1_clear_structure(self, review_service):
+    async def test_l1_clear_structure(self, review_service):
         """测试段落结构"""
         content = "这是一段没有标题结构的文本内容。"
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         # 应检测到缺少结构
         assert any("结构" in i.message or "标题" in i.message for i in result.issues)
@@ -76,16 +76,16 @@ class TestL1UniversalCheck:
 class TestL2DomainCheck:
     """测试 L2 领域红线检查"""
     
-    def test_l2_assembly_specific_terms(self, review_service):
+    async def test_l2_assembly_specific_terms(self, review_service):
         """测试装配领域术语检查"""
         content = load_fixture("welding_mixed_terms")
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         # 应检测到术语问题（如果是装配领域但使用了焊接术语）
         # 注：此测试取决于实现细节
     
-    def test_l2_assembly_workflow_order(self, review_service):
+    async def test_l2_assembly_workflow_order(self, review_service):
         """测试工序顺序检查"""
         # 工序顺序检查是 WARNING 级别
         pass  # 取决于实现
@@ -95,16 +95,16 @@ class TestL3ProfileCheck:
     """测试 L3 用户偏好检查"""
     
     @pytest.mark.xfail(reason="review engine gap: L3 tone/preference check not implemented; kept as implementation target")
-    def test_l3_tone_mismatch(self, review_service, assembly_profile):
+    async def test_l3_tone_mismatch(self, review_service, assembly_profile):
         """测试语气偏好不匹配"""
         content = load_fixture("oral_style_content")
         
-        result = review_service.review(content, profile=assembly_profile, domain="assembly")
+        result = await review_service.review(content, profile=assembly_profile, domain="assembly", skip_standard_check=True)
         
         # 应有建议改进语气
         assert any("语气" in s.message or "正式" in s.message for s in result.suggestions)
     
-    def test_l3_detail_level_mismatch(self, review_service):
+    async def test_l3_detail_level_mismatch(self, review_service):
         """测试详细程度偏好"""
         profile = Profile(
             id="test",
@@ -117,7 +117,7 @@ class TestL3ProfileCheck:
         # 长内容
         content = "很长的内容" * 500
         
-        result = review_service.review(content, profile=profile, domain="assembly")
+        result = await review_service.review(content, profile=profile, domain="assembly", skip_standard_check=True)
         
         # 可能有精简建议
         # 取决于实现
@@ -127,21 +127,21 @@ class TestComplianceCheck:
     """测试合规性检查"""
     
     @pytest.mark.xfail(reason="review engine gap: compliance (absolute-word) check not implemented; kept as implementation target")
-    def test_compliance_no_forbidden_words(self, review_service):
+    async def test_compliance_no_forbidden_words(self, review_service):
         """测试绝对化表述"""
         content = "禁止使用绝对化的词汇"
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         # 应检测到绝对化表述
         # 取决于实现
     
     @pytest.mark.xfail(reason="review engine gap: safety-keyword check not implemented; kept as implementation target")
-    def test_compliance_safety_keywords(self, review_service):
+    async def test_compliance_safety_keywords(self, review_service):
         """测试安全关键词"""
         content = "高风险焊接操作"
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         # 应检测到缺少安全提示
         assert any("安全" in i.message for i in result.issues)
@@ -151,11 +151,11 @@ class TestReviewResult:
     """测试 ReviewResult 模型"""
     
     @pytest.mark.xfail(reason="review engine gap: ReviewResult.score not implemented; kept as implementation target")
-    def test_check_returns_review_result(self, review_service):
+    async def test_check_returns_review_result(self, review_service):
         """测试 check 返回 ReviewResult"""
         content = load_fixture("valid_assembly_content")
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         assert isinstance(result, ReviewResult)
         assert isinstance(result.score, int)
@@ -163,22 +163,22 @@ class TestReviewResult:
         assert isinstance(result.suggestions, list)
     
     @pytest.mark.xfail(reason="review engine gap: score calculation not implemented; kept as implementation target")
-    def test_check_score_calculation(self, review_service):
+    async def test_check_score_calculation(self, review_service):
         """测试评分计算"""
         # 有错误的案例
         content = load_fixture("missing_safety_content")
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         # 有 ERROR 扣 10 分
         assert result.score < 100
     
     @pytest.mark.xfail(reason="review engine gap: score/threshold not implemented; kept as implementation target")
-    def test_check_score_below_threshold(self, review_service):
+    async def test_check_score_below_threshold(self, review_service):
         """测试评分低于阈值"""
         content = load_fixture("missing_safety_content")
         
-        result = review_service.review(content, domain="assembly")
+        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
         
         # 缺少安全措施应该导致低分
         assert result.score < 80
@@ -188,7 +188,7 @@ class TestReviewResult:
 class TestIssueModel:
     """测试 Issue 模型"""
     
-    def test_issue_to_dict(self):
+    async def test_issue_to_dict(self):
         """测试 Issue 转字典"""
         issue = Issue(
             severity=Severity.ERROR.value,
@@ -202,7 +202,7 @@ class TestIssueModel:
         assert data["severity"] == "error"
         assert data["type"] == "missing_field"
     
-    def test_issue_from_dict(self):
+    async def test_issue_from_dict(self):
         """测试字典转 Issue"""
         data = {
             "severity": "warning",

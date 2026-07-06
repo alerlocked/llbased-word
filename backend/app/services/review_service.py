@@ -92,17 +92,22 @@ class ReviewService:
     3. Preference alignment (soft rules) → Suggestions
     """
 
-    def review(
+    async def review(
         self,
         content: str,
         profile: Optional[Profile] = None,
         domain: str = "assembly",
+        skip_standard_check: bool = False,
     ) -> ReviewResult:
         """Run full review on content."""
         result = ReviewResult()
 
         # 1. Hard-coded universal checks (always run)
         self._check_universal(content, result)
+
+        # 1b. Standard clause checks (standard-enforce 节点2, LLM-judge)
+        if not skip_standard_check:
+            await self._check_standards(content, result)
 
         # 2. Profile-based principle checks
         if profile:
@@ -149,6 +154,58 @@ class ReviewService:
                     message=f"存在模糊描述: {word}",
                     fix_hint=f"将 '{word}' 替换为具体数值",
                 ))
+
+    async def _check_standards(self, content: str, result: ReviewResult):
+        """LLM-judge content against standard clauses (节点2).
+
+        process/quality/safety violation = ERROR; format = WARNING.
+        Fail-soft: on any error skip (don't block review)."""
+        try:
+            from app.database import SessionLocal
+            from app.services.knowledge_search import KnowledgeSearchService
+            from app.services.llm_service import llm_service
+            import json as _json
+            import re as _re
+            _db = SessionLocal()
+            try:
+                _svc = KnowledgeSearchService()
+                _clauses = _svc.search_standard_clauses(_db, query=content[:200], top_k=10)
+                if not _clauses:
+                    return
+                _clauses_text = "\n".join(
+                    f"- [{c.get('clause_number') or ''}] ({c.get('clause_type') or ''}) {(c.get('requirement') or '')[:100]}"
+                    for c in _clauses
+                )
+                _prompt = (
+                    "判断以下工艺文件内容是否违反了给定的标准条款。\n"
+                    f"内容（节选）：{content[:1500]}\n\n标准条款：\n{_clauses_text}\n\n"
+                    "输出 JSON: {\"violations\": [{\"clause_number\": \"编号\", \"clause_type\": \"类型\", \"reason\": \"违规原因\"}]}。"
+                    "如果完全合规，输出 {\"violations\": []}。只输出 JSON。"
+                )
+                _resp = await llm_service.generate_with_messages(
+                    messages=[{"role": "user", "content": _prompt}],
+                    tier="simple", temperature=0.1, max_tokens=500,
+                )
+                if _resp.get("status") != "success":
+                    return
+                _raw = _resp.get("content", "").strip()
+                _m = _re.search(r"\{.*\"violations\".*\}", _raw, _re.DOTALL)
+                if not _m:
+                    return
+                _data = _json.loads(_m.group())
+                for _v in _data.get("violations", []):
+                    _ct = _v.get("clause_type", "")
+                    _sev = Severity.ERROR.value if _ct in ("process", "quality", "safety") else Severity.WARNING.value
+                    result.add_issue(Issue(
+                        severity=_sev,
+                        type="standard_violation",
+                        field=_v.get("clause_number"),
+                        message=f"标准违规 [{_v.get('clause_number') or ''}]: {_v.get('reason', '')}",
+                    ))
+            finally:
+                _db.close()
+        except Exception as e:
+            logger.warning("standard_check_failed", error=str(e))
 
     # ========================================
     # Principle checks (from profile)

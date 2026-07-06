@@ -153,7 +153,7 @@ class ReviewAgent(BaseAgent):
                     from app.models.profile import Profile
                     profile = Profile.from_dict(profile_data)
                     review_svc = ReviewService()
-                    review_result = review_svc.review(content, profile)
+                    review_result = await review_svc.review(content, profile)
                     return {
                         "success": True,
                         "results": {"principles": review_result.to_dict()},
