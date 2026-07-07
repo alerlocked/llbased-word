@@ -25,6 +25,7 @@ import type { TemplateSection } from '../types/template'
 import ProcessContentView from '../components/common/ProcessContentView'
 import { markdownToHtml } from '../utils/markdownConverter'
 import { structuredDocToSections } from '../utils/templateTransform'
+import { diffTemplateSections } from '../utils/templateDiff'
 import { colors } from '../styles/design-tokens'
 import '../styles/global.css'
 
@@ -308,6 +309,25 @@ const WorkspacePage: React.FC = () => {
       if (response.ok) {
         const data = await response.json()
         console.log('[handleSave] 保存成功，服务器返回的updated_at:', data.updated_at)
+        // feedback-rules 节点4b: diff vs original snapshot → learn-feedback (silent, fail-soft)
+        try {
+          const originalSections = useCreationStore.getState().originalTemplateData
+          if (originalSections && originalSections.length > 0) {
+            const parsed = JSON.parse(editorContent)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const { edits, row_changes } = diffTemplateSections(originalSections, parsed as TemplateSection[])
+              if (edits.length > 0 || row_changes.length > 0) {
+                fetch('http://localhost:8000/api/profile/assembly/learn-feedback', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ domain: 'assembly', project_id: String(currentProjectId), edits, row_changes }),
+                }).catch((err) => console.warn('[learn-feedback] failed:', err))
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[learn-feedback] diff failed:', e)
+        }
         // 检查保存后是否需要重新加载内容
         const savedContent = editorContent
         // 延迟检查，看是否有内容被覆盖
