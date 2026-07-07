@@ -1022,39 +1022,6 @@ class WritingAgent(BaseAgent):
                         "两者都无则留空，绝不臆造）\n"
                         f"{_ttxt}\n"
                     )
-            # 标准条款注入（standard-enforce 节点1）：chapter_type → clause_type 映射
-            # + C search_standard_clauses 查 → system_msg。全章节注入（标准章节无关）。
-            try:
-                from app.database import SessionLocal
-                from app.services.knowledge_search import KnowledgeSearchService
-                _std_db = SessionLocal()
-                try:
-                    _std_clause_types = (
-                        ["process", "safety"]
-                        if chapter_type in ("process_card", "assembly_card")
-                        else ["format", "safety"]
-                    )
-                    _std_svc = KnowledgeSearchService()
-                    _std_clauses = []
-                    for _ct in _std_clause_types:
-                        _std_clauses.extend(_std_svc.search_standard_clauses(
-                            _std_db, query=chapter_title or chapter_code or "",
-                            clause_type=_ct, top_k=5,
-                        ))
-                    if _std_clauses:
-                        _std_lines = []
-                        for _c in _std_clauses[:8]:
-                            _req = (_c.get("requirement") or "")[:120]
-                            _std_lines.append(f"- [{_c.get('clause_number') or ''}] {_req}")
-                        system_msg += (
-                            "\n## 适用标准条款（必须遵守）\n"
-                            + "\n".join(_std_lines) + "\n"
-                        )
-                finally:
-                    _std_db.close()
-            except Exception as _e:
-                logger.warning("standard_inject_failed", error=str(_e))
-
             if is_g25a_sourced:
                 # G25a 严格原文约束保留 gate 内（G25a-specific）
                 system_msg += (

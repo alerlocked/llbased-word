@@ -48,7 +48,7 @@ class TestL1UniversalCheck:
         """测试缺少必填字段"""
         content = load_fixture("missing_safety_content")
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         # 应检测到缺少必填字段
         assert any("缺少" in i.message for i in result.issues)
@@ -57,7 +57,7 @@ class TestL1UniversalCheck:
         """测试格式错误（占位符）"""
         content = load_fixture("placeholder_content")
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         # 应检测到占位符
         assert any("占位符" in i.message for i in result.issues)
@@ -67,7 +67,7 @@ class TestL1UniversalCheck:
         """测试段落结构"""
         content = "这是一段没有标题结构的文本内容。"
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         # 应检测到缺少结构
         assert any("结构" in i.message or "标题" in i.message for i in result.issues)
@@ -80,7 +80,7 @@ class TestL2DomainCheck:
         """测试装配领域术语检查"""
         content = load_fixture("welding_mixed_terms")
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         # 应检测到术语问题（如果是装配领域但使用了焊接术语）
         # 注：此测试取决于实现细节
@@ -99,7 +99,7 @@ class TestL3ProfileCheck:
         """测试语气偏好不匹配"""
         content = load_fixture("oral_style_content")
         
-        result = await review_service.review(content, profile=assembly_profile, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, profile=assembly_profile, domain="assembly")
         
         # 应有建议改进语气
         assert any("语气" in s.message or "正式" in s.message for s in result.suggestions)
@@ -117,7 +117,7 @@ class TestL3ProfileCheck:
         # 长内容
         content = "很长的内容" * 500
         
-        result = await review_service.review(content, profile=profile, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, profile=profile, domain="assembly")
         
         # 可能有精简建议
         # 取决于实现
@@ -131,7 +131,7 @@ class TestComplianceCheck:
         """测试绝对化表述"""
         content = "禁止使用绝对化的词汇"
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         # 应检测到绝对化表述
         # 取决于实现
@@ -141,7 +141,7 @@ class TestComplianceCheck:
         """测试安全关键词"""
         content = "高风险焊接操作"
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         # 应检测到缺少安全提示
         assert any("安全" in i.message for i in result.issues)
@@ -155,7 +155,7 @@ class TestReviewResult:
         """测试 check 返回 ReviewResult"""
         content = load_fixture("valid_assembly_content")
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         assert isinstance(result, ReviewResult)
         assert isinstance(result.score, int)
@@ -168,7 +168,7 @@ class TestReviewResult:
         # 有错误的案例
         content = load_fixture("missing_safety_content")
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         # 有 ERROR 扣 10 分
         assert result.score < 100
@@ -178,7 +178,7 @@ class TestReviewResult:
         """测试评分低于阈值"""
         content = load_fixture("missing_safety_content")
         
-        result = await review_service.review(content, domain="assembly", skip_standard_check=True)
+        result = await review_service.review(content, domain="assembly")
         
         # 缺少安全措施应该导致低分
         assert result.score < 80

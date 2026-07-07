@@ -2,28 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-06T23:48:58+08:00
-last_commit: 8466a1d
-status: standard-enforce 完成（Step 4 标准强约束，注入+校验就位）
-task_state: done
-task_slug: standard-enforce
+updated_at: 2026-07-08T00:03:35+08:00
+last_commit: d6d946c
+status: feedback-rules 进行中（节点1 撤 standard-enforce）
+task_state: running
+task_slug: feedback-rules
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `8466a1d` chore(devlog): standard-enforce done (Step 4 完成，数据库方案 Step 0-4 全过) (1 second ago)
-- `45027be` feat(review): _check_standards LLM 校验 + review async（节点2） (6 minutes ago)
-- `5f8321f` feat(writing): 标准条款注入 system_msg（节点1） (11 minutes ago)
-- `ea2317d` plan: standard-enforce (Step 4 标准强约束) seal (12 minutes ago)
-- `a98e6c7` chore(devlog): profile-expand-and-relations done (Step2 尾巴+Step3 画像完成) (61 minutes ago)
-- `2b2f723` fix(test): profile learner 测试改 async + skip_llm_validate（节点6） (62 minutes ago)
-- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (76 minutes ago)
-- `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (81 minutes ago)
-- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (83 minutes ago)
-- `93a101f` fix(profile): triples 正则清洗（节点1） (86 minutes ago)
+- `d6d946c` plan: feedback-rules seal (drop standard-enforce + feedback rule learning loop) (1 second ago)
+- `8466a1d` chore(devlog): standard-enforce done (Step 4 完成，数据库方案 Step 0-4 全过) (24 hours ago)
+- `45027be` feat(review): _check_standards LLM 校验 + review async（节点2） (24 hours ago)
+- `5f8321f` feat(writing): 标准条款注入 system_msg（节点1） (24 hours ago)
+- `ea2317d` plan: standard-enforce (Step 4 标准强约束) seal (24 hours ago)
+- `a98e6c7` chore(devlog): profile-expand-and-relations done (Step2 尾巴+Step3 画像完成) (25 hours ago)
+- `2b2f723` fix(test): profile learner 测试改 async + skip_llm_validate（节点6） (25 hours ago)
+- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (26 hours ago)
+- `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (26 hours ago)
+- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (26 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+- **进行中（feedback-rules, PLAN d6d946c）**：节点1✅ 撤 standard-enforce —— 删 writing_agent 标准注入段（1025-1056）+ review_service._check_standards（保留 async 签名 + skip_standard_check 参数）+ test 删 11 处 skip_standard_check=True；grep 零残留 + pytest test_review_service 6 passed/7 xfailed/1 xpassed（基线一致无回归）。下一步节点3：后端 FeedbackLearner + learn-feedback API + PATCH principles
 - **完成**：standard-enforce（Step 4 标准强约束）—— 节点1✅ 标准条款注入 _do_template_fill system_msg（chapter_type→clause_type 映射 + SessionLocal + search_standard_clauses top_k 5，全章节注入）；节点2✅ review_service 加 _check_standards（LLM 判违规 + severity 映射 process/quality/safety=ERROR, format=WARNING）+ review async + review_agent await；节点3✅ pytest 668 passed（1 draft flaky 预存）。**注入/校验实测留 web/集成**。**数据库方案 Step 0-4 全部完成**。
 - **完成**：profile-expand-and-relations（Step2 尾巴+Step3 画像）—— 节点1✅ triples 正则清洗（力矩数值禁连续小数点 + 标准 object 校验 + current_section 不返回泛词，documents/1 triples 10→5 全干净）；节点2✅ LLM 兜底校验 triples（_llm_validate_triples，fail-soft）；节点3✅ documents/1 重抽（assembly.json 5 干净 triples）；节点4✅ 画像注入移出 G25a gate 全章节（principles/triples 所有 _do_template_fill 章节）；节点5✅ 关联落库逻辑（extract_from_doc 产 relations + extract_and_save 落 StepMaterial + _parse_process_card content field_map），**documents/1 关联空因 G25a colspan-heavy content 提取（独立技术债，留后续）**；节点6✅ pytest（profile 9 passed + draft flaky 预存）。待用户开 Step 4（标准 review）。
 - **完成**：revive-extract-funnel（Step 2 复活 F 落库链）—— 节点1✅ 补 6 ORM（MaterialCatalog/ProcessStep/Standard/StandardClause/StepMaterial/StepTool 对齐 craftdoc.db）+ specialty 迁移；节点2✅ extract_and_save 维度传递（Material.specialty → MaterialCatalog/ProcessStep，实测 13 行带 assembly）；节点3✅ document_processor 解析后 try-except 触发 KnowledgeExtractor + StandardExtractor（QJ903 检测）；节点4✅ C knowledge_search 6 函数恢复真 ORM 查询（search_materials(螺钉) 返真实物料）；节点5✅ 验证：extract_and_save('1') 落 58 物料+11 工序 + pytest 667 passed（仅 draft flaky 预存）。**关联落库（StepMaterial/StepTool）留 Step 3/4**。待用户开 Step 3/4。
