@@ -304,6 +304,14 @@ const ProfilePage: React.FC = () => {
     } catch { message.error('删除失败') }
   }
 
+  // feedback-rules 节点5: toggle a principle's enabled flag (review UI for feedback_learned rules)
+  const handleTogglePrinciple = async (id: string, enabled: boolean) => {
+    try {
+      await apiClient.patch(`${profileApiBase}/principles/${id}`, { enabled })
+      fetchProfile()
+    } catch { message.error('更新失败') }
+  }
+
   const handleDeletePreference = async (id: string) => {
     try {
       await apiClient.delete(`${profileApiBase}/preferences/${id}`)
@@ -456,29 +464,49 @@ const ProfilePage: React.FC = () => {
           )}
 
           {/* Principles Section */}
-          {activeSection === 'principles' && (
-            (profile?.principles?.length ?? 0) > 0 ? (
-              <Table size="small" pagination={{ pageSize: 10, size: 'small' }}
-                dataSource={(profile?.principles ?? []).map(p => ({ key: p.id, ...p }))}
-                columns={[
-                  { title: '维度', dataIndex: 'dimension', key: 'dimension', width: 100,
-                    render: (v: string) => <Tag color={DIMENSION_COLORS[v] || 'default'}>{DIMENSION_LABELS[v] || v}</Tag>
-                  },
-                  { title: '名称', dataIndex: 'name', key: 'name', width: 150 },
-                  { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
-                  { title: '', key: 'action', width: 50,
-                    render: (_: unknown, record: Principle) => (
-                      <Popconfirm title="确定删除？" onConfirm={() => handleDeletePrinciple(record.id)}>
-                        <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                      </Popconfirm>
-                    ),
-                  },
-                ]}
-              />
-            ) : (
-              <Empty description="暂无审查原则。点击「添加」创建。" />
+          {activeSection === 'principles' && (() => {
+            const all = profile?.principles ?? []
+            if (all.length === 0) return <Empty description="暂无审查原则。点击「添加」创建。" />
+            // feedback-rules 节点5: feedback_learned first; within each source, disabled (pending) before enabled
+            const rank = (p: Principle) => (p.source === 'feedback_learned' ? 0 : 1) * 2 + (p.enabled ? 1 : 0)
+            const sorted = [...all].sort((a, b) => rank(a) - rank(b))
+            const learnedCount = all.filter((p) => p.source === 'feedback_learned').length
+            const sourceLabel = (s: string) => s === 'feedback_learned' ? '反馈学习' : s === 'manual' ? '手动' : s || '内置'
+            return (
+              <>
+                {learnedCount > 0 && (
+                  <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 4, fontSize: 13 }}>
+                    📝 从你的修改中归纳出 {learnedCount} 条候选规则（待审；启用后注入下次生成）
+                  </div>
+                )}
+                <Table size="small" pagination={{ pageSize: 10, size: 'small' }}
+                  dataSource={sorted.map((p) => ({ key: p.id, ...p }))}
+                  columns={[
+                    { title: '维度', dataIndex: 'dimension', key: 'dimension', width: 100,
+                      render: (v: string) => <Tag color={DIMENSION_COLORS[v] || 'default'}>{DIMENSION_LABELS[v] || v}</Tag>
+                    },
+                    { title: '名称', dataIndex: 'name', key: 'name', width: 150 },
+                    { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
+                    { title: '来源', dataIndex: 'source', key: 'source', width: 90,
+                      render: (v: string) => <Tag color={v === 'feedback_learned' ? 'gold' : 'default'}>{sourceLabel(v)}</Tag>
+                    },
+                    { title: '启用', dataIndex: 'enabled', key: 'enabled', width: 70,
+                      render: (v: boolean, record: Principle) => (
+                        <Switch size="small" checked={v} onChange={(checked) => handleTogglePrinciple(record.id, checked)} />
+                      ),
+                    },
+                    { title: '', key: 'action', width: 50,
+                      render: (_: unknown, record: Principle) => (
+                        <Popconfirm title="确定删除？" onConfirm={() => handleDeletePrinciple(record.id)}>
+                          <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                      ),
+                    },
+                  ]}
+                />
+              </>
             )
-          )}
+          })()}
 
           {/* Preferences Section */}
           {activeSection === 'preferences' && (
