@@ -13,6 +13,7 @@ import { AgentCollaborationView } from './AgentCollaborationView'
 import { PlanOption, AgentCallEvent, CollaborationEvent } from '../../services/conversationService'
 import { SolutionList } from './SolutionList'
 import { ImprovementSolution } from './SolutionCard'
+import { structuredDocToSections } from '../../utils/templateTransform'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -685,6 +686,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                     const { useCreationStore } = await import('../../stores/creationStore')
                     const store = useCreationStore.getState()
                     store.setEditorTemplateData(data.template_data)
+                    // feedback-rules 节点4a: snapshot the original (diff baseline)
+                    store.setOriginalTemplateData(structuredDocToSections(data.template_data))
                   }
                 } else {
                   editorContentRef.current = ''

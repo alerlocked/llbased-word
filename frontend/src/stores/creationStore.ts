@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { pdfService, PDFDocument, PDFDocumentView } from '../services/pdfService'
-import type { StructuredDocument } from '../types/template'
+import type { StructuredDocument, TemplateSection } from '../types/template'
 
 export interface Message {
   role: 'user' | 'assistant'
@@ -62,6 +62,10 @@ interface CreationStore extends PDFState {
   editorTemplateData: StructuredDocument | null
   setEditorTemplateData: (data: StructuredDocument | null) => void
 
+  // feedback-rules 节点4a: original snapshot (TemplateSection[] form, diff baseline)
+  originalTemplateData: TemplateSection[] | null
+  setOriginalTemplateData: (data: TemplateSection[] | null) => void
+
   // 会话管理
   createNewSession: (projectId: number, title?: string) => string
   deleteSession: (projectId: number, sessionId: string) => void
@@ -113,6 +117,10 @@ export const useCreationStore = create<CreationStore>()(
       editorTemplateData: null,
 
       setEditorTemplateData: (data) => set({ editorTemplateData: data }),
+
+      // feedback-rules 节点4a: original snapshot (diff baseline)
+      originalTemplateData: null,
+      setOriginalTemplateData: (data) => set({ originalTemplateData: data }),
 
       getProjectState: (projectId: number) => {
         const state = get()

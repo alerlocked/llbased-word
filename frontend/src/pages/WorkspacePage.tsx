@@ -24,6 +24,7 @@ import TemplateContentEditor from '../components/editor/TemplateContentEditor'
 import type { TemplateSection } from '../types/template'
 import ProcessContentView from '../components/common/ProcessContentView'
 import { markdownToHtml } from '../utils/markdownConverter'
+import { structuredDocToSections } from '../utils/templateTransform'
 import { colors } from '../styles/design-tokens'
 import '../styles/global.css'
 
@@ -55,7 +56,7 @@ const WorkspacePage: React.FC = () => {
   const startWidthRef = useRef(0)
 
   // 编辑器状态
-  const { setEditorContent, setEditorTemplateData, getProjectState, pushEdit, undo, canUndo } = useCreationStore()
+  const { setEditorContent, setEditorTemplateData, setOriginalTemplateData, getProjectState, pushEdit, undo, canUndo } = useCreationStore()
   const projectState = currentProjectId ? getProjectState(currentProjectId) : null
   const editorContent = projectState?.editorContent || ''
   const editorRef = useRef<any>(null) // Tiptap Editor 实例
@@ -68,29 +69,7 @@ const WorkspacePage: React.FC = () => {
   // Fallback: if editorTemplateData is lost after refresh, parse editorContent JSON
   const templateSections: TemplateSection[] = (() => {
     if (editorTemplateData) {
-      return editorTemplateData.chapters.map((ch) => {
-        // Derive column keys from fill_sources (structured + unstructured)
-        const allKeys = [
-          ...(ch.fill_sources?.structured || []),
-          ...(ch.fill_sources?.unstructured || []),
-        ]
-        return {
-          section_id: ch.chapter_code,
-          title: ch.chapter_title,
-          content_type: mapTableType(ch.table_type),
-          columns: allKeys,
-          column_keys: allKeys,
-          rows: ch.filled_data || [],
-          left_data: ch.left_data,
-          right_data: ch.right_data,
-          flow_steps: ch.flow_steps,
-          field_values: ch.field_values,
-          fill_sources: ch.fill_sources,
-          review_passed: true,
-          source: 'template_generated',
-          table_type: ch.table_type,
-        }
-      })
+      return structuredDocToSections(editorTemplateData)
     }
     // Fallback: try to recover from persisted editorContent JSON
     if (editorContent) {
@@ -205,6 +184,7 @@ const WorkspacePage: React.FC = () => {
   useEffect(() => {
     // Clear template data on project switch — only show tables after AI generation
     setEditorTemplateData(null)
+    setOriginalTemplateData(null)  // feedback-rules 节点4a: snapshot stale on project switch
 
     if (currentProjectId) {
       // 更新 URL 参数以保持同步
@@ -1006,16 +986,4 @@ const WorkspacePage: React.FC = () => {
 }
 
 export default WorkspacePage
-
-/** Map backend table_type to frontend content_type */
-function mapTableType(tableType: string): TemplateSection['content_type'] {
-  const mapping: Record<string, TemplateSection['content_type']> = {
-    single_row_list: 'table',
-    process_card: 'table',
-    dual_list: 'dual_table',
-    flow_chart: 'flow_chart',
-    fields: 'fields',
-  }
-  return mapping[tableType] || 'text'
-}
 
