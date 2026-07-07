@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-06T23:42:52+08:00
-last_commit: 45027be
+updated_at: 2026-07-06T23:48:58+08:00
+last_commit: 8466a1d
 status: standard-enforce 完成（Step 4 标准强约束，注入+校验就位）
 task_state: done
 task_slug: standard-enforce
@@ -11,16 +11,16 @@ task_slug: standard-enforce
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `45027be` feat(review): _check_standards LLM 校验 + review async（节点2） (0 seconds ago)
-- `5f8321f` feat(writing): 标准条款注入 system_msg（节点1） (4 minutes ago)
-- `ea2317d` plan: standard-enforce (Step 4 标准强约束) seal (6 minutes ago)
-- `a98e6c7` chore(devlog): profile-expand-and-relations done (Step2 尾巴+Step3 画像完成) (55 minutes ago)
-- `2b2f723` fix(test): profile learner 测试改 async + skip_llm_validate（节点6） (55 minutes ago)
-- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (70 minutes ago)
-- `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (75 minutes ago)
-- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (77 minutes ago)
-- `93a101f` fix(profile): triples 正则清洗（节点1） (80 minutes ago)
-- `1776665` plan: profile-expand-and-relations (Step2 尾巴+Step3 画像) seal (84 minutes ago)
+- `8466a1d` chore(devlog): standard-enforce done (Step 4 完成，数据库方案 Step 0-4 全过) (1 second ago)
+- `45027be` feat(review): _check_standards LLM 校验 + review async（节点2） (6 minutes ago)
+- `5f8321f` feat(writing): 标准条款注入 system_msg（节点1） (11 minutes ago)
+- `ea2317d` plan: standard-enforce (Step 4 标准强约束) seal (12 minutes ago)
+- `a98e6c7` chore(devlog): profile-expand-and-relations done (Step2 尾巴+Step3 画像完成) (61 minutes ago)
+- `2b2f723` fix(test): profile learner 测试改 async + skip_llm_validate（节点6） (62 minutes ago)
+- `47a4101` feat(extract): 关联落库 StepMaterial + process_card content field_map（节点5） (76 minutes ago)
+- `545e1a9` feat(writing): principles/triples 注入移出 G25a gate 全章节（节点4） (81 minutes ago)
+- `75e3525` feat(profile): LLM 校验 triples + learn_from_content async（节点2+3） (83 minutes ago)
+- `93a101f` fix(profile): triples 正则清洗（节点1） (86 minutes ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
