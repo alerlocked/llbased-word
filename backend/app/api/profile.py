@@ -38,6 +38,7 @@ from app.models.profile import (
     get_default_assembly_profile, get_default_welding_profile,
 )
 from app.services.document_profile_learner import DocumentProfileLearner
+from app.services.feedback_learner import FeedbackLearner
 from app.config import settings
 
 logger = get_logger(__name__)
@@ -111,6 +112,42 @@ class PrincipleRequest(BaseModel):
     description: str = ""
     check_expression: str = ""
     source: str = ""
+
+
+class PrinciplePatchRequest(BaseModel):
+    """Partial update for a principle (review UI enables/edits rules)."""
+    enabled: Optional[bool] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    check_expression: Optional[str] = None
+
+
+class CellEditItem(BaseModel):
+    """One cell-level change the user made to generated content."""
+    section_id: str = ""
+    section_title: str = ""
+    row_key: str = ""
+    col_key: str = ""
+    col_label: str = ""
+    old_value: str = ""
+    new_value: str = ""
+
+
+class RowChangeItem(BaseModel):
+    """A row added/removed by the user (fed to the inducer for completeness rules)."""
+    section_id: str = ""
+    section_title: str = ""
+    change: str = ""  # "added" | "removed"
+    row_data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class LearnFeedbackRequest(BaseModel):
+    """User edits to generated content, to be induced into principles."""
+    domain: str = Field(default="assembly")
+    project_id: str = ""  # str — front-end treats IDs as strings (int64 precision)
+    edits: List[CellEditItem] = Field(default_factory=list)
+    row_changes: List[RowChangeItem] = Field(default_factory=list)
+    skip_llm: bool = False
 
 
 class PreferenceRequest(BaseModel):
@@ -254,6 +291,35 @@ async def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
     }
 
 
+@router.post("/{domain}/learn-feedback")
+async def learn_from_feedback(domain: str, req: LearnFeedbackRequest) -> Dict[str, Any]:
+    """Induce principles from user edits to generated content (feedback-rules 节点3).
+
+    Fail-soft: any error returns ok with added=0, never blocks the save that
+    triggered the call. Principles enter with enabled=False (pending review)."""
+    if not req.edits and not req.row_changes:
+        return {"status": "ok", "message": "no edits", "added": 0, "principles": []}
+    try:
+        learner = FeedbackLearner()
+        principles = await learner.learn_from_edits(
+            edits=[e.model_dump() for e in req.edits],
+            row_changes=[r.model_dump() for r in req.row_changes],
+            domain=domain,
+            project_id=req.project_id,
+            skip_llm=req.skip_llm,
+        )
+        profile = _load_profile(domain)
+        added = []
+        for p in principles:
+            pid = profile.add_principle(p)  # name+dimension dedup → idempotent
+            added.append({"id": pid, **p.to_dict()})
+        _save_profile(profile)
+        return {"status": "ok", "added": len(added), "principles": added}
+    except Exception as e:
+        logger.warning("learn_feedback_failed", error=str(e))
+        return {"status": "ok", "message": "feedback_learn_failed_silently", "added": 0, "principles": []}
+
+
 # ========================================
 # Knowledge CRUD
 # ========================================
@@ -329,6 +395,31 @@ def remove_principle(domain: str, principle_id: str) -> Dict[str, Any]:
     """Remove a principle by ID."""
     profile = _load_profile(domain)
     if not profile.remove_principle(principle_id):
+        raise HTTPException(status_code=404, detail=f"Principle {principle_id} not found")
+    _save_profile(profile)
+    return {"status": "ok", "profile": profile.to_dict()}
+
+
+@router.patch("/{domain}/principles/{principle_id}")
+def patch_principle(domain: str, principle_id: str, req: PrinciplePatchRequest) -> Dict[str, Any]:
+    """Patch a principle (enabled/name/description/check_expression).
+
+    Used by the review UI to enable feedback_learned rules or edit any rule."""
+    profile = _load_profile(domain)
+    found = False
+    for p in profile.principles:
+        if p.get("id") == principle_id:
+            if req.enabled is not None:
+                p["enabled"] = req.enabled
+            if req.name is not None:
+                p["name"] = req.name
+            if req.description is not None:
+                p["description"] = req.description
+            if req.check_expression is not None:
+                p["check_expression"] = req.check_expression
+            found = True
+            break
+    if not found:
         raise HTTPException(status_code=404, detail=f"Principle {principle_id} not found")
     _save_profile(profile)
     return {"status": "ok", "profile": profile.to_dict()}
