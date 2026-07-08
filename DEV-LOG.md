@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-08T00:24:14+08:00
-last_commit: 7cdb9b2
+updated_at: 2026-07-08T00:26:58+08:00
+last_commit: ac5d6f0
 status: feedback-rules 进行中（节点1 撤 standard-enforce）
 task_state: running
 task_slug: feedback-rules
@@ -11,16 +11,16 @@ task_slug: feedback-rules
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `7cdb9b2` feat(feedback): template diff capture + learn-feedback POST (node 4b) (0 seconds ago)
-- `4a72041` feat(feedback): front-end original snapshot + templateTransform util (node 4a) (2 minutes ago)
-- `9171d4c` feat(feedback): FeedbackLearner + learn-feedback API + PATCH principles (node 3) (9 minutes ago)
-- `2623e04` fix(review): drop standard-enforce (injection + _check_standards), keep review async (14 minutes ago)
-- `d6d946c` plan: feedback-rules seal (drop standard-enforce + feedback rule learning loop) (21 minutes ago)
+- `ac5d6f0` feat(feedback): rule review UI in ProfilePage (node 5) (0 seconds ago)
+- `7cdb9b2` feat(feedback): template diff capture + learn-feedback POST (node 4b) (3 minutes ago)
+- `4a72041` feat(feedback): front-end original snapshot + templateTransform util (node 4a) (5 minutes ago)
+- `9171d4c` feat(feedback): FeedbackLearner + learn-feedback API + PATCH principles (node 3) (12 minutes ago)
+- `2623e04` fix(review): drop standard-enforce (injection + _check_standards), keep review async (17 minutes ago)
+- `d6d946c` plan: feedback-rules seal (drop standard-enforce + feedback rule learning loop) (23 minutes ago)
 - `8466a1d` chore(devlog): standard-enforce done (Step 4 完成，数据库方案 Step 0-4 全过) (25 hours ago)
 - `45027be` feat(review): _check_standards LLM 校验 + review async（节点2） (25 hours ago)
 - `5f8321f` feat(writing): 标准条款注入 system_msg（节点1） (25 hours ago)
 - `ea2317d` plan: standard-enforce (Step 4 标准强约束) seal (25 hours ago)
-- `a98e6c7` chore(devlog): profile-expand-and-relations done (Step2 尾巴+Step3 画像完成) (26 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

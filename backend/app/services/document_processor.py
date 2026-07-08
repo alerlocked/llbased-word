@@ -346,7 +346,6 @@ class DocumentProcessor:
                 _counts = KnowledgeExtractor().extract_and_save(str(material_id), db)
                 logger.info(f"📚 [知识提取] doc={material_id}: {_counts.get('materials', 0)} 物料, {_counts.get('process_steps', 0)} 工序")
                 # 标准文档检测（QJ903 → StandardExtractor）
-                from app.models.database import Material
                 _mat = db.query(Material).filter(Material.id == material_id).first()
                 if _mat and _mat.name and "QJ903" in _mat.name.upper():
                     from app.services.standard_extractor import StandardExtractor
