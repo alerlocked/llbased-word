@@ -146,7 +146,7 @@ class MemoryService:
                         text = ""
                     summary, entities = self._parse_summary(text)
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    mem_id = f"{ts}_{session_id[:8]}"
+                    mem_id = f"{ts}_{session_id[:8] if session_id else 'unknown'}"
                     self.save_summary(mem_id, summary, entities)
                 else:
                     logger.warning(

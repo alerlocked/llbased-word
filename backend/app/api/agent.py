@@ -938,7 +938,10 @@ async def generate_stream(request: GenerateStreamRequest):
                     doc_count = material_status.get("document_count", 0)
                     missing = material_status.get("missing_topics", [])
                     if not material_status.get("has_documents"):
-                        mat_msg = "素材状态：知识库暂无参考素材"
+                        if missing_chapters:
+                            mat_msg = "素材状态：未选择额外参考素材，将使用知识库已解析文档生成"
+                        else:
+                            mat_msg = "素材状态：未选择参考素材，知识库也无可用文档"
                     elif missing and len(missing) >= 2:
                         mat_msg = f"素材状态：{doc_count} 个文档，部分覆盖（可能缺失：{'、'.join(missing[:3])}）"
                     else:
@@ -964,7 +967,10 @@ async def generate_stream(request: GenerateStreamRequest):
                         analysis_lines.append(f"当前知识库有 {material_status.get('document_count', 0)} 个参考文档，可直接用于生成。无需补充新材料。")
                     elif material_status and not material_status.get("has_documents"):
                         analysis_lines.append("")
-                        analysis_lines.append("⚠ 知识库暂无参考素材，生成内容可能不够准确。建议先上传相关标准文档到素材库。")
+                        if missing_chapters:
+                            analysis_lines.append(f"未选择额外参考素材，将基于知识库已解析文档生成 {len(missing_chapters)} 个章节。")
+                        else:
+                            analysis_lines.append("⚠ 知识库暂无可用文档，生成内容可能不够准确。建议先上传相关标准文档到素材库。")
                     # Implementation plan
                     analysis_lines.append("")
                     analysis_lines.append(f"**实施计划**：将逐章从知识库原文中提取对应内容，并行生成 {len(missing_chapters)} 个缺失章节，确保参数、代号、材料名称与原文一致。")
@@ -1522,6 +1528,8 @@ def _build_llm_messages(
 
 def _save_memory(session_id: Optional[str], user_input: str, content: str):
     """Async save conversation memory (fire-and-forget)."""
+    if not session_id:
+        return
     try:
         from app.services.hierarchical_context import hierarchical_context
         hierarchical_context._memory_service.save_summary_async(
