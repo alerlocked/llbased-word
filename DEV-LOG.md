@@ -2,29 +2,30 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-08T23:39:16+08:00
-last_commit: bc84740
-status: feedback-rules 进行中（节点1 撤 standard-enforce）
+updated_at: 2026-07-09T21:22:29+08:00
+last_commit: 1fc7d68
+status: gen-quality-fix 执行中（生成质量回归修复 4 节点）
 task_state: running
-task_slug: feedback-rules
+task_slug: gen-quality-fix
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `bc84740` fix(doc-processor): remove redundant Material import causing UnboundLocalError (0 seconds ago)
-- `ac5d6f0` feat(feedback): rule review UI in ProfilePage (node 5) (23 hours ago)
-- `7cdb9b2` feat(feedback): template diff capture + learn-feedback POST (node 4b) (23 hours ago)
-- `4a72041` feat(feedback): front-end original snapshot + templateTransform util (node 4a) (23 hours ago)
-- `9171d4c` feat(feedback): FeedbackLearner + learn-feedback API + PATCH principles (node 3) (23 hours ago)
-- `2623e04` fix(review): drop standard-enforce (injection + _check_standards), keep review async (23 hours ago)
-- `d6d946c` plan: feedback-rules seal (drop standard-enforce + feedback rule learning loop) (24 hours ago)
-- `8466a1d` chore(devlog): standard-enforce done (Step 4 完成，数据库方案 Step 0-4 全过) (2 days ago)
-- `45027be` feat(review): _check_standards LLM 校验 + review async（节点2） (2 days ago)
-- `5f8321f` feat(writing): 标准条款注入 system_msg（节点1） (2 days ago)
+- `1fc7d68` plan: gen-quality-fix seal (0 seconds ago)
+- `bc84740` fix(doc-processor): remove redundant Material import causing UnboundLocalError (22 hours ago)
+- `ac5d6f0` feat(feedback): rule review UI in ProfilePage (node 5) (2 days ago)
+- `7cdb9b2` feat(feedback): template diff capture + learn-feedback POST (node 4b) (2 days ago)
+- `4a72041` feat(feedback): front-end original snapshot + templateTransform util (node 4a) (2 days ago)
+- `9171d4c` feat(feedback): FeedbackLearner + learn-feedback API + PATCH principles (node 3) (2 days ago)
+- `2623e04` fix(review): drop standard-enforce (injection + _check_standards), keep review async (2 days ago)
+- `d6d946c` plan: feedback-rules seal (drop standard-enforce + feedback rule learning loop) (2 days ago)
+- `8466a1d` chore(devlog): standard-enforce done (Step 4 完成，数据库方案 Step 0-4 全过) (3 days ago)
+- `45027be` feat(review): _check_standards LLM 校验 + review async（节点2） (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
-- **进行中（feedback-rules, PLAN d6d946c）**：节点1✅ 撤 standard-enforce（commit 2623e04）+ 节点3✅ 后端 FeedbackLearner（services/feedback_learner.py：learn_from_edits async + LLM 归纳 prompt + _rule_based_fallback 同列重复 old→new 产 terminology 规则 + 三层 fail-soft，产 Principle source=feedback_learned/enabled=False 待审）+ api/profile.py 加 LearnFeedbackRequest/CellEditItem/RowChangeItem/PrinciplePatchRequest + POST /learn-feedback（add_principle 幂等）+ PATCH /principles/{id}；import ok + pytest test_feedback_learner 5 passed。节点4a✅ 前端原始快照（creationStore 加 originalTemplateData + 抽 utils/templateTransform.ts util + AIChatPanel 生成时 setOriginalTemplateData 快照 + WorkspacePage 复用 util/项目切换清快照/删 dead mapTableType，tsc 0 错）。节点4b✅ 前端 diff 采集（utils/templateDiff.ts：业务键行对齐+cell diff+无键行数不同走集 diff 避免错位；handleSave 算 diff 静默 POST /api/profile/assembly/learn-feedback fail-soft，基准=originalTemplateData，空 diff 不 POST + add_principle 幂等，tsc 0 错）。节点5✅ 规则审查 UI（ProfilePage principles Tab：feedback_learned/待审置顶排序 + 来源列 + 启用 Switch（PATCH enabled）+ 候选计数提示；handleTogglePrinciple；sourceLabel 兜底空 source→内置，后端补 source=builtin 非必要跳过；tsc 0 错）。节点6 自动化验证✅：后端全量 pytest 673 passed/1 skipped/68 xfailed/1 xpassed（唯一 failed=test_draft_service::test_cleanup_preserves_newest，draft 测试隔离预存 flaky 摆动 0-2，与本次改动不碰 draft 无关；本次新增 5 feedback_learner 全过 + 撤 standard-enforce 无回归，基线 668→673）；learn-feedback 端点端到端冒烟 skip_llm added=1 source=feedback_learned/enabled=False（待审）✓；前端各节点 tsc 0 错。**完整 UI 闭环（生成→改 cell→保存→ProfilePage 看候选规则→启用→再生成注入）待用户起服务实测**
+- **进行中（gen-quality-fix, PLAN 1fc7d68）**：4 节点生成质量回归修复（07-09 端到端生成暴露）。① derive_list_strong 补 TemplateColumn 局部 import（writing_agent.py:1450，commit 105f248 引入时漏 → G4a/G5a/G10a/G12a/G14a/G18a 6 章节空表，日志 derive_strong_failed 铁证）② G22a process_card_steps 注入 fallback（orchestrator.py:2780，g22a_no_doc_dir_fallback → step_desc 退化给 LLM）③ 话术矛盾（agent.py:940 has_documents 判素材库 vs missing_chapters 判知识库）④ 记忆服务 NoneType（memory_service.py:149 session_id=None）。pytest baseline 674 passed。**下一步：节点1 补 import**。
+- **完成（feedback-rules, PLAN d6d946c）**：节点1✅ 撤 standard-enforce（commit 2623e04）+ 节点3✅ 后端 FeedbackLearner（services/feedback_learner.py：learn_from_edits async + LLM 归纳 prompt + _rule_based_fallback 同列重复 old→new 产 terminology 规则 + 三层 fail-soft，产 Principle source=feedback_learned/enabled=False 待审）+ api/profile.py 加 LearnFeedbackRequest/CellEditItem/RowChangeItem/PrinciplePatchRequest + POST /learn-feedback（add_principle 幂等）+ PATCH /principles/{id}；import ok + pytest test_feedback_learner 5 passed。节点4a✅ 前端原始快照（creationStore 加 originalTemplateData + 抽 utils/templateTransform.ts util + AIChatPanel 生成时 setOriginalTemplateData 快照 + WorkspacePage 复用 util/项目切换清快照/删 dead mapTableType，tsc 0 错）。节点4b✅ 前端 diff 采集（utils/templateDiff.ts：业务键行对齐+cell diff+无键行数不同走集 diff 避免错位；handleSave 算 diff 静默 POST /api/profile/assembly/learn-feedback fail-soft，基准=originalTemplateData，空 diff 不 POST + add_principle 幂等，tsc 0 错）。节点5✅ 规则审查 UI（ProfilePage principles Tab：feedback_learned/待审置顶排序 + 来源列 + 启用 Switch（PATCH enabled）+ 候选计数提示；handleTogglePrinciple；sourceLabel 兜底空 source→内置，后端补 source=builtin 非必要跳过；tsc 0 错）。节点6 自动化验证✅：后端全量 pytest 673 passed/1 skipped/68 xfailed/1 xpassed（唯一 failed=test_draft_service::test_cleanup_preserves_newest，draft 测试隔离预存 flaky 摆动 0-2，与本次改动不碰 draft 无关；本次新增 5 feedback_learner 全过 + 撤 standard-enforce 无回归，基线 668→673）；learn-feedback 端点端到端冒烟 skip_llm added=1 source=feedback_learned/enabled=False（待审）✓；前端各节点 tsc 0 错。**节点6 ✅ 完整 UI 闭环 playwright 验证全通过**：① 生成（点"生 成"+发送 → SSE 55s → 装配工艺表格，body 147→5944，装配/工序/力矩/扳手 FOUND，靠后端 HierarchicalContext 自动检索 material 1，前端 selectedMaterials 默认空不注入）② 改 cell（扳手→扭矩扳手，2 处 contentEditable cell，evaluate 设 textContent+blur 触发 onBlur→onChange 回写）③ 保存（SaveOutlined icon → handleSave PUT content 成功 + diff 采集）④ learn-feedback POST 自动触发（edits=2，section_id/row_key/col_key/old_value/new_value 结构完整）⑤ 后端 FeedbackLearner LLM 归纳规则入库（id=86362ba7 术语统一"力矩→扭矩"，source=feedback_learned/enabled=False 待审）⑥ ProfilePage 审查 UI 渲染真实候选规则（术语统一/反馈学习/候选规则/待审 markers FOUND）⑦ 启用（UI Switch → PATCH /principles/86362ba7 {"enabled":true} → assembly.json 持久化）⑧ 注入链路（writing_agent 1004 读 enabled 过滤 → 1009-1013 注入"## 画像强约束"，复用 profile-expand 现有机制全章节注入）。验证后清理：删注入测试规则 23d17a12、真实规则 86362ba7 恢复 enabled=False 待审、临时诊断/阶段脚本全清
 - **完成**：standard-enforce（Step 4 标准强约束）—— 节点1✅ 标准条款注入 _do_template_fill system_msg（chapter_type→clause_type 映射 + SessionLocal + search_standard_clauses top_k 5，全章节注入）；节点2✅ review_service 加 _check_standards（LLM 判违规 + severity 映射 process/quality/safety=ERROR, format=WARNING）+ review async + review_agent await；节点3✅ pytest 668 passed（1 draft flaky 预存）。**注入/校验实测留 web/集成**。**数据库方案 Step 0-4 全部完成**。
 - **完成**：profile-expand-and-relations（Step2 尾巴+Step3 画像）—— 节点1✅ triples 正则清洗（力矩数值禁连续小数点 + 标准 object 校验 + current_section 不返回泛词，documents/1 triples 10→5 全干净）；节点2✅ LLM 兜底校验 triples（_llm_validate_triples，fail-soft）；节点3✅ documents/1 重抽（assembly.json 5 干净 triples）；节点4✅ 画像注入移出 G25a gate 全章节（principles/triples 所有 _do_template_fill 章节）；节点5✅ 关联落库逻辑（extract_from_doc 产 relations + extract_and_save 落 StepMaterial + _parse_process_card content field_map），**documents/1 关联空因 G25a colspan-heavy content 提取（独立技术债，留后续）**；节点6✅ pytest（profile 9 passed + draft flaky 预存）。待用户开 Step 4（标准 review）。
 - **完成**：revive-extract-funnel（Step 2 复活 F 落库链）—— 节点1✅ 补 6 ORM（MaterialCatalog/ProcessStep/Standard/StandardClause/StepMaterial/StepTool 对齐 craftdoc.db）+ specialty 迁移；节点2✅ extract_and_save 维度传递（Material.specialty → MaterialCatalog/ProcessStep，实测 13 行带 assembly）；节点3✅ document_processor 解析后 try-except 触发 KnowledgeExtractor + StandardExtractor（QJ903 检测）；节点4✅ C knowledge_search 6 函数恢复真 ORM 查询（search_materials(螺钉) 返真实物料）；节点5✅ 验证：extract_and_save('1') 落 58 物料+11 工序 + pytest 667 passed（仅 draft flaky 预存）。**关联落库（StepMaterial/StepTool）留 Step 3/4**。待用户开 Step 3/4。

@@ -1446,6 +1446,8 @@ class WritingAgent(BaseAgent):
           - dual_list: {"left": [...], "right": [...]}
           - None if nothing derived.
         """
+        from app.services.template_types import TemplateColumn
+
         template_slots = task.get("template_slots", [])
         slot_cols = [TemplateColumn.from_dict(s) for s in template_slots]
         if not slot_cols:
