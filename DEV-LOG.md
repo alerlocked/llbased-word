@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-09T21:22:29+08:00
-last_commit: 1fc7d68
+updated_at: 2026-07-09T21:27:55+08:00
+last_commit: 701e1f3
 status: gen-quality-fix 执行中（生成质量回归修复 4 节点）
 task_state: running
 task_slug: gen-quality-fix
@@ -11,7 +11,8 @@ task_slug: gen-quality-fix
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `1fc7d68` plan: gen-quality-fix seal (0 seconds ago)
+- `701e1f3` fix(generation): add TemplateColumn import in derive_list_strong — fixes 6 empty list chapters (0 seconds ago)
+- `1fc7d68` plan: gen-quality-fix seal (5 minutes ago)
 - `bc84740` fix(doc-processor): remove redundant Material import causing UnboundLocalError (22 hours ago)
 - `ac5d6f0` feat(feedback): rule review UI in ProfilePage (node 5) (2 days ago)
 - `7cdb9b2` feat(feedback): template diff capture + learn-feedback POST (node 4b) (2 days ago)
@@ -20,7 +21,6 @@ task_slug: gen-quality-fix
 - `2623e04` fix(review): drop standard-enforce (injection + _check_standards), keep review async (2 days ago)
 - `d6d946c` plan: feedback-rules seal (drop standard-enforce + feedback rule learning loop) (2 days ago)
 - `8466a1d` chore(devlog): standard-enforce done (Step 4 完成，数据库方案 Step 0-4 全过) (3 days ago)
-- `45027be` feat(review): _check_standards LLM 校验 + review async（节点2） (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
