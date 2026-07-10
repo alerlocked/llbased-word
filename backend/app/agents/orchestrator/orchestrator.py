@@ -2794,12 +2794,6 @@ class ProcessOrchestrator:
                         continue
                     title = tasks[idx].get("chapter_title", "")
                     doc_dir = ""
-                    logger.info(
-                        "g22a_doc_dir_diagnose",
-                        chapter_title=title,
-                        missing_titles=[mc.get("title") for mc in self._collected_info.get("missing_chapters", [])],
-                        missing_doc_dirs=[mc.get("_doc_dir") for mc in self._collected_info.get("missing_chapters", [])],
-                    )
                     for mc in self._collected_info.get("missing_chapters", []):
                         if mc.get("title") == title:
                             doc_dir = mc.get("_doc_dir", "")

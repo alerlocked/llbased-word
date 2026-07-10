@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-10T18:13:36+08:00
-last_commit: 0d50176
+updated_at: 2026-07-10T22:16:35+08:00
+last_commit: 2c0602d
 status: source-driven-fix 执行中（文档索引断裂 + extract 链路贯通）
 task_state: running
 task_slug: source-driven-fix
@@ -11,16 +11,16 @@ task_slug: source-driven-fix
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `0d50176` chore(template): remove dead process_steps hardcoded steps (source-driven-fix node1) (0 seconds ago)
-- `d4463fa` plan: source-driven-fix seal (3 minutes ago)
-- `4b1c1f3` chore: wrap gen-quality-fix (node 1/3/4 verified, node 2 -> source-driven-fix) + ALIGN source-driven-fix (18 hours ago)
-- `54c3304` fix(generation): distinguish 素材库 vs 知识库 wording + guard memory NoneType (21 hours ago)
-- `23731d0` diag(g22a): log chapter_title + missing_chapters doc_dir to locate injection fallback (21 hours ago)
-- `701e1f3` fix(generation): add TemplateColumn import in derive_list_strong — fixes 6 empty list chapters (21 hours ago)
-- `1fc7d68` plan: gen-quality-fix seal (21 hours ago)
+- `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (0 seconds ago)
+- `0d50176` chore(template): remove dead process_steps hardcoded steps (source-driven-fix node1) (4 hours ago)
+- `d4463fa` plan: source-driven-fix seal (4 hours ago)
+- `4b1c1f3` chore: wrap gen-quality-fix (node 1/3/4 verified, node 2 -> source-driven-fix) + ALIGN source-driven-fix (22 hours ago)
+- `54c3304` fix(generation): distinguish 素材库 vs 知识库 wording + guard memory NoneType (25 hours ago)
+- `23731d0` diag(g22a): log chapter_title + missing_chapters doc_dir to locate injection fallback (25 hours ago)
+- `701e1f3` fix(generation): add TemplateColumn import in derive_list_strong — fixes 6 empty list chapters (25 hours ago)
+- `1fc7d68` plan: gen-quality-fix seal (25 hours ago)
 - `bc84740` fix(doc-processor): remove redundant Material import causing UnboundLocalError (2 days ago)
 - `ac5d6f0` feat(feedback): rule review UI in ProfilePage (node 5) (3 days ago)
-- `7cdb9b2` feat(feedback): template diff capture + learn-feedback POST (node 4b) (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
