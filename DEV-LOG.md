@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-10T22:59:15+08:00
-last_commit: dcf3bf8
+updated_at: 2026-07-10T23:07:52+08:00
+last_commit: eb7430b
 status: source-driven-fix 完成（source-driven 链路贯通，验收达标）
 task_state: done
 task_slug: source-driven-fix
@@ -11,16 +11,16 @@ task_slug: source-driven-fix
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `dcf3bf8` chore: remove g22a_doc_dir_diagnose temp log (source-driven-fix wrap up) (0 seconds ago)
-- `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (43 minutes ago)
+- `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (1 second ago)
+- `dcf3bf8` chore: remove g22a_doc_dir_diagnose temp log (source-driven-fix wrap up) (9 minutes ago)
+- `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (51 minutes ago)
 - `0d50176` chore(template): remove dead process_steps hardcoded steps (source-driven-fix node1) (5 hours ago)
 - `d4463fa` plan: source-driven-fix seal (5 hours ago)
 - `4b1c1f3` chore: wrap gen-quality-fix (node 1/3/4 verified, node 2 -> source-driven-fix) + ALIGN source-driven-fix (23 hours ago)
-- `54c3304` fix(generation): distinguish 素材库 vs 知识库 wording + guard memory NoneType (25 hours ago)
-- `23731d0` diag(g22a): log chapter_title + missing_chapters doc_dir to locate injection fallback (25 hours ago)
+- `54c3304` fix(generation): distinguish 素材库 vs 知识库 wording + guard memory NoneType (26 hours ago)
+- `23731d0` diag(g22a): log chapter_title + missing_chapters doc_dir to locate injection fallback (26 hours ago)
 - `701e1f3` fix(generation): add TemplateColumn import in derive_list_strong — fixes 6 empty list chapters (26 hours ago)
 - `1fc7d68` plan: gen-quality-fix seal (26 hours ago)
-- `bc84740` fix(doc-processor): remove redundant Material import causing UnboundLocalError (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
