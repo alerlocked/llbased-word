@@ -1761,11 +1761,23 @@ class ProcessOrchestrator:
                 existing_titles = {mc.get("title", "") for mc in missing_chapters}
                 for tch in get_editor_chapters(template_data):
                     if tch.title not in existing_titles:
+                        # Look up doc_dir from chapter_indexes so source-driven
+                        # injection (e.g. G22a process_card_steps) can find the
+                        # source doc, instead of hardcoding empty.
+                        chap_doc_dir = ""
+                        for _idx in chapter_indexes:
+                            for _c in _idx.get("chapters", []):
+                                _ct = _c.get("title", "")
+                                if tch.title in _ct or _ct in tch.title:
+                                    chap_doc_dir = _idx.get("_doc_dir", "")
+                                    break
+                            if chap_doc_dir:
+                                break
                         missing_chapters.append({
                             "title": tch.title,
                             "pages": [],
                             "page_count": 0,
-                            "_doc_dir": "",
+                            "_doc_dir": chap_doc_dir,
                             "reason": "template_required",
                         })
                         chapter_source_texts[tch.title] = ""
