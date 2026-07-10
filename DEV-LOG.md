@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-09T23:53:42+08:00
-last_commit: 4b1c1f3
+updated_at: 2026-07-10T18:10:56+08:00
+last_commit: d4463fa
 status: source-driven-fix 执行中（文档索引断裂 + extract 链路贯通）
 task_state: running
 task_slug: source-driven-fix
@@ -11,16 +11,16 @@ task_slug: source-driven-fix
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `4b1c1f3` chore: wrap gen-quality-fix (node 1/3/4 verified, node 2 -> source-driven-fix) + ALIGN source-driven-fix (1 second ago)
-- `54c3304` fix(generation): distinguish 素材库 vs 知识库 wording + guard memory NoneType (2 hours ago)
-- `23731d0` diag(g22a): log chapter_title + missing_chapters doc_dir to locate injection fallback (2 hours ago)
-- `701e1f3` fix(generation): add TemplateColumn import in derive_list_strong — fixes 6 empty list chapters (2 hours ago)
-- `1fc7d68` plan: gen-quality-fix seal (3 hours ago)
-- `bc84740` fix(doc-processor): remove redundant Material import causing UnboundLocalError (24 hours ago)
-- `ac5d6f0` feat(feedback): rule review UI in ProfilePage (node 5) (2 days ago)
-- `7cdb9b2` feat(feedback): template diff capture + learn-feedback POST (node 4b) (2 days ago)
-- `4a72041` feat(feedback): front-end original snapshot + templateTransform util (node 4a) (2 days ago)
-- `9171d4c` feat(feedback): FeedbackLearner + learn-feedback API + PATCH principles (node 3) (2 days ago)
+- `d4463fa` plan: source-driven-fix seal (0 seconds ago)
+- `4b1c1f3` chore: wrap gen-quality-fix (node 1/3/4 verified, node 2 -> source-driven-fix) + ALIGN source-driven-fix (18 hours ago)
+- `54c3304` fix(generation): distinguish 素材库 vs 知识库 wording + guard memory NoneType (21 hours ago)
+- `23731d0` diag(g22a): log chapter_title + missing_chapters doc_dir to locate injection fallback (21 hours ago)
+- `701e1f3` fix(generation): add TemplateColumn import in derive_list_strong — fixes 6 empty list chapters (21 hours ago)
+- `1fc7d68` plan: gen-quality-fix seal (21 hours ago)
+- `bc84740` fix(doc-processor): remove redundant Material import causing UnboundLocalError (2 days ago)
+- `ac5d6f0` feat(feedback): rule review UI in ProfilePage (node 5) (3 days ago)
+- `7cdb9b2` feat(feedback): template diff capture + learn-feedback POST (node 4b) (3 days ago)
+- `4a72041` feat(feedback): front-end original snapshot + templateTransform util (node 4a) (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

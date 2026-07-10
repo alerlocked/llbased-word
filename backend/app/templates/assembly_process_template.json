@@ -303,23 +303,5 @@
       "description": "Independent chapters — no dependency on process flow",
       "chapter_codes": ["G4a", "G5a", "G10a", "G12a", "G14a"]
     }
-  ],
-
-  "process_steps": {
-    "_comment": "Pre-defined steps from the template, each G25a card corresponds to one step",
-    "steps": [
-      {"step_no": 1, "title": "装前准备", "pages": "15-18"},
-      {"step_no": 2, "title": "安装密封圈2", "pages": "19-21"},
-      {"step_no": 3, "title": "安装行程延时开关组合", "pages": "22"},
-      {"step_no": 4, "title": "四五舱对接", "pages": "23-24"},
-      {"step_no": 5, "title": "五舱装配", "pages": "25-28"},
-      {"step_no": 6, "title": "五六舱对接及电缆安装", "pages": "29-32"},
-      {"step_no": 7, "title": "六舱设备及电缆安装", "pages": "33-35"},
-      {"step_no": 8, "title": "安装密封圈1", "pages": "36-38"},
-      {"step_no": 9, "title": "安装数据链射频前端", "pages": "39-41"},
-      {"step_no": 10, "title": "电缆整流罩端头装配", "pages": "42"},
-      {"step_no": 11, "title": "完整产品翻转", "pages": "43"},
-      {"step_no": 12, "title": "全弹外观检查", "pages": "44"}
-    ]
-  }
+  ]
 }
