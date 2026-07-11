@@ -52,6 +52,27 @@ class KnowledgeSearchService:
             q = q.filter(MaterialCatalog.specialty == specialty)
         return [self._material_to_dict(r) for r in q.limit(top_k).all()]
 
+    def find_material_by_code(
+        self, db: Session, code: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Exact lookup material by standard_code (zero false-match).
+
+        For G18a part_name enrichment: part_code is a precise code (e.g.
+        KA6-20-KZD), so exact match avoids the LIKE substring false-matches
+        that search_materials would hit (KA6-0-KZD matching KA6-011-KZD).
+        Returns None if not found or code empty. standard_code may repeat
+        (e.g. GB/T68-2000 for M38/M410/M58); returns first match — acceptable
+        for name-fill since name carries the spec.
+        """
+        from app.models.database import MaterialCatalog
+        if not code or not str(code).strip():
+            return None
+        code = str(code).strip()
+        row = db.query(MaterialCatalog).filter(
+            MaterialCatalog.standard_code == code
+        ).first()
+        return self._material_to_dict(row) if row else None
+
     def search_tools_for_step(
         self, db: Session, step_name: str,
     ) -> List[Dict[str, Any]]:

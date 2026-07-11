@@ -2,28 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-10T23:09:18+08:00
-last_commit: 72a8618
-status: source-driven-fix 完成（source-driven 链路贯通，验收达标）
-task_state: done
-task_slug: source-driven-fix
+updated_at: 2026-07-11T19:52:26+08:00
+last_commit: 6a94bea
+status: G18a derive 代号-名称错位修复中（PLAN g18a-g14a-name-fix，节点1）
+task_state: running
+task_slug: g18a-g14a-name-fix
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (0 seconds ago)
-- `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (87 seconds ago)
-- `dcf3bf8` chore: remove g22a_doc_dir_diagnose temp log (source-driven-fix wrap up) (10 minutes ago)
-- `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (53 minutes ago)
-- `0d50176` chore(template): remove dead process_steps hardcoded steps (source-driven-fix node1) (5 hours ago)
-- `d4463fa` plan: source-driven-fix seal (5 hours ago)
-- `4b1c1f3` chore: wrap gen-quality-fix (node 1/3/4 verified, node 2 -> source-driven-fix) + ALIGN source-driven-fix (23 hours ago)
-- `54c3304` fix(generation): distinguish 素材库 vs 知识库 wording + guard memory NoneType (26 hours ago)
-- `23731d0` diag(g22a): log chapter_title + missing_chapters doc_dir to locate injection fallback (26 hours ago)
-- `701e1f3` fix(generation): add TemplateColumn import in derive_list_strong — fixes 6 empty list chapters (26 hours ago)
+- `6a94bea` plan: g18a-g14a-name-fix seal (1 second ago)
+- `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (21 hours ago)
+- `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (21 hours ago)
+- `dcf3bf8` chore: remove g22a_doc_dir_diagnose temp log (source-driven-fix wrap up) (21 hours ago)
+- `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (22 hours ago)
+- `0d50176` chore(template): remove dead process_steps hardcoded steps (source-driven-fix node1) (26 hours ago)
+- `d4463fa` plan: source-driven-fix seal (26 hours ago)
+- `4b1c1f3` chore: wrap gen-quality-fix (node 1/3/4 verified, node 2 -> source-driven-fix) + ALIGN source-driven-fix (2 days ago)
+- `54c3304` fix(generation): distinguish 素材库 vs 知识库 wording + guard memory NoneType (2 days ago)
+- `23731d0` diag(g22a): log chapter_title + missing_chapters doc_dir to locate injection fallback (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+- **进行中（g18a-g14a-name-fix, PLAN 6a94bea）**：G18a 配套表代号-名称错位+待补修复。根因=`_derive_strong_node`→`_merge_derived_rows`(orchestrator:984) 按**行索引** zip original(Phase3 structured 代号-名称配对正确) 与 derived(G25a 倒推行顺序不同)，part_name 错配 part_code（KA6-0-KZD 配"行程延时开关组合"实为六舱）；倒推也没有的→"待补"（KA6-20-KZD 待补但 material_catalog 有尾焰挡板组件）；全程不查 material_catalog。修复=G18a merged 后按 part_code exact 查 material_catalog.name 覆盖。节点1✅ `find_material_by_code` exact 查询+单测（4 passed + 真 DB 抽查 KA6-20-KZD→尾焰挡板组件 / KA6-0-KZD→六舱 / KA6-011-KZD→None 零误匹配）。节点2 `_enrich_names_from_catalog`+单测 待做。**G14a 经诊断非 bug**（辅料 standard_code=None 无法 exact 查，待补是定额设计性），本期不修，范围收敛 G18a。Web 验收(2026-07-11)已确认 G25a 装配卡(5工序+5检验行/内容AVG187零臆造)+feedback UI 通过。
 - **完成（gen-quality-fix, PLAN 1fc7d68）**：节点① derive import + ③ 话术 + ④ NoneType 代码改完**运行时验证通过**（日志 derive_strong_failed/异步摘要失败均消失，baseline pytest 674 passed）。节点② G22a 深挖定位真因=**文档索引断裂**（chapter_indexes_count=0 → orchestrator.py:1625 所有章节 source_text="" 无源生成），超本 lead 范围，**转移 source-driven-fix**。diagnose 日志 g22a_doc_dir_diagnose（23731d0）待 source-driven-fix 验证后清。
 - **完成（source-driven-fix, PLAN d4463fa）**：① 删 process_steps 死代码（template:308-324，无人读，G19a 走 extract_process_steps orchestrator:2838）② 用户上传 PDF 走完整链路（material 记录→document_processor 解析 content.html→document_indexer build_index），chapter_indexes 0→1 ③ 修 G22a：9b-2（orchestrator:1768）补充模板章节到 missing 时 `_doc_dir` 硬编码空 → 改从 chapter_indexes 查（g22a_process_card_steps_injected 10工序，step_desc 直填工序名，g22a_no_doc_dir_fallback 消失）④ 贯通有源生成（G19a extract 10 真实工序 / derive G4a=8 G5a=7 G10a=6 G12a=6 G14a=11 G18a=33）。验收达标，pytest 674 passed 0 failed。经验回流 exp-source-driven-fix。**⚠ 缓存坑**：hierarchical_context._documents_cache 启动缓存，上传新文档后**须重启后端**清缓存。
 - **完成（feedback-rules, PLAN d6d946c）**：节点1✅ 撤 standard-enforce（commit 2623e04）+ 节点3✅ 后端 FeedbackLearner（services/feedback_learner.py：learn_from_edits async + LLM 归纳 prompt + _rule_based_fallback 同列重复 old→new 产 terminology 规则 + 三层 fail-soft，产 Principle source=feedback_learned/enabled=False 待审）+ api/profile.py 加 LearnFeedbackRequest/CellEditItem/RowChangeItem/PrinciplePatchRequest + POST /learn-feedback（add_principle 幂等）+ PATCH /principles/{id}；import ok + pytest test_feedback_learner 5 passed。节点4a✅ 前端原始快照（creationStore 加 originalTemplateData + 抽 utils/templateTransform.ts util + AIChatPanel 生成时 setOriginalTemplateData 快照 + WorkspacePage 复用 util/项目切换清快照/删 dead mapTableType，tsc 0 错）。节点4b✅ 前端 diff 采集（utils/templateDiff.ts：业务键行对齐+cell diff+无键行数不同走集 diff 避免错位；handleSave 算 diff 静默 POST /api/profile/assembly/learn-feedback fail-soft，基准=originalTemplateData，空 diff 不 POST + add_principle 幂等，tsc 0 错）。节点5✅ 规则审查 UI（ProfilePage principles Tab：feedback_learned/待审置顶排序 + 来源列 + 启用 Switch（PATCH enabled）+ 候选计数提示；handleTogglePrinciple；sourceLabel 兜底空 source→内置，后端补 source=builtin 非必要跳过；tsc 0 错）。节点6 自动化验证✅：后端全量 pytest 673 passed/1 skipped/68 xfailed/1 xpassed（唯一 failed=test_draft_service::test_cleanup_preserves_newest，draft 测试隔离预存 flaky 摆动 0-2，与本次改动不碰 draft 无关；本次新增 5 feedback_learner 全过 + 撤 standard-enforce 无回归，基线 668→673）；learn-feedback 端点端到端冒烟 skip_llm added=1 source=feedback_learned/enabled=False（待审）✓；前端各节点 tsc 0 错。**节点6 ✅ 完整 UI 闭环 playwright 验证全通过**：① 生成（点"生 成"+发送 → SSE 55s → 装配工艺表格，body 147→5944，装配/工序/力矩/扳手 FOUND，靠后端 HierarchicalContext 自动检索 material 1，前端 selectedMaterials 默认空不注入）② 改 cell（扳手→扭矩扳手，2 处 contentEditable cell，evaluate 设 textContent+blur 触发 onBlur→onChange 回写）③ 保存（SaveOutlined icon → handleSave PUT content 成功 + diff 采集）④ learn-feedback POST 自动触发（edits=2，section_id/row_key/col_key/old_value/new_value 结构完整）⑤ 后端 FeedbackLearner LLM 归纳规则入库（id=86362ba7 术语统一"力矩→扭矩"，source=feedback_learned/enabled=False 待审）⑥ ProfilePage 审查 UI 渲染真实候选规则（术语统一/反馈学习/候选规则/待审 markers FOUND）⑦ 启用（UI Switch → PATCH /principles/86362ba7 {"enabled":true} → assembly.json 持久化）⑧ 注入链路（writing_agent 1004 读 enabled 过滤 → 1009-1013 注入"## 画像强约束"，复用 profile-expand 现有机制全章节注入）。验证后清理：删注入测试规则 23d17a12、真实规则 86362ba7 恢复 enabled=False 待审、临时诊断/阶段脚本全清
