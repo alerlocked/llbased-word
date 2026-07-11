@@ -74,7 +74,7 @@ class AgentProtocol(Protocol):
     class WritingAgent(BaseAgent):
         name = "writing"
         description = "负责工艺内容的编辑、表格填充、格式调整"
-        tools = ["rag_retriever", "document_generator"]
+        tools = []
 
         async def process(self, task: Dict, context: Optional[Dict] = None) -> Dict:
             # 处理逻辑

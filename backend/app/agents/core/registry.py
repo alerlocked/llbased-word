@@ -142,7 +142,7 @@ class AgentRegistry:
     class WritingAgent(BaseAgent):
         name = "writing"
         description = "撰写Agent"
-        tools = ["rag_retriever", "document_generator"]
+        tools = []
         async def process(self, task, context=None): ...
     ```
 

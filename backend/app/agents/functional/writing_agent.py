@@ -56,7 +56,7 @@ class WritingAgent(BaseAgent):
 
     name = "writing"
     description = "负责工艺内容的编辑、表格填充、格式调整"
-    tools = ["document_generator"]  # 移除 rag_retriever，使用 Search Agent
+    tools = []  # document_generator 已清理（被 _do_template_fill 取代）；rag_retriever 用 Search Agent
 
     # 支持的动作类型
     ACTION_TYPES = ["edit", "fill", "format", "generate"]
@@ -149,29 +149,15 @@ class WritingAgent(BaseAgent):
             if not result.get("success"):
                 return result
 
-            # 3. 生成文档（如果需要）
-            doc_result = None
-            if task.get("generate_doc", True):
-                doc_result = await self.use_tool(
-                    "document_generator",
-                    {
-                        "content": result.get("content", ""),
-                        "title": task.get("title", "工艺文件"),
-                        "format": task.get("output_format", self.default_format)
-                    }
-                )
-
             logger.info(
                 "writing_task_completed",
                 action=action,
                 target=task.get("target", ""),
-                has_document=doc_result is not None
             )
 
             return {
                 "success": True,
                 "result": result,
-                "document": doc_result,
                 "suggestions": result.get("suggestions", [])
             }
 

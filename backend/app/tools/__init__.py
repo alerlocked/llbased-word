@@ -46,12 +46,6 @@ try:
 except ImportError:
     pass
 
-try:
-    from .document_generator import DocumentGenerator
-    __all__.append("DocumentGenerator")
-except ImportError:
-    pass
-
 
 def discover_tools() -> List[str]:
     """
@@ -74,7 +68,6 @@ def discover_tools() -> List[str]:
     tool_modules = [
         "terminology_tool",
         "compliance_tool",
-        "document_tool",
     ]
 
     for module_name in tool_modules:

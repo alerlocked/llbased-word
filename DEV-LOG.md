@@ -2,27 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-11T20:06:01+08:00
-last_commit: 625b27a
-status: g18a-g14a-name-fix 完成（G18a 代号-名称 catalog 配对，待补 56→34，web 验收达标）
-task_state: done
+updated_at: 2026-07-11T22:26:53+08:00
+last_commit: 00d9291
+status: cleanup-docgen-deadcode 进行中（清理 document_generator 死代码，节点1）
+task_state: running
+task_slug: cleanup-docgen-deadcode
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (0 seconds ago)
-- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (76 seconds ago)
-- `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (7 minutes ago)
-- `d385f11` feat(knowledge_search): add find_material_by_code exact lookup (9 minutes ago)
-- `6a94bea` plan: g18a-g14a-name-fix seal (14 minutes ago)
-- `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (21 hours ago)
-- `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (21 hours ago)
-- `dcf3bf8` chore: remove g22a_doc_dir_diagnose temp log (source-driven-fix wrap up) (21 hours ago)
-- `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (22 hours ago)
-- `0d50176` chore(template): remove dead process_steps hardcoded steps (source-driven-fix node1) (26 hours ago)
+- `00d9291` plan: cleanup-docgen-deadcode seal (1 second ago)
+- `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (2 hours ago)
+- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (2 hours ago)
+- `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (2 hours ago)
+- `d385f11` feat(knowledge_search): add find_material_by_code exact lookup (3 hours ago)
+- `6a94bea` plan: g18a-g14a-name-fix seal (3 hours ago)
+- `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (23 hours ago)
+- `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (23 hours ago)
+- `dcf3bf8` chore: remove g22a_doc_dir_diagnose temp log (source-driven-fix wrap up) (23 hours ago)
+- `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+- **进行中（cleanup-docgen-deadcode, PLAN 00d9291 seal）**：清理 document_generator 死代码。死代码确认（5 证据）：没注册（discover_tools 没触发 document_tool @register）+ generate_doc 全 False（orchestrator 5 处）+ process 唯一调用方 orchestrator:3702 死回退（走 handle_feedback）+ 被 _do_template_fill 取代 + 生产零调用。节点1 进行中：删 document_tool.py/document_generator.py + writing_agent tools=[]/删 process use_tool 段+return + __init__ 去引用 + protocols/registry docstring（22 passed import 不破）。节点2 测试清理+全量回归+启动验无 warning 待做。
 - **完成（g18a-g14a-name-fix, PLAN 6a94bea）**：G18a 配套表代号-名称错位+待补修复。根因=`_derive_strong_node`→`_merge_derived_rows`(orchestrator:984) 按**行索引** zip original(Phase3 structured 代号-名称配对正确) 与 derived(G25a 倒推行顺序不同)，part_name 错配 part_code（KA6-0-KZD 配"行程延时开关组合"实为六舱）；倒推也没有的→"待补"（KA6-20-KZD 待补但 material_catalog 有尾焰挡板组件）；全程不查 material_catalog。修复=G18a merged 后按 part_code exact 查 material_catalog.name 覆盖。节点1✅ `find_material_by_code` exact 查询+单测（4 passed + 真 DB 抽查 KA6-20-KZD→尾焰挡板组件 / KA6-0-KZD→六舱 / KA6-011-KZD→None 零误匹配）。节点2✅ `_enrich_names_from_catalog`+单测（13 passed：7 原有 + 6 新，覆盖错位覆盖/填待补/miss保留/跳过空code/db失败不raise）。节点3✅ G18a 分支接入(`_derive_strong_node` single_row_list 分支仅 `code=="G18a"` 调 enrich)+ 回归(22 passed)+ web 验收(G18a 代号-名称**全对齐**:KA6-0-KZD→六舱/AKJ02-1A→数据链射频前端 错位纠正，KA6-20-KZD→尾焰挡板组件/QJ2963.3-97→弹簧垫圈4/HB1-132-1995→十字槽螺钉M620/QJB108.2-2004→螺钉M410 10.9 待补填上；BODY 待补 56→34，剩余为 source/数量非名称列 + G14a 定额设计性)。**全 3 节点完成，web 验收达标**。**G14a 经诊断非 bug**（辅料 standard_code=None 无法 exact 查，待补是定额设计性），本期不修，范围收敛 G18a。Web 验收(2026-07-11)已确认 G25a 装配卡(5工序+5检验行/内容AVG187零臆造)+feedback UI 通过。
 - **完成（gen-quality-fix, PLAN 1fc7d68）**：节点① derive import + ③ 话术 + ④ NoneType 代码改完**运行时验证通过**（日志 derive_strong_failed/异步摘要失败均消失，baseline pytest 674 passed）。节点② G22a 深挖定位真因=**文档索引断裂**（chapter_indexes_count=0 → orchestrator.py:1625 所有章节 source_text="" 无源生成），超本 lead 范围，**转移 source-driven-fix**。diagnose 日志 g22a_doc_dir_diagnose（23731d0）待 source-driven-fix 验证后清。
 - **完成（source-driven-fix, PLAN d4463fa）**：① 删 process_steps 死代码（template:308-324，无人读，G19a 走 extract_process_steps orchestrator:2838）② 用户上传 PDF 走完整链路（material 记录→document_processor 解析 content.html→document_indexer build_index），chapter_indexes 0→1 ③ 修 G22a：9b-2（orchestrator:1768）补充模板章节到 missing 时 `_doc_dir` 硬编码空 → 改从 chapter_indexes 查（g22a_process_card_steps_injected 10工序，step_desc 直填工序名，g22a_no_doc_dir_fallback 消失）④ 贯通有源生成（G19a extract 10 真实工序 / derive G4a=8 G5a=7 G10a=6 G12a=6 G14a=11 G18a=33）。验收达标，pytest 674 passed 0 failed。经验回流 exp-source-driven-fix。**⚠ 缓存坑**：hierarchical_context._documents_cache 启动缓存，上传新文档后**须重启后端**清缓存。
