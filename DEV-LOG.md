@@ -2,27 +2,28 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-11T22:45:22+08:00
-last_commit: 269e272
+updated_at: 2026-07-11T22:46:53+08:00
+last_commit: 8ec9f4a
 status: cleanup-docgen-deadcode 完成（删 document_tool/generator 死代码，679 passed，0 残留）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `269e272` chore(tests): drop document_tool tests after dead-code removal (0 seconds ago)
-- `2c36cd6` refactor(tools): remove dead document_generator code (14 minutes ago)
-- `00d9291` plan: cleanup-docgen-deadcode seal (19 minutes ago)
+- `8ec9f4a` chore(devlog): cleanup-docgen-deadcode done — 679 passed, 0 残留 (0 seconds ago)
+- `269e272` chore(tests): drop document_tool tests after dead-code removal (2 minutes ago)
+- `2c36cd6` refactor(tools): remove dead document_generator code (16 minutes ago)
+- `00d9291` plan: cleanup-docgen-deadcode seal (20 minutes ago)
 - `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (3 hours ago)
 - `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (3 hours ago)
 - `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (3 hours ago)
 - `d385f11` feat(knowledge_search): add find_material_by_code exact lookup (3 hours ago)
 - `6a94bea` plan: g18a-g14a-name-fix seal (3 hours ago)
 - `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (24 hours ago)
-- `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+- **完成（fix-tool-registration，cleanup-docgen 延伸）**：工具注册隐患修复（查 document_generator 暴露）。根因：`app/tools/__init__.py` 定义 `discover_tools` 但**模块级从没调用**（只在 `get_tool_registry` 内，而它无人调）→ `ToolRegistry` 空（`list_tools()==[]`）→ 所有 agent 工具 `tool_not_found`（document_generator/compliance_checker/terminology_mapper/rag_retriever 全没注册；document_generator 是死代码已清，其余是真工具）。修：① `__init__.py` 末尾加 `discover_tools()`（import 时注册）② `proofread_agent` 去 `rag_retriever` 死声明（文件已删）+ 删 `use_tool` 死调用（retrieval_result 未消费）。验：`list_tools=['terminology_mapper','compliance_checker']`，生成 `0 tool_not_found`，compliance/terminology 注册，G18a catalog enrich 仍工作。**review compliance / proofread terminology 校对恢复**（之前静默 TOOL_NOT_FOUND 跳过）。
 - **完成（cleanup-docgen-deadcode, PLAN 00d9291 seal）**：清理 document_generator 死代码。死代码确认（5 证据）：没注册+generate_doc 全 False+process 唯一调用方 orchestrator:3702 死回退+被 _do_template_fill 取代+生产零调用。节点1✅ 删 document_tool.py/document_generator.py + writing_agent tools=[]/删 process use_tool 段 + __init__ 去引用 + protocols/registry docstring（2c36cd6）。节点2✅ test_tools/accuracy_tests 清理 + 全量 679 passed 0 failed + web G18a 回归正常（R6 KA6-0-KZD→六舱/R28→尾焰挡板组件 catalog enrich 仍工作）+ document_generator 0 残留（269e272）。**⚠ 新发现**：compliance_checker(4)/rag_retriever(2)/terminology_mapper(2) 也 tool_not_found（review/proofread 工具同根因 discover_tools 没注册），独立隐患待查。
 - **完成（g18a-g14a-name-fix, PLAN 6a94bea）**：G18a 配套表代号-名称错位+待补修复。根因=`_derive_strong_node`→`_merge_derived_rows`(orchestrator:984) 按**行索引** zip original(Phase3 structured 代号-名称配对正确) 与 derived(G25a 倒推行顺序不同)，part_name 错配 part_code（KA6-0-KZD 配"行程延时开关组合"实为六舱）；倒推也没有的→"待补"（KA6-20-KZD 待补但 material_catalog 有尾焰挡板组件）；全程不查 material_catalog。修复=G18a merged 后按 part_code exact 查 material_catalog.name 覆盖。节点1✅ `find_material_by_code` exact 查询+单测（4 passed + 真 DB 抽查 KA6-20-KZD→尾焰挡板组件 / KA6-0-KZD→六舱 / KA6-011-KZD→None 零误匹配）。节点2✅ `_enrich_names_from_catalog`+单测（13 passed：7 原有 + 6 新，覆盖错位覆盖/填待补/miss保留/跳过空code/db失败不raise）。节点3✅ G18a 分支接入(`_derive_strong_node` single_row_list 分支仅 `code=="G18a"` 调 enrich)+ 回归(22 passed)+ web 验收(G18a 代号-名称**全对齐**:KA6-0-KZD→六舱/AKJ02-1A→数据链射频前端 错位纠正，KA6-20-KZD→尾焰挡板组件/QJ2963.3-97→弹簧垫圈4/HB1-132-1995→十字槽螺钉M620/QJB108.2-2004→螺钉M410 10.9 待补填上；BODY 待补 56→34，剩余为 source/数量非名称列 + G14a 定额设计性)。**全 3 节点完成，web 验收达标**。**G14a 经诊断非 bug**（辅料 standard_code=None 无法 exact 查，待补是定额设计性），本期不修，范围收敛 G18a。Web 验收(2026-07-11)已确认 G25a 装配卡(5工序+5检验行/内容AVG187零臆造)+feedback UI 通过。
 - **完成（gen-quality-fix, PLAN 1fc7d68）**：节点① derive import + ③ 话术 + ④ NoneType 代码改完**运行时验证通过**（日志 derive_strong_failed/异步摘要失败均消失，baseline pytest 674 passed）。节点② G22a 深挖定位真因=**文档索引断裂**（chapter_indexes_count=0 → orchestrator.py:1625 所有章节 source_text="" 无源生成），超本 lead 范围，**转移 source-driven-fix**。diagnose 日志 g22a_doc_dir_diagnose（23731d0）待 source-driven-fix 验证后清。

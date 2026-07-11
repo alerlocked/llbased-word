@@ -24,7 +24,7 @@ class ProofreadAgent(BaseAgent):
 
     name = "proofread"
     description = "负责术语标准化、数据纠正补全、格式校验"
-    tools = ["rag_retriever", "terminology_mapper"]
+    tools = ["terminology_mapper"]  # rag_retriever 文件已删（用 Search Agent）
 
     # 检查类型
     CHECK_TYPES = ["terminology", "data", "format", "all"]
@@ -209,13 +209,6 @@ class ProofreadAgent(BaseAgent):
             数据检查结果
         """
         content = task.get("content", "")
-
-        # 检索相关知识进行数据验证
-        retrieval_result = await self.use_tool(
-            "rag_retriever",
-            f"数据验证: {content[:100]}",
-            {"top_k": 3}
-        )
 
         issues = []
 

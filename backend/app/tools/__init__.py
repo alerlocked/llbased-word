@@ -131,3 +131,9 @@ def list_available_tools() -> List[str]:
     """
     registry = get_tool_registry()
     return registry.list_tools()
+
+
+# Auto-register all tools on `import app.tools`. Without this, discover_tools was
+# only called inside get_tool_registry() (which nothing invoked), so ToolRegistry
+# stayed empty and every agent tool raised tool_not_found at init.
+discover_tools()
