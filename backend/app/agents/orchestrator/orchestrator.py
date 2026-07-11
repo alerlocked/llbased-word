@@ -962,6 +962,11 @@ class ProcessOrchestrator:
                     inner.get("filled_data", []), derived_rows, slot_keys,
                 )
                 inner["filled_data"] = merged
+                if code == "G18a":
+                    self._enrich_names_from_catalog(
+                        merged, code_key="part_code",
+                        name_key="part_name", chapter_code=code,
+                    )
                 logger.info(
                     "derive_strong_applied",
                     chapter_code=code, chapter_type=chapter_type, rows=len(merged),
