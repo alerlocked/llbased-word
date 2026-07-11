@@ -1006,6 +1006,58 @@ class ProcessOrchestrator:
                         row[key] = "待补"
         return merged
 
+    def _enrich_names_from_catalog(
+        self,
+        rows: List[Dict[str, Any]],
+        code_key: str,
+        name_key: str,
+        chapter_code: str,
+    ) -> None:
+        """Post-merge enrichment: for each row, exact-lookup material_catalog
+        by code_key and overwrite name_key with the catalog name.
+
+        Fixes the derive misalignment where _merge_derived_rows zipped Phase3
+        structured rows (correct code->name pairing) with reverse-derived rows
+        (different row order) by row index, misaligning names, and fills 待补
+        slots the catalog can supply. Catalog is authoritative (same extract
+        source as Phase3, but structured code->name pairing beats the reverse
+        guess). Mutates rows in place.
+
+        Skips rows whose code is empty or 待补. Keeps the original name on
+        catalog miss. Never raises — DB errors are logged and swallowed.
+        """
+        if not rows:
+            return
+        try:
+            from app.database import SessionLocal
+            from app.services.knowledge_search import KnowledgeSearchService
+
+            db = SessionLocal()
+            try:
+                svc = KnowledgeSearchService()
+                name_hits = catalog_miss = 0
+                for row in rows:
+                    code = (row.get(code_key) or "").strip()
+                    if not code or code == "待补":
+                        continue
+                    mat = svc.find_material_by_code(db, code)
+                    if mat and mat.get("name"):
+                        row[name_key] = mat["name"]
+                        name_hits += 1
+                    else:
+                        catalog_miss += 1
+                logger.info(
+                    "catalog_enrich_applied",
+                    chapter_code=chapter_code, rows=len(rows),
+                    name_hits=name_hits, catalog_miss=catalog_miss,
+                )
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(
+                "catalog_enrich_failed", chapter_code=chapter_code, error=str(e),
+            )
+
     async def _aggregate_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         聚合子Agent的执行结果
