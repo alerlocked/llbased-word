@@ -5,7 +5,6 @@ Validates:
 1. RAGRetriever tool
 2. TerminologyTool
 3. ComplianceTool
-4. DocumentTool
 """
 import pytest
 import sys
@@ -251,104 +250,6 @@ class TestComplianceTool:
         assert "safety" in result["results"]
 
 
-class TestDocumentTool:
-    """Tests for DocumentTool"""
-
-    def test_document_tool_registration(self):
-        """Test DocumentTool is properly registered"""
-        from app.tools.document_tool import DocumentTool
-
-        # Import triggers registration
-        assert "document_generator" in ToolRegistry.list_tools()
-
-        tool_class = ToolRegistry.get("document_generator")
-        assert tool_class == DocumentTool
-
-    def test_document_tool_creation(self):
-        """Test DocumentTool can be created"""
-        from app.tools.document_tool import DocumentTool
-
-        tool = DocumentTool(config={"output_formats": ["html", "pdf"]})
-        assert tool.output_formats == ["html", "pdf"]
-        assert tool.template_name == "standard_process_template"
-
-    @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
-    async def test_document_tool_execute_dict_input(self):
-        """Test DocumentTool with dict input"""
-        from app.tools.document_tool import DocumentTool
-
-        tool = DocumentTool(config={})
-
-        result = await tool.execute({
-            "content": "工艺内容",
-            "title": "测试文档",
-            "format": "html"
-        })
-        # Should return mock result
-        assert result["success"] is True
-        assert "files" in result
-
-    @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
-    async def test_document_tool_execute_string_input(self):
-        """Test DocumentTool with string input"""
-        from app.tools.document_tool import DocumentTool
-
-        tool = DocumentTool(config={})
-
-        result = await tool.execute("简单的工艺内容")
-        assert result["success"] is True
-
-    @pytest.mark.asyncio
-    async def test_document_tool_empty_content(self):
-        """Test DocumentTool with empty content"""
-        from app.tools.document_tool import DocumentTool
-
-        tool = DocumentTool(config={})
-
-        result = await tool.execute({"content": ""})
-        assert result["success"] is False
-        assert result["error_code"] == "EMPTY_CONTENT"
-
-    @pytest.mark.asyncio
-    async def test_document_tool_invalid_input(self):
-        """Test DocumentTool with invalid input type"""
-        from app.tools.document_tool import DocumentTool
-
-        tool = DocumentTool(config={})
-
-        result = await tool.execute(12345)
-        assert result["success"] is False
-        assert result["error_code"] == "INVALID_INPUT"
-
-    @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
-    async def test_document_tool_unsupported_format(self):
-        """Test DocumentTool with unsupported format defaults to html"""
-        from app.tools.document_tool import DocumentTool
-
-        tool = DocumentTool(config={})
-
-        result = await tool.execute({
-            "content": "内容",
-            "format": "unsupported_format"
-        })
-        assert result["success"] is True
-        # Should default to html
-        assert result["files"][0]["format"] == "html"
-
-    def test_document_tool_supported_formats(self):
-        """Test DocumentTool supported formats"""
-        from app.tools.document_tool import DocumentTool
-
-        assert "html" in DocumentTool.SUPPORTED_FORMATS
-        assert "pdf" in DocumentTool.SUPPORTED_FORMATS
-        assert "word" in DocumentTool.SUPPORTED_FORMATS
-        assert "markdown" in DocumentTool.SUPPORTED_FORMATS
-        assert "json" in DocumentTool.SUPPORTED_FORMATS
-
-
 class TestToolRegistryIntegration:
     """Integration tests for tool registry with actual tools"""
 
@@ -359,14 +260,12 @@ class TestToolRegistryIntegration:
         from app.tools.rag_retriever import RAGRetriever
         from app.tools.terminology_tool import TerminologyTool
         from app.tools.compliance_tool import ComplianceTool
-        from app.tools.document_tool import DocumentTool
 
         tools = ToolRegistry.list_tools()
 
         assert "rag_retriever" in tools
         assert "terminology_mapper" in tools
         assert "compliance_checker" in tools
-        assert "document_generator" in tools
 
     @pytest.mark.xfail(reason="tools suite assertions predate refactor", strict=False)
     def test_tool_creation_via_registry(self):

@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-11T22:26:53+08:00
-last_commit: 00d9291
+updated_at: 2026-07-11T22:44:52+08:00
+last_commit: 929f2e9
 status: cleanup-docgen-deadcode 进行中（清理 document_generator 死代码，节点1）
 task_state: running
 task_slug: cleanup-docgen-deadcode
@@ -11,16 +11,16 @@ task_slug: cleanup-docgen-deadcode
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `00d9291` plan: cleanup-docgen-deadcode seal (1 second ago)
-- `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (2 hours ago)
-- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (2 hours ago)
-- `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (2 hours ago)
+- `929f2e9` chore(tests): drop document_tool tests after dead-code removal (0 seconds ago)
+- `2c36cd6` refactor(tools): remove dead document_generator code (14 minutes ago)
+- `00d9291` plan: cleanup-docgen-deadcode seal (18 minutes ago)
+- `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (3 hours ago)
+- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (3 hours ago)
+- `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (3 hours ago)
 - `d385f11` feat(knowledge_search): add find_material_by_code exact lookup (3 hours ago)
 - `6a94bea` plan: g18a-g14a-name-fix seal (3 hours ago)
-- `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (23 hours ago)
-- `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (23 hours ago)
-- `dcf3bf8` chore: remove g22a_doc_dir_diagnose temp log (source-driven-fix wrap up) (23 hours ago)
-- `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (24 hours ago)
+- `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (24 hours ago)
+- `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
