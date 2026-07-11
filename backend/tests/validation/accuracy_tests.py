@@ -18,7 +18,6 @@ from app.tools.pdf_parser import PDFParser
 from app.tools.rag_retriever import RAGRetriever
 from app.tools.terminology_tool import TerminologyTool
 from app.tools.compliance_tool import ComplianceTool
-from app.tools.document_tool import DocumentTool
 
 
 class TestAccuracyRequirements:

@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-11T22:46:53+08:00
-last_commit: 8ec9f4a
+updated_at: 2026-07-11T23:35:37+08:00
+last_commit: 0b4ad84
 status: cleanup-docgen-deadcode 完成（删 document_tool/generator 死代码，679 passed，0 残留）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `8ec9f4a` chore(devlog): cleanup-docgen-deadcode done — 679 passed, 0 残留 (0 seconds ago)
-- `269e272` chore(tests): drop document_tool tests after dead-code removal (2 minutes ago)
-- `2c36cd6` refactor(tools): remove dead document_generator code (16 minutes ago)
-- `00d9291` plan: cleanup-docgen-deadcode seal (20 minutes ago)
-- `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (3 hours ago)
-- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (3 hours ago)
-- `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (3 hours ago)
-- `d385f11` feat(knowledge_search): add find_material_by_code exact lookup (3 hours ago)
-- `6a94bea` plan: g18a-g14a-name-fix seal (3 hours ago)
-- `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (24 hours ago)
+- `0b4ad84` fix(tools): register tools on import — discover_tools was never called (1 second ago)
+- `8ec9f4a` chore(devlog): cleanup-docgen-deadcode done — 679 passed, 0 残留 (49 minutes ago)
+- `269e272` chore(tests): drop document_tool tests after dead-code removal (50 minutes ago)
+- `2c36cd6` refactor(tools): remove dead document_generator code (65 minutes ago)
+- `00d9291` plan: cleanup-docgen-deadcode seal (69 minutes ago)
+- `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (4 hours ago)
+- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (4 hours ago)
+- `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (4 hours ago)
+- `d385f11` feat(knowledge_search): add find_material_by_code exact lookup (4 hours ago)
+- `6a94bea` plan: g18a-g14a-name-fix seal (4 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
