@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-11T20:04:45+08:00
-last_commit: 427d5c4
+updated_at: 2026-07-11T20:06:01+08:00
+last_commit: 625b27a
 status: g18a-g14a-name-fix 完成（G18a 代号-名称 catalog 配对，待补 56→34，web 验收达标）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (0 seconds ago)
-- `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (6 minutes ago)
-- `d385f11` feat(knowledge_search): add find_material_by_code exact lookup (8 minutes ago)
-- `6a94bea` plan: g18a-g14a-name-fix seal (12 minutes ago)
+- `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (0 seconds ago)
+- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (76 seconds ago)
+- `0f05ace` feat(orchestrator): add _enrich_names_from_catalog post-merge helper (7 minutes ago)
+- `d385f11` feat(knowledge_search): add find_material_by_code exact lookup (9 minutes ago)
+- `6a94bea` plan: g18a-g14a-name-fix seal (14 minutes ago)
 - `72a8618` docs: pin 装配工艺文件验收标准 (extract version) — acceptance baseline for all future changes (21 hours ago)
 - `eb7430b` chore(devlog): source-driven-fix done — chain through, acceptance met, 674 passed (21 hours ago)
 - `dcf3bf8` chore: remove g22a_doc_dir_diagnose temp log (source-driven-fix wrap up) (21 hours ago)
 - `2c0602d` fix(g22a): fill doc_dir from chapter_indexes when adding template chapters (22 hours ago)
 - `0d50176` chore(template): remove dead process_steps hardcoded steps (source-driven-fix node1) (26 hours ago)
-- `d4463fa` plan: source-driven-fix seal (26 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
