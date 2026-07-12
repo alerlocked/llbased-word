@@ -1506,6 +1506,82 @@ class HierarchicalContext:
                     steps.append(cell)
         return steps
 
+    def extract_file_references(self, doc_dir_name: str = None, text: str = None) -> List[Dict[str, str]]:
+        """Extract 引(借)用文件目录 (G5a) rows from the source chapter.
+
+        Reads the cleaned chapter text (HTML table already converted to a
+        Markdown pipe table by _html_to_readable) and pulls the list of
+        referenced documents. Returns one dict per data row so downstream
+        generation can source-fill G5a directly, instead of derive-ing part
+        names from the assembly card (which is how part names leaked into
+        the 文件名称 column).
+
+        Column position is resolved dynamically from the header row (the G5a
+        table has a complex multi-row header with colspan/rowspan, so a
+        hardcoded column index would be fragile). A row counts as data only
+        if its 序号 cell is a small integer (1..999) — this also rejects
+        dates in signature rows like 20240828.
+
+        Args:
+            doc_dir_name: document dir (e.g. "1") — fetches the 引(借)用文件目录
+                chapter if text is not given.
+            text: pre-fetched chapter text (skips the lookup).
+
+        Returns:
+            Ordered list of {seq, ref_code, ref_name, pages, remarks}.
+            Empty list if source missing or the header row is not found.
+        """
+        if text is None and doc_dir_name:
+            text = self.get_chapter_content(doc_dir_name, "引(借)用文件目录")
+        if not text:
+            return []
+
+        header_words = {"序号", "代号", "文件名称", "页数", "备注"}
+
+        # 1. Locate the data column-header row and build col-name -> index map.
+        #    The G5a header has a product-info block + countersign block on top
+        #    of the data columns; match the data header by requiring both
+        #    序号 and 文件名称 cells in the same row.
+        col_index: Dict[str, int] = {}
+        for line in text.split("\n"):
+            if "|" not in line:
+                continue
+            cells = [c.strip() for c in line.split("|")]
+            found = {c: i for i, c in enumerate(cells) if c in header_words}
+            if "序号" in found and "文件名称" in found:
+                col_index = found
+                break
+        if not col_index:
+            return []
+
+        seq_idx = col_index["序号"]
+
+        def _cell(cells: List[str], name: str) -> str:
+            i = col_index.get(name)
+            if i is None or i >= len(cells):
+                return ""
+            return cells[i]
+
+        # 2. Pull data rows: 序号 cell must be a small integer (rejects dates).
+        refs: List[Dict[str, str]] = []
+        for line in text.split("\n"):
+            if "|" not in line:
+                continue
+            cells = [c.strip() for c in line.split("|")]
+            if seq_idx >= len(cells):
+                continue
+            seq_val = cells[seq_idx]
+            if not re.match(r"^[1-9]\d{0,2}$", seq_val):
+                continue
+            refs.append({
+                "seq": seq_val,
+                "ref_code": _cell(cells, "代号"),
+                "ref_name": _cell(cells, "文件名称"),
+                "pages": _cell(cells, "页数"),
+                "remarks": _cell(cells, "备注"),
+            })
+        return refs
+
     def extract_assembly_steps(self, doc_dir_name: str) -> Dict[int, Dict[str, Any]]:
         """Extract per-step substeps (操作/材料/设备) from 装配工艺卡片 (G25a).
 

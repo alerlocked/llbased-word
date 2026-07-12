@@ -370,5 +370,63 @@ class TestExtractAssemblySteps:
         assert "5.1.3" in contents
 
 
+class TestExtractFileReferences:
+    """测试 extract_file_references 对引(借)用文件目录 (G5a) 的解析。
+
+    G5a 是引用文件清单，不是零件 BOM。extract 从源 Markdown 抠出
+    序号/代号/文件名称/页数/备注，供生成端直填，绕过 derive 倒推零件。
+    """
+
+    # 忠实复刻 _html_to_readable 对真实 G5a（含 colspan 多级表头）的输出。
+    G5A_MD = (
+        "--- 第3页 ---\n"
+        "G5a\n"
+        "| 产品工号 |  | 引(借)用文件目录 |  |  |  |  | 产品数字 |  | 零、部、组(整)件代号 |  |  | 零、部、组(整)件名称 |  |  | 工艺文件编号 |  |  |  |  |  |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        "|  |  |  |  |  |  |  |  |  | KA0-0-KZD |  |  | 小产品 |  |  | 2080.S2427 |  |  |  |  |  |\n"
+        "|  |  | 序号 | 代号 |  | 文件名称 |  |  |  |  |  |  |  | 页数 | 备注 |  |  |  |  |  |  |\n"
+        "|  |  | 1 |  |  | 小产品 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n"
+        "|  |  | 2 |  |  | 《空中制导试验导弹整体流程(KZD)》 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n"
+        "|  |  | 3 |  |  | 《导弹产品规范(KZD)》 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n"
+        "|  |  | 4 |  |  | 《导弹运载火箭电气和电子设备安装通用技术条件》 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n"
+        "|  |  | 5 |  |  | 《导弹装配工艺规范》 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n"
+        "| 牛超 | 20240828 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n"
+    )
+
+    def test_extract_five_referenced_files(self):
+        """真实 G5a 结构：抠出 5 行，ref_name 是引用文件名。"""
+        refs = _ctx().extract_file_references(text=self.G5A_MD)
+        assert len(refs) == 5
+        assert [r["seq"] for r in refs] == ["1", "2", "3", "4", "5"]
+        assert [r["ref_name"] for r in refs] == [
+            "小产品",
+            "《空中制导试验导弹整体流程(KZD)》",
+            "《导弹产品规范(KZD)》",
+            "《导弹运载火箭电气和电子设备安装通用技术条件》",
+            "《导弹装配工艺规范》",
+        ]
+
+    def test_no_part_names_leak(self):
+        """ref_name 不含零件名（六舱/尾焰挡板组件等 derive 串源特征）。"""
+        names = " ".join(r["ref_name"] for r in _ctx().extract_file_references(text=self.G5A_MD))
+        for part_name in ("六舱", "尾焰挡板组件", "行程延时开关"):
+            assert part_name not in names
+
+    def test_missing_source_returns_empty(self):
+        """源缺失/空文本返回空列表，不抛异常。"""
+        assert _ctx().extract_file_references(text="") == []
+        assert _ctx().extract_file_references(text=None) == []
+
+    def test_no_header_row_returns_empty(self):
+        """找不到列头行（缺 序号+文件名称 同时出现）返回空。"""
+        assert _ctx().extract_file_references(text="| 1 | 小产品 |\n| 2 | 规范 |") == []
+
+    def test_big_number_not_mistaken_as_seq(self):
+        """签名行日期/产品编号（20240828 / 2080.S2427）不被误判为序号。"""
+        seqs = [r["seq"] for r in _ctx().extract_file_references(text=self.G5A_MD)]
+        assert "20240828" not in seqs
+        assert "2080.S2427" not in seqs
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
