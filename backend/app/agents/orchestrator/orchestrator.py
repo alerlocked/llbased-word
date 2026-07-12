@@ -910,7 +910,7 @@ class ProcessOrchestrator:
         Replaces the weak 三空 fallback inside _do_template_fill (节点3 removes it).
         """
         writing = self._agents["writing"]
-        LIST_CHAPTERS = {"G4a", "G5a", "G10a", "G12a", "G14a", "B12a", "G18a"}
+        LIST_CHAPTERS = {"G4a", "G10a", "G12a", "G14a", "B12a", "G18a"}  # G5a excluded: 引借用文件只能从源 extract，derive 倒推必串零件 (fileref-source-extract)
 
         for idx, key in enumerate(task_keys):
             task = tasks[idx]
@@ -2870,6 +2870,35 @@ class ProcessOrchestrator:
                             )
                     except Exception as e:
                         logger.warning("g22a_process_card_steps_failed", error=str(e))
+
+                # G5a: inject 引(借)用文件目录 rows extracted from the source
+                # chapter, so ref_name is source-driven (referenced files),
+                # not reverse-derived part names. G5a is excluded from
+                # LIST_CHAPTERS above so derive never touches it.
+                for idx in phase_task_indices:
+                    if tasks[idx].get("chapter_code") != "G5a":
+                        continue
+                    title = tasks[idx].get("chapter_title", "")
+                    doc_dir = ""
+                    for mc in self._collected_info.get("missing_chapters", []):
+                        if mc.get("title") == title:
+                            doc_dir = mc.get("_doc_dir", "")
+                            break
+                    if not doc_dir:
+                        logger.warning("g5a_no_doc_dir_fallback", chapter=title)
+                        continue
+                    try:
+                        from app.services.hierarchical_context import hierarchical_context
+                        file_refs = hierarchical_context.extract_file_references(doc_dir)
+                        if file_refs:
+                            tasks[idx]["params"]["file_references"] = file_refs
+                            logger.info(
+                                "g5a_file_refs_injected",
+                                doc_dir=doc_dir,
+                                ref_count=len(file_refs),
+                            )
+                    except Exception as e:
+                        logger.warning("g5a_file_refs_failed", error=str(e))
 
                 # Inject accumulated upstream chapter text so list-type
                 # chapters (清单类) can derive content from earlier chapters.

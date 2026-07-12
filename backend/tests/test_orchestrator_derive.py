@@ -134,3 +134,27 @@ class TestEnrichNamesFromCatalog:
         rows = [{"part_code": "KA6-0-KZD", "part_name": "原值"}]
         self._run(rows)  # SessionLocal raises inside, swallowed
         assert rows[0]["part_name"] == "原值"  # unchanged
+
+
+class TestG5aExcludedFromDerive:
+    """G5a 引(借)用文件目录 must NOT go through derive-strong-node reverse
+    derivation — the assembly card has no referenced-file info, so derive
+    would fill part names into the 文件名称 column (the bug this task fixes).
+    G5a is removed from LIST_CHAPTERS so _derive_strong_node skips it early.
+    """
+
+    async def test_g5a_skipped_by_derive_strong_node(self):
+        """G5a task → _derive_strong_node → continue at the LIST_CHAPTERS
+        guard, derive_list_strong never called."""
+        from unittest.mock import MagicMock, AsyncMock
+        orch = ProcessOrchestrator.__new__(ProcessOrchestrator)
+        mock_writing = MagicMock()
+        mock_writing.derive_list_strong = AsyncMock(return_value=None)
+        orch._agents = {"writing": mock_writing}
+
+        tasks = [{"chapter_code": "G5a", "chapter_type": "single_row_list"}]
+        results = [{"status": "completed"}]
+
+        await orch._derive_strong_node(tasks, ["G5a"], results, {})
+
+        mock_writing.derive_list_strong.assert_not_called()

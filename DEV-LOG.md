@@ -2,29 +2,29 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-12T12:50:55+08:00
-last_commit: 8cd949b
-status: fileref-source-extract 执行中（节点1✅ extract_file_references+5单测，进节点2 注入+消费+derive排除）
+updated_at: 2026-07-12T13:01:02+08:00
+last_commit: c8e8948
+status: fileref-source-extract 执行中（节点2✅ 注入+消费+derive排除 全量685passed，进节点3 web验收）
 task_state: running
 task_slug: fileref-source-extract
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `8cd949b` feat(hierarchical_context): add extract_file_references for G5a source-fill (0 seconds ago)
-- `7e60096` plan: fileref-source-extract seal (8 minutes ago)
+- `c8e8948` fix(generation): G5a direct-fill referenced files, exclude from derive (0 seconds ago)
+- `7bff41a` feat(hierarchical_context): add extract_file_references for G5a source-fill (10 minutes ago)
+- `7e60096` plan: fileref-source-extract seal (18 minutes ago)
 - `5b5ae9a` chore(tests): drop document_tool import in accuracy_tests (follow-up 269e272) (13 hours ago)
 - `0b4ad84` fix(tools): register tools on import — discover_tools was never called (13 hours ago)
 - `8ec9f4a` chore(devlog): cleanup-docgen-deadcode done — 679 passed, 0 残留 (14 hours ago)
 - `269e272` chore(tests): drop document_tool tests after dead-code removal (14 hours ago)
-- `2c36cd6` refactor(tools): remove dead document_generator code (14 hours ago)
-- `00d9291` plan: cleanup-docgen-deadcode seal (14 hours ago)
+- `2c36cd6` refactor(tools): remove dead document_generator code (15 hours ago)
+- `00d9291` plan: cleanup-docgen-deadcode seal (15 hours ago)
 - `625b27a` chore(devlog): g18a-g14a-name-fix done — catalog enrich, 待补 56->34 (17 hours ago)
-- `427d5c4` fix(orchestrator): enrich G18a part_name from catalog to fix misalignment (17 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
-- **在做（fileref-source-extract，PLAN 7e60096 seal）**：G5a 引(借)用文件目录从源 extract 直填，绕过 derive 串源。web 验收发现 G5a「文件名称」列填了零部组件名（六舱/尾焰挡板组件）而非引用文件。根因：G5a 无专门 extract → filled_data 空 → derive 从 G25a 倒推零件串源（exp-derive-strong-node 待办第3条）。方案A（用户定）：照 G22a source-driven 模式，extract_file_references 从 G5a 源 Markdown 抠 5 行直填 + LIST_CHAPTERS 删 G5a 不倒推。3 节点：①hierarchical_context.extract_file_references+单测 ②orchestrator 注入+writing_agent 消费+derive 排除 ③web 验收+回归。G4a 同类本期不修（用户定，单列后续）。**节点1✅完成**（extract_file_references 列头映射+数据行识别，真实 documents/1 抠 5 行引用文件《导弹产品规范》等零零件名 + 5 单测 26 passed 0 failed），进节点2。
+- **在做（fileref-source-extract，PLAN 7e60096 seal）**：G5a 引(借)用文件目录从源 extract 直填，绕过 derive 串源。web 验收发现 G5a「文件名称」列填了零部组件名（六舱/尾焰挡板组件）而非引用文件。根因：G5a 无专门 extract → filled_data 空 → derive 从 G25a 倒推零件串源（exp-derive-strong-node 待办第3条）。方案A（用户定）：照 G22a source-driven 模式，extract_file_references 从 G5a 源 Markdown 抠 5 行直填 + LIST_CHAPTERS 删 G5a 不倒推。3 节点：①hierarchical_context.extract_file_references+单测 ②orchestrator 注入+writing_agent 消费+derive 排除 ③web 验收+回归。G4a 同类本期不修（用户定，单列后续）。**节点1✅完成**（extract_file_references 列头映射+数据行识别，真实 documents/1 抠 5 行引用文件《导弹产品规范》等零零件名 + 5 单测 26 passed 0 failed）。**节点2✅完成**（orchestrator G5a注入块照G22a+writing_agent G5a消费5列直填+ref_name移出unstructured+LIST_CHAPTERS删G5a不倒推 + G5a排除单测 derive_list_strong不调用；G5a全直填零LLM串源；全量685 passed 0 failed +6新测试0回归），进节点3 web验收。
 - **完成（fix-tool-registration，cleanup-docgen 延伸）**：工具注册隐患修复（查 document_generator 暴露）。根因：`app/tools/__init__.py` 定义 `discover_tools` 但**模块级从没调用**（只在 `get_tool_registry` 内，而它无人调）→ `ToolRegistry` 空（`list_tools()==[]`）→ 所有 agent 工具 `tool_not_found`（document_generator/compliance_checker/terminology_mapper/rag_retriever 全没注册；document_generator 是死代码已清，其余是真工具）。修：① `__init__.py` 末尾加 `discover_tools()`（import 时注册）② `proofread_agent` 去 `rag_retriever` 死声明（文件已删）+ 删 `use_tool` 死调用（retrieval_result 未消费）。验：`list_tools=['terminology_mapper','compliance_checker']`，生成 `0 tool_not_found`，compliance/terminology 注册，G18a catalog enrich 仍工作。**review compliance / proofread terminology 校对恢复**（之前静默 TOOL_NOT_FOUND 跳过）。
 - **完成（cleanup-docgen-deadcode, PLAN 00d9291 seal）**：清理 document_generator 死代码。死代码确认（5 证据）：没注册+generate_doc 全 False+process 唯一调用方 orchestrator:3702 死回退+被 _do_template_fill 取代+生产零调用。节点1✅ 删 document_tool.py/document_generator.py + writing_agent tools=[]/删 process use_tool 段 + __init__ 去引用 + protocols/registry docstring（2c36cd6）。节点2✅ test_tools/accuracy_tests 清理 + 全量 679 passed 0 failed + web G18a 回归正常（R6 KA6-0-KZD→六舱/R28→尾焰挡板组件 catalog enrich 仍工作）+ document_generator 0 残留（269e272）。**⚠ 新发现**：compliance_checker(4)/rag_retriever(2)/terminology_mapper(2) 也 tool_not_found（review/proofread 工具同根因 discover_tools 没注册），独立隐患待查。
 - **完成（g18a-g14a-name-fix, PLAN 6a94bea）**：G18a 配套表代号-名称错位+待补修复。根因=`_derive_strong_node`→`_merge_derived_rows`(orchestrator:984) 按**行索引** zip original(Phase3 structured 代号-名称配对正确) 与 derived(G25a 倒推行顺序不同)，part_name 错配 part_code（KA6-0-KZD 配"行程延时开关组合"实为六舱）；倒推也没有的→"待补"（KA6-20-KZD 待补但 material_catalog 有尾焰挡板组件）；全程不查 material_catalog。修复=G18a merged 后按 part_code exact 查 material_catalog.name 覆盖。节点1✅ `find_material_by_code` exact 查询+单测（4 passed + 真 DB 抽查 KA6-20-KZD→尾焰挡板组件 / KA6-0-KZD→六舱 / KA6-011-KZD→None 零误匹配）。节点2✅ `_enrich_names_from_catalog`+单测（13 passed：7 原有 + 6 新，覆盖错位覆盖/填待补/miss保留/跳过空code/db失败不raise）。节点3✅ G18a 分支接入(`_derive_strong_node` single_row_list 分支仅 `code=="G18a"` 调 enrich)+ 回归(22 passed)+ web 验收(G18a 代号-名称**全对齐**:KA6-0-KZD→六舱/AKJ02-1A→数据链射频前端 错位纠正，KA6-20-KZD→尾焰挡板组件/QJ2963.3-97→弹簧垫圈4/HB1-132-1995→十字槽螺钉M620/QJB108.2-2004→螺钉M410 10.9 待补填上；BODY 待补 56→34，剩余为 source/数量非名称列 + G14a 定额设计性)。**全 3 节点完成，web 验收达标**。**G14a 经诊断非 bug**（辅料 standard_code=None 无法 exact 查，待补是定额设计性），本期不修，范围收敛 G18a。Web 验收(2026-07-11)已确认 G25a 装配卡(5工序+5检验行/内容AVG187零臆造)+feedback UI 通过。

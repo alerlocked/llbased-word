@@ -890,6 +890,19 @@ class WritingAgent(BaseAgent):
                 # unstructured so the LLM doesn't fabricate 工业话术.
                 unstructured_cols = [c for c in unstructured_cols if c.key != "step_desc"]
 
+        # --- G5a: source-driven 引(借)用文件目录 (extract 直填, 不交 LLM) ---
+        _file_refs = task.get("file_references") or task.get("params", {}).get("file_references")
+        if chapter_code == "G5a" and _file_refs:
+            structured_values["seq"] = [str(r.get("seq", "")) for r in _file_refs]
+            structured_values["ref_code"] = [r.get("ref_code", "") for r in _file_refs]
+            structured_values["ref_name"] = [r.get("ref_name", "") for r in _file_refs]
+            structured_values["pages"] = [str(r.get("pages", "")) for r in _file_refs]
+            structured_values["remarks"] = [r.get("remarks", "") for r in _file_refs]
+            struct_row_count = len(_file_refs)
+            # ref_name direct-filled from source; drop it from unstructured so
+            # the LLM doesn't fabricate part names into the 文件名称 column.
+            unstructured_cols = [c for c in unstructured_cols if c.key != "ref_name"]
+
         if unstructured_cols:
             slot_desc = ", ".join(
                 f'"{c.key}"({c.label})' for c in unstructured_cols
