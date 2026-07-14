@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-12T18:17:39+08:00
-last_commit: 221af8a
+updated_at: 2026-07-14T23:43:25+08:00
+last_commit: ed9554f
 status: fileref-source-extract 完成（G5a 直填绕过 derive，web 验收达标，685 passed）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `221af8a` chore(devlog): fileref-source-extract done — G5a source-extract direct-fill, web 验收达标 685 passed (1 second ago)
-- `0bcd2d9` fix(generation): G5a direct-fill referenced files, exclude from derive (5 hours ago)
-- `7bff41a` feat(hierarchical_context): add extract_file_references for G5a source-fill (5 hours ago)
-- `7e60096` plan: fileref-source-extract seal (6 hours ago)
-- `5b5ae9a` chore(tests): drop document_tool import in accuracy_tests (follow-up 269e272) (19 hours ago)
-- `0b4ad84` fix(tools): register tools on import — discover_tools was never called (19 hours ago)
-- `8ec9f4a` chore(devlog): cleanup-docgen-deadcode done — 679 passed, 0 残留 (20 hours ago)
-- `269e272` chore(tests): drop document_tool tests after dead-code removal (20 hours ago)
-- `2c36cd6` refactor(tools): remove dead document_generator code (20 hours ago)
-- `00d9291` plan: cleanup-docgen-deadcode seal (20 hours ago)
+- `ed9554f` fix(pdf-queue): mark PROCESSING tasks FAILED on restart (0 seconds ago)
+- `221af8a` chore(devlog): fileref-source-extract done — G5a source-extract direct-fill, web 验收达标 685 passed (2 days ago)
+- `0bcd2d9` fix(generation): G5a direct-fill referenced files, exclude from derive (2 days ago)
+- `7bff41a` feat(hierarchical_context): add extract_file_references for G5a source-fill (2 days ago)
+- `7e60096` plan: fileref-source-extract seal (2 days ago)
+- `5b5ae9a` chore(tests): drop document_tool import in accuracy_tests (follow-up 269e272) (3 days ago)
+- `0b4ad84` fix(tools): register tools on import — discover_tools was never called (3 days ago)
+- `8ec9f4a` chore(devlog): cleanup-docgen-deadcode done — 679 passed, 0 残留 (3 days ago)
+- `269e272` chore(tests): drop document_tool tests after dead-code removal (3 days ago)
+- `2c36cd6` refactor(tools): remove dead document_generator code (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
