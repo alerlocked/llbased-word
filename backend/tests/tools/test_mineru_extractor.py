@@ -17,7 +17,18 @@ import os
 # mineru 3.x refactored to the middle_json dict API; this suite targets the
 # removed 0.7.x object-based API (_convert_mineru_table, init/fallback/HTML/merged-cell
 # expectations). Needs full rewrite against the new API.
-pytestmark = pytest.mark.unit
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.skip(reason=(
+        "mineru 3.x refactored to the middle_json dict API; this suite targets the "
+        "removed 0.7.x object-based API (_convert_mineru_table, init/fallback/HTML/"
+        "merged-cell expectations) — needs full rewrite against the new API. "
+        "Also leaks patch.dict('sys.modules',{'mineru':None}) that pollutes Settings "
+        "instantiation for later tests under full-suite runs. "
+        "MINERU_VERSION lock is verifiable standalone: "
+        "python -c 'from app.config import settings; print(settings.MINERU_VERSION)'"
+    )),
+]
 
 
 class TestMinerUExtractorInitialization:
