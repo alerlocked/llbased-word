@@ -629,6 +629,13 @@ class PDFQueueManager:
                         result=task_data.get('result')
                     )
 
+                    # Restart recovery: a PROCESSING task was interrupted (process killed mid-parse).
+                    # Mark FAILED so it won't sit as an orphan "processing" that misleads users into
+                    # re-uploading the same PDF -> duplicate material records.
+                    if task.status == PDFTaskStatus.PROCESSING:
+                        task.status = PDFTaskStatus.FAILED
+                        task.error_message = "进程重启中断，任务未完成（需重新解析）"
+                        logger.info("pdf_task_marked_failed_on_restart", task_id=task.task_id)
                     self._tasks[task.task_id] = task
                     self._file_hash_index[task.file_hash] = task.task_id
                     self._source_path_index[task.source_path] = task.task_id

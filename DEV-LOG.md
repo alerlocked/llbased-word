@@ -2,15 +2,15 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-12T18:17:38+08:00
-last_commit: cd61cd2
+updated_at: 2026-07-12T18:17:39+08:00
+last_commit: 221af8a
 status: fileref-source-extract 完成（G5a 直填绕过 derive，web 验收达标，685 passed）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `cd61cd2` chore(devlog): fileref-source-extract done — G5a source-extract direct-fill, web 验收达标 685 passed (0 seconds ago)
+- `221af8a` chore(devlog): fileref-source-extract done — G5a source-extract direct-fill, web 验收达标 685 passed (1 second ago)
 - `0bcd2d9` fix(generation): G5a direct-fill referenced files, exclude from derive (5 hours ago)
 - `7bff41a` feat(hierarchical_context): add extract_file_references for G5a source-fill (5 hours ago)
 - `7e60096` plan: fileref-source-extract seal (6 hours ago)
