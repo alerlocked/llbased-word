@@ -1254,6 +1254,8 @@ async def upload_document(
     """
     log_workflow("上传文档", "开始", {"project_id": project_id, "filename": file.filename, "relative_path": relative_path})
 
+    saved_file_path = None   # for atomic rollback on failure
+    created_task_id = None   # for atomic rollback on failure
     try:
         # 检查项目是否存在
         project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
@@ -1301,6 +1303,7 @@ async def upload_document(
             shutil.copyfileobj(file.file, buffer)
 
         logger.info(f"📄 文件已保存: {file_path}")
+        saved_file_path = file_path
 
         # 创建素材记录（Material 没有 project_id 字段，通过 CreationProject.material_ids 关联）
         # LLM 推断型号/专业（cleanup-and-dimensions 节点3），用户可在前端确认/改
@@ -1337,6 +1340,7 @@ async def upload_document(
         )
 
         if task_id:
+            created_task_id = task_id
             logger.info(f"✅ 文件已加入解析队列: task_id={task_id}, file={file.filename}")
 
             return {
@@ -1363,6 +1367,23 @@ async def upload_document(
         raise
     except Exception as e:
         db.rollback()
+        # Atomic rollback: remove orphan DB material + queue task + uploaded file so no garbage remains
+        try:
+            if material is not None:
+                db.delete(material)
+                db.commit()
+        except Exception:
+            pass
+        if created_task_id:
+            try:
+                get_pdf_queue_manager().remove_task(created_task_id)
+            except Exception as cleanup_err:
+                logger.warning(f"rollback remove_task failed: {cleanup_err}")
+        if saved_file_path:
+            try:
+                Path(saved_file_path).unlink(missing_ok=True)
+            except Exception as cleanup_err:
+                logger.warning(f"rollback file unlink failed: {cleanup_err}")
         logger.error(f"❌ 上传文档失败: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -2166,6 +2187,7 @@ async def batch_upload_materials(
         uploaded_files = []
         failed_count = 0
         skipped_files = []
+        task_ids = []  # for atomic rollback
 
         for idx, file in enumerate(files):
             try:
@@ -2297,6 +2319,23 @@ async def batch_upload_materials(
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
+        # Atomic rollback: remove queued tasks (+ their source files) so no garbage remains
+        try:
+            manager = get_pdf_queue_manager()
+            for tid in task_ids:
+                t = manager.get_task(tid)
+                if t:
+                    try:
+                        Path(t.source_path).unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                try:
+                    manager.remove_task(tid)
+                except Exception:
+                    pass
+        except Exception as cleanup_err:
+            logger.warning(f"batch upload rollback failed: {cleanup_err}")
         logger.error(f"❌ 批量上传失败: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

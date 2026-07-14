@@ -387,6 +387,23 @@ class PDFQueueManager:
         self._save_state()
         return True
 
+    def remove_task(self, task_id: str) -> bool:
+        """Remove a task record entirely (rollback use — no orphan/garbage left).
+
+        Unlike cancel_task (marks CANCELLED, record stays), this deletes the task
+        from memory + state.json. Used when upload fails and the just-created task
+        must be cleaned up so no orphan record remains.
+        """
+        task = self._tasks.pop(task_id, None)
+        if not task:
+            return False
+        self._file_hash_index.pop(task.file_hash, None)
+        self._source_path_index.pop(task.source_path, None)
+        self._processing.pop(task_id, None)
+        self._save_state()
+        logger.info("pdf_task_removed", task_id=task_id)
+        return True
+
     def update_progress(self, task_id: str, progress: int, message: str = ""):
         """Update task progress (0-100) with optional message."""
         task = self._tasks.get(task_id)
