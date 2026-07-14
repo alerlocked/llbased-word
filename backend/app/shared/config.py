@@ -141,7 +141,7 @@ def _get_mineru_config() -> dict:
         "timeout_seconds": 600,
         "parse_method": "auto",
         "table_model": "rapid_table",
-        "version": "0.7.6",
+        "version": "3.4.0",
     }
 
 MINERU_VLM_CONFIG = _get_mineru_config()

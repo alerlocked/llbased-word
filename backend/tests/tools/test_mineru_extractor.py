@@ -441,8 +441,8 @@ class TestMinerUVersionLock:
         try:
             from app.config import settings
 
-            # 配置中的版本应该是0.7.6
-            assert settings.MINERU_VERSION == "0.7.6"
+            # 配置中的版本应该是3.4.0
+            assert settings.MINERU_VERSION == "3.4.0"
 
         except ImportError:
             pytest.skip("Settings module not available")

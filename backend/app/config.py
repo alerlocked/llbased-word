@@ -136,7 +136,7 @@ class Settings(BaseSettings):
 
     # ============ MinerU 配置 (集中管理) ============
     # 版本锁定 - 确保API稳定性
-    MINERU_VERSION: str = "0.7.6"
+    MINERU_VERSION: str = "3.4.0"
 
     # 后端选择: transformers / vllm-engine / vllm-async-engine / lmdeploy-engine / mlx-engine / http-client
     # Platform limits (mineru 3.1.11 extras): vllm-* is Linux-only (mineru[vllm]);

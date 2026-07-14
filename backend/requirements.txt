@@ -43,7 +43,7 @@ docx2pdf==0.1.8  # Word转PDF
 # CPU环境: pip install mineru
 # GPU环境(含VLM): pip install mineru[all]
 # 模型下载: 设置 MINERU_MODEL_SOURCE=modelscope 使用国内镜像
-mineru>=3.0.0
+mineru>=3.4.0
 
 # 数据处理
 pandas==2.0.0  # DataFrame操作和CSV导出

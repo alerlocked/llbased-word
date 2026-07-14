@@ -15,7 +15,7 @@
 | 前端 | React 18 + TypeScript + Vite + Ant Design 5 + Tiptap 2 |
 | 后端 | Python 3.13 + FastAPI + SQLAlchemy 2.0 + SQLite |
 | AI | LangChain + GLM-5 |
-| PDF | MinerU 0.7.6 (VLM 高精度解析) |
+| PDF | MinerU 3.4 (VLM 高精度解析) |
 | 检索 | HierarchicalContext（关键词 + 章节结构，source-driven 直注）+ Material model/specialty 维度穿透 |
 
 ## 本地运行
