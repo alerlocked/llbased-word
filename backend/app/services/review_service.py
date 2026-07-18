@@ -144,6 +144,11 @@ class ReviewService:
         if profile:
             self._check_principles(content, profile, result)
             self._check_knowledge_data(content, profile, result)
+            # Mandatory quantitative params via LLM (N3). skip_standard_check
+            # is reused as the "skip LLM check" switch — no new param added.
+            await self._check_mandatory_params(
+                content, profile, result, skip_llm=skip_standard_check
+            )
             self._check_preferences(content, profile, result)
             # Graph-based structural checks removed (KnowledgeGraph deleted in cleanup)
 
@@ -329,6 +334,162 @@ class ReviewService:
                 # Check if any value for this attribute is mentioned
                 # but doesn't match the expected one
                 # (This needs LLM for proper implementation)
+
+    # ========================================
+    # Mandatory quantitative params (N3, LLM-driven)
+    # ========================================
+
+    async def _check_mandatory_params(
+        self,
+        content: str,
+        profile: Profile,
+        result: ReviewResult,
+        skip_llm: bool = False,
+    ):
+        """Check whether the content supplies every REQUIRED quantitative param
+        for each profile knowledge entity that the content mentions.
+
+        Fail-soft: any LLM failure (no key / non-success / bad JSON / exception)
+        leaves an INFO trace and does NOT block review — i.e. behaves like the
+        feature not being installed. The caller's `skip_llm` (reused
+        `skip_standard_check`) short-circuits without touching the LLM.
+        """
+        if skip_llm:
+            return
+
+        for entry_dict in profile.knowledge:
+            try:
+                cg = ConditionGroup.from_dict(entry_dict)
+            except Exception as e:
+                logger.warning("mandatory_param_entry_parse_failed", error=str(e))
+                continue
+
+            # Reuse the entity-hit pattern from _check_knowledge_data
+            if cg.entity not in content:
+                continue
+
+            required = [
+                k for k, v in cg.attributes.items()
+                if str(v).startswith("REQUIRED")
+            ]
+            if not required:
+                continue
+
+            await self._llm_check_entity_params(content, cg, required, result)
+
+    async def _llm_check_entity_params(
+        self,
+        content: str,
+        cg: ConditionGroup,
+        required: List[str],
+        result: ReviewResult,
+    ):
+        """Call LLM to judge which required params are missing for one entity.
+
+        Fail-soft on every error path — see _check_mandatory_params docstring.
+        """
+        # Local import avoids a module-load circular dependency
+        from app.services.llm_service import llm_service
+
+        entity = cg.entity
+        params_list = "、".join(required)
+        # Truncate to keep prompt cheap and within context budget
+        snippet = content[:1500]
+
+        prompt = (
+            "你是工艺文件审校员。判断给定工序内容是否提供了全部必填量化参数的具体数值或范围。\n"
+            f"工序：{entity}\n"
+            f"必填参数清单：{params_list}\n"
+            "判定规则：参数在内容中出现确定数值或区间（如Φ2mm、120A、8～10L/min、15min-20min）"
+            "即视为已提供；仅出现参数名而无量值、或完全未提及视为缺失。\n"
+            f"待查内容：\n{snippet}\n"
+            '示例输出（参数齐全）：{"missing": [], "reason": "三项参数均已给出量值"}\n'
+            '示例输出（有缺失）：{"missing": ["焊接电流"], "reason": "仅给钨极直径与气流量，未给电流值"}\n'
+            '只输出JSON，不要多余文字。'
+        )
+
+        try:
+            result_llm = await llm_service.generate_with_messages(
+                messages=[{"role": "user", "content": prompt}],
+                tier="simple", temperature=0.1, max_tokens=300,
+            )
+            if result_llm.get("status") != "success":
+                result.add_issue(Issue(
+                    severity=Severity.INFO.value,
+                    type="mandatory_param_check_skipped",
+                    field=entity,
+                    message=f"必填参数LLM校验跳过: {entity}",
+                ))
+                logger.warning(
+                    "mandatory_param_llm_non_success",
+                    entity=entity, status=result_llm.get("status"),
+                )
+                return
+
+            raw = result_llm.get("content", "").strip()
+            missing = self._parse_missing_params(raw)
+            if missing is None:
+                # JSON unparseable → fail-soft
+                result.add_issue(Issue(
+                    severity=Severity.INFO.value,
+                    type="mandatory_param_check_skipped",
+                    field=entity,
+                    message=f"必填参数LLM校验跳过: {entity}",
+                ))
+                logger.warning(
+                    "mandatory_param_json_parse_failed",
+                    entity=entity, raw=raw[:200],
+                )
+                return
+
+            for param in missing:
+                result.add_issue(Issue(
+                    severity=Severity.ERROR.value,
+                    type="missing_mandatory_param",
+                    field=entity,
+                    message=f"工序「{entity}」缺失必填参数: {param}",
+                    hint="按实施细则补充量化值",
+                    fix_hint=str(cg.attributes.get(param, "")),
+                    principle_id=None,
+                ))
+        except Exception as e:
+            # Last-resort fail-soft: never let LLM plumbing break review
+            result.add_issue(Issue(
+                severity=Severity.INFO.value,
+                type="mandatory_param_check_skipped",
+                field=entity,
+                message=f"必填参数LLM校验跳过: {entity}",
+            ))
+            logger.warning(
+                "mandatory_param_check_failed", entity=entity, error=str(e),
+            )
+
+    @staticmethod
+    def _parse_missing_params(raw: str) -> Optional[List[str]]:
+        """Extract the 'missing' array from an LLM JSON response.
+
+        Tolerates surrounding prose / fenced code blocks. Returns None if no
+        valid JSON object can be recovered (signals fail-soft upstream).
+        """
+        if not raw:
+            return None
+        candidate = raw
+        # Strip ```json ... ``` fences if present
+        fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+        if fence:
+            candidate = fence.group(1)
+        else:
+            obj = re.search(r"\{.*\}", raw, re.DOTALL)
+            if obj:
+                candidate = obj.group(0)
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            return None
+        missing = data.get("missing") if isinstance(data, dict) else None
+        if not isinstance(missing, list):
+            return None
+        return [str(m).strip() for m in missing if str(m).strip()]
 
     # ========================================
     # Preference alignment
