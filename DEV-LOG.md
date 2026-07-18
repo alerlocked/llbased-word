@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-15T00:19:22+08:00
-last_commit: 53ac3a3
+updated_at: 2026-07-15T21:19:05+08:00
+last_commit: 93782a9
 status: fileref-source-extract 完成（G5a 直填绕过 derive，web 验收达标，685 passed）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `53ac3a3` chore(mineru): bump version lock 0.7.6 -> 3.4.0 (align server VLM 2605) (0 seconds ago)
-- `77d0412` fix(upload): atomic material upload — rollback orphan file/task/material on failure (8 minutes ago)
-- `4ae3869` plan: upload-atomic seal — material upload rollback no orphan (14 minutes ago)
-- `ed9554f` fix(pdf-queue): mark PROCESSING tasks FAILED on restart (36 minutes ago)
-- `221af8a` chore(devlog): fileref-source-extract done — G5a source-extract direct-fill, web 验收达标 685 passed (2 days ago)
-- `0bcd2d9` fix(generation): G5a direct-fill referenced files, exclude from derive (2 days ago)
-- `7bff41a` feat(hierarchical_context): add extract_file_references for G5a source-fill (2 days ago)
+- `93782a9` docs: thin-pointer README (cure doc-rot, single source of truth) (0 seconds ago)
+- `b4d7e98` test(mineru): skip obsolete 0.7.x API suite (0 fail) (21 hours ago)
+- `53ac3a3` chore(mineru): bump version lock 0.7.6 -> 3.4.0 (align server VLM 2605) (21 hours ago)
+- `77d0412` fix(upload): atomic material upload — rollback orphan file/task/material on failure (21 hours ago)
+- `4ae3869` plan: upload-atomic seal — material upload rollback no orphan (21 hours ago)
+- `ed9554f` fix(pdf-queue): mark PROCESSING tasks FAILED on restart (22 hours ago)
+- `221af8a` chore(devlog): fileref-source-extract done — G5a source-extract direct-fill, web 验收达标 685 passed (3 days ago)
+- `0bcd2d9` fix(generation): G5a direct-fill referenced files, exclude from derive (3 days ago)
+- `7bff41a` feat(hierarchical_context): add extract_file_references for G5a source-fill (3 days ago)
 - `7e60096` plan: fileref-source-extract seal (3 days ago)
-- `5b5ae9a` chore(tests): drop document_tool import in accuracy_tests (follow-up 269e272) (3 days ago)
-- `0b4ad84` fix(tools): register tools on import — discover_tools was never called (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
