@@ -3423,7 +3423,8 @@ class ProcessOrchestrator:
         content: str,
         check_type: str = "all",
         standards: Optional[List[str]] = None,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
+        domain: str = "assembly"
     ) -> Dict[str, Any]:
         """
         仅执行审查（独立调用审查Agent）
@@ -3433,6 +3434,7 @@ class ProcessOrchestrator:
             check_type: 检查类型 (compliance/rationality/risk/all)
             standards: 要检查的标准列表
             context: 执行上下文
+            domain: 领域 profile 名，用于加载 specialty-rules（N2 敏感词 + N3 必填参数）
 
         Returns:
             审查结果
@@ -3446,6 +3448,16 @@ class ProcessOrchestrator:
             "check_type": check_type,
             "standards": standards or ["enterprise", "safety"],
         }
+        # Load domain profile so ReviewService (N2 sensitive + N3 mandatory) kicks in
+        try:
+            from app.models.profile import Profile
+            from app.config import settings
+            from pathlib import Path
+            profile_path = Path(settings.DATA_DIR) / "profiles" / f"{domain}.json"
+            if profile_path.exists():
+                task["profile"] = Profile.from_json(profile_path).to_dict()
+        except Exception as e:
+            logger.warning(f"review_only profile_load_failed domain={domain}: {e}")
 
         result = await agent.process(task, context)
         logger.info("review_only_completed", check_type=check_type)

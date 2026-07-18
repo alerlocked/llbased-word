@@ -443,6 +443,7 @@ class ReviewRequest(BaseModel):
     content: str = Field(..., description="待审查内容")
     check_type: str = Field(default="all", description="检查类型")
     standards: str = Field(default="enterprise,safety", description="审查标准")
+    domain: str = Field(default="assembly", description="领域 profile 名，用于 specialty-rules 校验")
 
 
 class AgentResultResponse(BaseModel):
@@ -582,6 +583,7 @@ async def review_content(
             content=request.content,
             check_type=request.check_type,
             standards=standards_list,
+            domain=request.domain,
         )
 
         logger.info(

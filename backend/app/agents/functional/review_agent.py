@@ -158,6 +158,7 @@ class ReviewAgent(BaseAgent):
                         "success": True,
                         "results": {"principles": review_result.to_dict()},
                         "passed": review_result.passed,
+                        "issues": [i.to_dict() for i in review_result.issues],
                         "warnings": [i.message for i in review_result.issues if i.severity == "warning"],
                         "recommendations": [s.get("message", "") for s in review_result.suggestions],
                     }
