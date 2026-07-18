@@ -10,11 +10,42 @@ from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import re
+import json
 import logging
 
 from app.models.profile import Profile, ConditionGroup
+from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Module-level cache for sensitive words (fail-soft: None = not loaded yet)
+_sensitive_words_cache: Optional[List[Dict[str, Any]]] = None
+
+
+def _load_sensitive_words() -> List[Dict[str, Any]]:
+    """Load sensitive-word table from DATA_DIR/compliance/sensitive_words.json (cached).
+
+    Fail-soft: file missing / bad JSON → log warning + return [].
+    """
+    global _sensitive_words_cache
+    if _sensitive_words_cache is not None:
+        return _sensitive_words_cache
+
+    path = settings.DATA_DIR / "compliance" / "sensitive_words.json"
+    try:
+        if not path.exists():
+            logger.warning("sensitive_words_file_not_found", path=str(path))
+            _sensitive_words_cache = []
+            return _sensitive_words_cache
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        words = data.get("words", []) if isinstance(data, dict) else []
+        _sensitive_words_cache = words if isinstance(words, list) else []
+        logger.info("sensitive_words_loaded", count=len(_sensitive_words_cache))
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("sensitive_words_load_failed", path=str(path), error=str(e))
+        _sensitive_words_cache = []
+    return _sensitive_words_cache
 
 
 class Severity(str, Enum):
@@ -105,6 +136,10 @@ class ReviewService:
         # 1. Hard-coded universal checks (always run)
         self._check_universal(content, result)
 
+        # 1b. Sensitive / vague quantifier checks (profile-independent, runs always)
+        # TODO: scope is all "通用" for now; filter by domain once scopes diversify.
+        self._check_sensitive_words(content, result)
+
         # 2. Profile-based principle checks
         if profile:
             self._check_principles(content, profile, result)
@@ -149,6 +184,38 @@ class ReviewService:
                     field=None,
                     message=f"存在模糊描述: {word}",
                     fix_hint=f"将 '{word}' 替换为具体数值",
+                ))
+
+    def _check_sensitive_words(self, content: str, result: ReviewResult):
+        """Detect sensitive / vague quantifiers from sensitive_words.json.
+
+        Match priority: word (full) first, then aliases with length >= 3.
+        Short aliases (< 3 chars, e.g. "也可") are skipped to avoid false
+        positives on normal sentences.
+        """
+        words = _load_sensitive_words()
+        if not words:
+            return
+        for entry in words:
+            word = entry.get("word", "")
+            standard_example = entry.get("standard_example", "")
+            matched = False
+            if word and word in content:
+                matched = True
+            if not matched:
+                for alias in entry.get("aliases", []) or []:
+                    if len(alias) >= 3 and alias in content:
+                        matched = True
+                        break
+            if matched:
+                result.add_issue(Issue(
+                    severity=Severity.WARNING.value,
+                    type="sensitive_word",
+                    field=None,
+                    message=f"存在敏感词/模糊量词: {word}",
+                    hint="建议替换为量化表述",
+                    fix_hint=standard_example,
+                    principle_id=None,
                 ))
 
     # ========================================
