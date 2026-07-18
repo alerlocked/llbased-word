@@ -40,6 +40,13 @@ def assembly_profile():
     )
 
 
+@pytest.fixture
+def welding_profile():
+    """加载 N1 生成的焊接画像（backend/data/profiles/welding.json）"""
+    profile_path = Path(__file__).parent.parent / "data" / "profiles" / "welding.json"
+    return Profile.from_json(profile_path)
+
+
 class TestL1UniversalCheck:
     """测试 L1 通用红线检查"""
     
@@ -218,3 +225,99 @@ class TestIssueModel:
 
 # NOTE: TestSuggestionModel removed — Suggestion class no longer exists
 # in review_service (refactored to Issue-based API)
+
+
+class TestImplRules:
+    """测试实施细则规则（敏感词 N2 + 必填参数 N3）"""
+
+    async def test_sensitive_word_detected(self, review_service):
+        """敏感词命中：不传 profile，_check_sensitive_words 无条件跑"""
+        content = "XX安装前需在XX内涂适量润滑油"
+
+        result = await review_service.review(
+            content, domain="assembly", skip_standard_check=True
+        )
+
+        # sensitive_words.json 含 word=适量 → 命中 sensitive_word
+        sensitive = [i for i in result.issues if i.type == "sensitive_word"]
+        assert len(sensitive) >= 1
+        assert sensitive[0].severity == Severity.WARNING.value
+
+    async def test_sensitive_word_fix_hint_has_standard(self, review_service):
+        """命中敏感词的 issue.fix_hint 非空（含 standard_example 原文）"""
+        content = "XX安装前需在XX内涂适量润滑油"
+
+        result = await review_service.review(
+            content, domain="assembly", skip_standard_check=True
+        )
+
+        sensitive = [i for i in result.issues if i.type == "sensitive_word"]
+        assert len(sensitive) >= 1
+        # standard_example 来自 sensitive_words.json 的 "适量" 条目
+        assert sensitive[0].fix_hint
+        assert "航空润滑油" in sensitive[0].fix_hint
+
+    async def test_normal_word_not_flagged(self, review_service):
+        """正常工序内容不含敏感词：拧紧/预紧力 均不在词表"""
+        content = "拧紧螺钉，预紧力1N·m"
+
+        result = await review_service.review(
+            content, domain="assembly", skip_standard_check=True
+        )
+
+        sensitive = [i for i in result.issues if i.type == "sensitive_word"]
+        assert sensitive == []
+
+    async def test_mandatory_param_skipped_when_skip_llm(
+        self, review_service, welding_profile
+    ):
+        """skip_standard_check=True → 跳过 LLM，不报 missing_mandatory_param"""
+        # 缺焊接电流的 TIG 工序（钨极/气流量给了，电流没给）
+        content = "TIG焊接：钨极直径Φ2mm，氩气流量8L/min，注意操作安全防护。"
+
+        result = await review_service.review(
+            content, profile=welding_profile, domain="welding",
+            skip_standard_check=True,
+        )
+
+        mandatory = [
+            i for i in result.issues if i.type == "missing_mandatory_param"
+        ]
+        assert mandatory == []
+
+    @pytest.mark.skip(
+        reason="real LLM required; run manually with API key configured"
+    )
+    async def test_mandatory_param_missing_real_llm(
+        self, review_service, welding_profile
+    ):
+        """真实 LLM：缺焊接电流的 TIG 工序应报 missing_mandatory_param"""
+        content = "TIG焊接：钨极直径Φ2mm，氩气流量8L/min，注意操作安全防护。"
+
+        result = await review_service.review(
+            content, profile=welding_profile, domain="welding",
+        )
+
+        mandatory = [
+            i for i in result.issues if i.type == "missing_mandatory_param"
+        ]
+        assert len(mandatory) >= 1
+        assert any("焊接电流" in i.message for i in mandatory)
+
+    @pytest.mark.skip(
+        reason="real LLM required; run manually with API key configured"
+    )
+    async def test_mandatory_param_present_no_false_alarm(
+        self, review_service, welding_profile
+    ):
+        """真实 LLM：参数齐全不应误报 missing_mandatory_param"""
+        content = "TIG焊接：钨极直径Φ2mm，焊接电流120A，氩气流量8L/min。"
+
+        result = await review_service.review(
+            content, profile=welding_profile, domain="welding",
+        )
+
+        mandatory = [
+            i for i in result.issues if i.type == "missing_mandatory_param"
+        ]
+        assert mandatory == []
