@@ -1,0 +1,99 @@
+{
+  "id": "default_coating",
+  "user_id": "default",
+  "domain": "coating",
+  "writing": {
+    "tone": "技术文档",
+    "terminology": "standard",
+    "detail_level": "详细"
+  },
+  "review": {
+    "check_completeness": true,
+    "check_accuracy": true,
+    "allowed_deviation": 0.1
+  },
+  "knowledge": [
+    {
+      "id": "2fffb641",
+      "entity": "喷涂",
+      "conditions": {
+        "专业": "涂装"
+      },
+      "attributes": {
+        "环境温度": "REQUIRED(12~30°C)",
+        "环境湿度": "REQUIRED(≤75%)"
+      },
+      "source": "工艺规程细化量化通用实施细则-附录A/表3",
+      "created_at": "2026-07-18T20:56:43.483287",
+      "updated_at": "2026-07-18T20:56:52.803060"
+    },
+    {
+      "id": "3d4cc0ca",
+      "entity": "固化",
+      "conditions": {
+        "专业": "涂装"
+      },
+      "attributes": {
+        "固化温度": "REQUIRED(室温或60~80°C)",
+        "固化时间": "REQUIRED(≥24h或1~2h)"
+      },
+      "source": "工艺规程细化量化通用实施细则-附录A/表3",
+      "created_at": "2026-07-18T20:56:43.483287",
+      "updated_at": "2026-07-18T20:56:52.803060"
+    }
+  ],
+  "principles": [
+    {
+      "id": "eb6f88e4",
+      "dimension": "text_compliance",
+      "name": "量化控制禁不确定词",
+      "description": "工艺规程量化控制项禁止使用‘大致/可能/大概/是否’等不确定表述，必须给出确定数值或范围。",
+      "check_expression": "检查量化控制段落是否含不确定词(大致/可能/大概/是否)，命中即不合规。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-表1~表9/附录B"
+    },
+    {
+      "id": "3e09966b",
+      "dimension": "terminology",
+      "name": "禁模糊量词",
+      "description": "禁止使用少量/少许/适量/适当/尽量/左右/大约/大部分等模糊量词，须以确定量值或可验证状态替代。",
+      "check_expression": "全文检索模糊量词列表(见 compliance/sensitive_words.json)，命中须有量化替代。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-附录B-表B.1"
+    },
+    {
+      "id": "145812eb",
+      "dimension": "data_validity",
+      "name": "时间量须给区间",
+      "description": "涉及时间的工序须给出确定区间而非‘一段时间后/XXmin以上’，如‘10min’或‘15min-20min’。",
+      "check_expression": "检查时间表述是否含‘一段时间’‘以上’而无上限，命中即不合规。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-附录B-表B.1"
+    },
+    {
+      "id": "156d6bbe",
+      "dimension": "data_validity",
+      "name": "喷涂温湿度须量化",
+      "description": "喷涂须明确环境温度、湿度要求，必要时应明确涂层厚度；如温度12~30°C、湿度≤75%。",
+      "check_expression": "识别喷涂段落，验证环境温度与湿度是否均为确定数值/范围。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-表3"
+    },
+    {
+      "id": "820ed5a2",
+      "dimension": "data_validity",
+      "name": "固化温时间须量化",
+      "description": "喷涂后须明确涂料固化温度与固化时间，如室温干燥≥24h或60~80°C干燥1~2h。",
+      "check_expression": "识别固化段落，验证固化温度与固化时间是否均为确定数值。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-表3"
+    }
+  ],
+  "preferences_list": [],
+  "frequent_terms": {},
+  "ai_generated_summary": "",
+  "source_document_ids": [],
+  "triples": [],
+  "preferences": {},
+  "graph": {}
+}

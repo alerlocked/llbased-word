@@ -2,28 +2,30 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-15T21:19:05+08:00
-last_commit: 93782a9
-status: fileref-source-extract 完成（G5a 直填绕过 derive，web 验收达标，685 passed）
-task_state: done
+updated_at: 2026-07-18T20:51:19+08:00
+last_commit: 6865d09
+status: specialty-rules 开跑（实施细则固化到画像+review，3专业+分层混合，PLAN 6865d09 seal）
+task_state: running
+task_slug: specialty-rules
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `93782a9` docs: thin-pointer README (cure doc-rot, single source of truth) (0 seconds ago)
-- `b4d7e98` test(mineru): skip obsolete 0.7.x API suite (0 fail) (21 hours ago)
-- `53ac3a3` chore(mineru): bump version lock 0.7.6 -> 3.4.0 (align server VLM 2605) (21 hours ago)
-- `77d0412` fix(upload): atomic material upload — rollback orphan file/task/material on failure (21 hours ago)
-- `4ae3869` plan: upload-atomic seal — material upload rollback no orphan (21 hours ago)
-- `ed9554f` fix(pdf-queue): mark PROCESSING tasks FAILED on restart (22 hours ago)
-- `221af8a` chore(devlog): fileref-source-extract done — G5a source-extract direct-fill, web 验收达标 685 passed (3 days ago)
-- `0bcd2d9` fix(generation): G5a direct-fill referenced files, exclude from derive (3 days ago)
-- `7bff41a` feat(hierarchical_context): add extract_file_references for G5a source-fill (3 days ago)
-- `7e60096` plan: fileref-source-extract seal (3 days ago)
+- `6865d09` plan(specialty-rules): seal — implementation rules into profile + review (0 seconds ago)
+- `93782a9` docs: thin-pointer README (cure doc-rot, single source of truth) (3 days ago)
+- `b4d7e98` test(mineru): skip obsolete 0.7.x API suite (0 fail) (4 days ago)
+- `53ac3a3` chore(mineru): bump version lock 0.7.6 -> 3.4.0 (align server VLM 2605) (4 days ago)
+- `77d0412` fix(upload): atomic material upload — rollback orphan file/task/material on failure (4 days ago)
+- `4ae3869` plan: upload-atomic seal — material upload rollback no orphan (4 days ago)
+- `ed9554f` fix(pdf-queue): mark PROCESSING tasks FAILED on restart (4 days ago)
+- `221af8a` chore(devlog): fileref-source-extract done — G5a source-extract direct-fill, web 验收达标 685 passed (6 days ago)
+- `0bcd2d9` fix(generation): G5a direct-fill referenced files, exclude from derive (6 days ago)
+- `7bff41a` feat(hierarchical_context): add extract_file_references for G5a source-fill (6 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
-- **在做（fileref-source-extract，PLAN 7e60096 seal）**：G5a 引(借)用文件目录从源 extract 直填，绕过 derive 串源。web 验收发现 G5a「文件名称」列填了零部组件名（六舱/尾焰挡板组件）而非引用文件。根因：G5a 无专门 extract → filled_data 空 → derive 从 G25a 倒推零件串源（exp-derive-strong-node 待办第3条）。方案A（用户定）：照 G22a source-driven 模式，extract_file_references 从 G5a 源 Markdown 抠 5 行直填 + LIST_CHAPTERS 删 G5a 不倒推。3 节点：①hierarchical_context.extract_file_references+单测 ②orchestrator 注入+writing_agent 消费+derive 排除 ③web 验收+回归。G4a 同类本期不修（用户定，单列后续）。**节点1✅完成**（extract_file_references 列头映射+数据行识别，真实 documents/1 抠 5 行引用文件《导弹产品规范》等零零件名 + 5 单测 26 passed 0 failed）。**节点2✅完成**（orchestrator G5a注入块照G22a+writing_agent G5a消费5列直填+ref_name移出unstructured+LIST_CHAPTERS删G5a不倒推 + G5a排除单测 derive_list_strong不调用；G5a全直填零LLM串源；全量685 passed 0 failed +6新测试0回归）。**节点3✅完成**（web 验收达标：用户前端生成确认 G5a「文件名称」列填引用文件、无零件名；.test-runs 产物缺口用户接受不补）。**全流程完成，task_state: done。**
+- **在做（specialty-rules，PLAN 6865d09 seal）**：实施细则固化到画像+review。ALIGN定：3专业(装配/焊接/涂装)先做+分层混合review(①敏感词规则②必填参数LLM校验③模板注入生成)+仅主仓。review与画像关系已理清(review用画像principles规则匹配无LLM，_check_standards被v1-cleanup砍，review_service:215注释skip until LLM)。5节点 N1 seed(必填参数ConditionGroup+模板principle+敏感词JSON+新建welding/coating.json)→N2敏感词规则→N3必填参数LLM校验→N4生成注入验证→N5测试。**N1✅完成**（sensitive_words.json 16纯模糊词[排除拧紧/稍紧/较轻走必填参数]+seed_impl_rules.py[settings.DATA_DIR定位+复用add_knowledge/add_principle幂等]+welding/coating.json新建+assembly追加knowledge0→4/principles5→11且legacy triples/graph完好;seed/from_json/幂等3验证过）。**N2进行中**。
+- **完成（fileref-source-extract，PLAN 7e60096 seal）**：G5a 引(借)用文件目录从源 extract 直填，绕过 derive 串源。web 验收发现 G5a「文件名称」列填了零部组件名（六舱/尾焰挡板组件）而非引用文件。根因：G5a 无专门 extract → filled_data 空 → derive 从 G25a 倒推零件串源（exp-derive-strong-node 待办第3条）。方案A（用户定）：照 G22a source-driven 模式，extract_file_references 从 G5a 源 Markdown 抠 5 行直填 + LIST_CHAPTERS 删 G5a 不倒推。3 节点：①hierarchical_context.extract_file_references+单测 ②orchestrator 注入+writing_agent 消费+derive 排除 ③web 验收+回归。G4a 同类本期不修（用户定，单列后续）。**节点1✅完成**（extract_file_references 列头映射+数据行识别，真实 documents/1 抠 5 行引用文件《导弹产品规范》等零零件名 + 5 单测 26 passed 0 failed）。**节点2✅完成**（orchestrator G5a注入块照G22a+writing_agent G5a消费5列直填+ref_name移出unstructured+LIST_CHAPTERS删G5a不倒推 + G5a排除单测 derive_list_strong不调用；G5a全直填零LLM串源；全量685 passed 0 failed +6新测试0回归）。**节点3✅完成**（web 验收达标：用户前端生成确认 G5a「文件名称」列填引用文件、无零件名；.test-runs 产物缺口用户接受不补）。**全流程完成，task_state: done。**
 - **完成（fix-tool-registration，cleanup-docgen 延伸）**：工具注册隐患修复（查 document_generator 暴露）。根因：`app/tools/__init__.py` 定义 `discover_tools` 但**模块级从没调用**（只在 `get_tool_registry` 内，而它无人调）→ `ToolRegistry` 空（`list_tools()==[]`）→ 所有 agent 工具 `tool_not_found`（document_generator/compliance_checker/terminology_mapper/rag_retriever 全没注册；document_generator 是死代码已清，其余是真工具）。修：① `__init__.py` 末尾加 `discover_tools()`（import 时注册）② `proofread_agent` 去 `rag_retriever` 死声明（文件已删）+ 删 `use_tool` 死调用（retrieval_result 未消费）。验：`list_tools=['terminology_mapper','compliance_checker']`，生成 `0 tool_not_found`，compliance/terminology 注册，G18a catalog enrich 仍工作。**review compliance / proofread terminology 校对恢复**（之前静默 TOOL_NOT_FOUND 跳过）。
 - **完成（cleanup-docgen-deadcode, PLAN 00d9291 seal）**：清理 document_generator 死代码。死代码确认（5 证据）：没注册+generate_doc 全 False+process 唯一调用方 orchestrator:3702 死回退+被 _do_template_fill 取代+生产零调用。节点1✅ 删 document_tool.py/document_generator.py + writing_agent tools=[]/删 process use_tool 段 + __init__ 去引用 + protocols/registry docstring（2c36cd6）。节点2✅ test_tools/accuracy_tests 清理 + 全量 679 passed 0 failed + web G18a 回归正常（R6 KA6-0-KZD→六舱/R28→尾焰挡板组件 catalog enrich 仍工作）+ document_generator 0 残留（269e272）。**⚠ 新发现**：compliance_checker(4)/rag_retriever(2)/terminology_mapper(2) 也 tool_not_found（review/proofread 工具同根因 discover_tools 没注册），独立隐患待查。
 - **完成（g18a-g14a-name-fix, PLAN 6a94bea）**：G18a 配套表代号-名称错位+待补修复。根因=`_derive_strong_node`→`_merge_derived_rows`(orchestrator:984) 按**行索引** zip original(Phase3 structured 代号-名称配对正确) 与 derived(G25a 倒推行顺序不同)，part_name 错配 part_code（KA6-0-KZD 配"行程延时开关组合"实为六舱）；倒推也没有的→"待补"（KA6-20-KZD 待补但 material_catalog 有尾焰挡板组件）；全程不查 material_catalog。修复=G18a merged 后按 part_code exact 查 material_catalog.name 覆盖。节点1✅ `find_material_by_code` exact 查询+单测（4 passed + 真 DB 抽查 KA6-20-KZD→尾焰挡板组件 / KA6-0-KZD→六舱 / KA6-011-KZD→None 零误匹配）。节点2✅ `_enrich_names_from_catalog`+单测（13 passed：7 原有 + 6 新，覆盖错位覆盖/填待补/miss保留/跳过空code/db失败不raise）。节点3✅ G18a 分支接入(`_derive_strong_node` single_row_list 分支仅 `code=="G18a"` 调 enrich)+ 回归(22 passed)+ web 验收(G18a 代号-名称**全对齐**:KA6-0-KZD→六舱/AKJ02-1A→数据链射频前端 错位纠正，KA6-20-KZD→尾焰挡板组件/QJ2963.3-97→弹簧垫圈4/HB1-132-1995→十字槽螺钉M620/QJB108.2-2004→螺钉M410 10.9 待补填上；BODY 待补 56→34，剩余为 source/数量非名称列 + G14a 定额设计性)。**全 3 节点完成，web 验收达标**。**G14a 经诊断非 bug**（辅料 standard_code=None 无法 exact 查，待补是定额设计性），本期不修，范围收敛 G18a。Web 验收(2026-07-11)已确认 G25a 装配卡(5工序+5检验行/内容AVG187零臆造)+feedback UI 通过。
@@ -50,3 +52,6 @@ task_state: done
 - **docx2pdf 中文路径=Word COM 卡死根因**：Word.Application COM Open/SaveAs 对非 ASCII 路径卡死/URL 编码 %20；解法=staging 到 ASCII temp dir 转换再复制出（纯文件复制不怕中文）
 - **行文标准=画像两层**（用户定）：principles 强约束 + preferences 偏好
 - **参数参考值=triples 兜底**（用户定）：工步原文优先，绝不臆造
+- **specialty-rules：review 分层混合（用户定）**：细则三层各用最合适方式——①敏感词/模糊词规则匹配 ②必填量化参数 LLM 语义校验（补回 v1-cleanup 砍的 _check_standards 半）③规范用语模板注入生成。必填参数落 knowledge 只供 review（不进生成 prompt 防膨胀）
+- **specialty-rules：3 专业先做（用户定）**：装配/焊接/涂装 先落地（对得上现有 domain），其余 6 专业留接口后续按需
+- **specialty-rules：必填参数 entity=工序名 + 拧紧走必填不走敏感词**：因 _check_knowledge_data 按 entity 命中，工序名会出现在文本；"拧紧/稍紧"等需量化动作词走必填参数检查不进敏感词表（避免正常描述误报）

@@ -1,0 +1,418 @@
+{
+  "id": "default_assembly",
+  "user_id": "default",
+  "domain": "assembly",
+  "writing": {
+    "tone": "技术文档",
+    "terminology": "assembly",
+    "detail_level": "详细"
+  },
+  "review": {
+    "check_completeness": true,
+    "check_accuracy": true,
+    "allowed_deviation": 0.1
+  },
+  "knowledge": [
+    {
+      "id": "b53d5e28",
+      "entity": "气密检查",
+      "conditions": {
+        "专业": "装配"
+      },
+      "attributes": {
+        "检查压力": "REQUIRED(XXMPa)",
+        "检查时间": "REQUIRED(XXmin)",
+        "压降上限": "REQUIRED(不大于XXMPa)"
+      },
+      "source": "工艺规程细化量化通用实施细则-附录A/表8",
+      "created_at": "2026-07-18T20:56:43.483287",
+      "updated_at": "2026-07-18T20:56:52.801055"
+    },
+    {
+      "id": "f12e668e",
+      "entity": "管路安装",
+      "conditions": {
+        "专业": "装配"
+      },
+      "attributes": {
+        "充气压力": "REQUIRED(XXMPa)",
+        "保压时间": "REQUIRED(XXmin)",
+        "压降": "REQUIRED(不大于XXMPa)"
+      },
+      "source": "工艺规程细化量化通用实施细则-附录A/表8",
+      "created_at": "2026-07-18T20:56:43.483287",
+      "updated_at": "2026-07-18T20:56:52.801055"
+    },
+    {
+      "id": "4cb1903b",
+      "entity": "螺纹连接",
+      "conditions": {
+        "专业": "装配"
+      },
+      "attributes": {
+        "拧紧力矩": "REQUIRED(如1.2N·m±0.2N·m)"
+      },
+      "source": "工艺规程细化量化通用实施细则-附录A/表8",
+      "created_at": "2026-07-18T20:56:43.483287",
+      "updated_at": "2026-07-18T20:56:52.801055"
+    },
+    {
+      "id": "a84ad425",
+      "entity": "仓段对接",
+      "conditions": {
+        "专业": "装配"
+      },
+      "attributes": {
+        "紧固件安装力矩": "REQUIRED(XXN·m)"
+      },
+      "source": "工艺规程细化量化通用实施细则-附录A/表8",
+      "created_at": "2026-07-18T20:56:43.483287",
+      "updated_at": "2026-07-18T20:56:52.801055"
+    }
+  ],
+  "principles": [
+    {
+      "id": "4bb5552f",
+      "dimension": "text_compliance",
+      "name": "章节完整性",
+      "description": "工艺文件必须包含完整章节结构",
+      "check_expression": "检查文档是否包含所有必填章节",
+      "enabled": true,
+      "source": ""
+    },
+    {
+      "id": "93859c16",
+      "dimension": "data_validity",
+      "name": "数据可验证性",
+      "description": "文档中的数据必须有可追溯来源，数值须与知识库条件组一致",
+      "check_expression": "查找文档中的数值数据，验证是否与知识库中对应条件组的数据一致",
+      "enabled": true,
+      "source": ""
+    },
+    {
+      "id": "6514d3ea",
+      "dimension": "terminology",
+      "name": "术语一致性",
+      "description": "同一文档中对同一事物必须使用统一的术语，不得混用",
+      "check_expression": "检查文档中是否有同一概念使用不同术语的情况",
+      "enabled": true,
+      "source": ""
+    },
+    {
+      "id": "86362ba7",
+      "dimension": "terminology",
+      "name": "术语统一",
+      "description": "工具类名称中的'力矩'应统一为'扭矩'",
+      "check_expression": "存在'力矩'且上下文为工具类名称",
+      "enabled": false,
+      "source": "feedback_learned"
+    },
+    {
+      "id": "1d4d3608",
+      "dimension": "terminology",
+      "name": "引用文件命名规范",
+      "description": "引用文件目录中的条目名称应明确体现其为引借用文件，而非零部组件名称",
+      "check_expression": "ref_name 字段中不应包含非引借用文件的零部组件名称",
+      "enabled": false,
+      "source": "feedback_learned"
+    },
+    {
+      "id": "eb6f88e4",
+      "dimension": "text_compliance",
+      "name": "量化控制禁不确定词",
+      "description": "工艺规程量化控制项禁止使用‘大致/可能/大概/是否’等不确定表述，必须给出确定数值或范围。",
+      "check_expression": "检查量化控制段落是否含不确定词(大致/可能/大概/是否)，命中即不合规。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-表1~表9/附录B"
+    },
+    {
+      "id": "3e09966b",
+      "dimension": "terminology",
+      "name": "禁模糊量词",
+      "description": "禁止使用少量/少许/适量/适当/尽量/左右/大约/大部分等模糊量词，须以确定量值或可验证状态替代。",
+      "check_expression": "全文检索模糊量词列表(见 compliance/sensitive_words.json)，命中须有量化替代。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-附录B-表B.1"
+    },
+    {
+      "id": "145812eb",
+      "dimension": "data_validity",
+      "name": "时间量须给区间",
+      "description": "涉及时间的工序须给出确定区间而非‘一段时间后/XXmin以上’，如‘10min’或‘15min-20min’。",
+      "check_expression": "检查时间表述是否含‘一段时间’‘以上’而无上限，命中即不合规。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-附录B-表B.1"
+    },
+    {
+      "id": "bdcf0409",
+      "dimension": "terminology",
+      "name": "涂胶禁模糊词",
+      "description": "涂胶工序禁止‘少许/少量/适量’，须明确涂胶工具、涂胶位置、涂胶量/范围、胶层厚度、固化时间与温度。",
+      "check_expression": "识别涂胶工序段落，检查是否含模糊量词且无量化涂胶量与胶层厚度。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-表8"
+    },
+    {
+      "id": "f58b258c",
+      "dimension": "data_validity",
+      "name": "螺纹拧紧力矩须量化",
+      "description": "螺纹连接须给出拧紧力矩值及扭矩工具规格；有防松胶时须明胶液型号、涂抹量/长度及清理要求。",
+      "check_expression": "查找螺纹连接/拧紧描述，验证是否给出力矩值(N·m)及工具规格。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-表8"
+    },
+    {
+      "id": "3565451d",
+      "dimension": "data_validity",
+      "name": "气密检查参数齐全",
+      "description": "气密/保压检查须明确充气压力、保压时间、压降上限(或真空度、保持时间、压强升高值)。",
+      "check_expression": "识别气密检查段落，验证三个参数(压力/时间/压降)是否齐全。",
+      "enabled": true,
+      "source": "工艺规程细化量化通用实施细则-表8"
+    }
+  ],
+  "preferences_list": [],
+  "frequent_terms": {
+    "仪表及工艺": 90,
+    "件名称工艺": 86,
+    "装配工艺": 71,
+    "装配工艺卡片": 60,
+    "装配件数量": 36,
+    "装配件生产总": 36,
+    "工号装配工艺": 22,
+    "装配工艺卡产": 22,
+    "检验": 20,
+    "并记录力矩": 18,
+    "量具力矩": 17,
+    "装配": 16,
+    "检验跟检": 15,
+    "加力过程检验": 14,
+    "材料消耗工艺": 12,
+    "装配件中零": 12,
+    "装配工艺卡": 11,
+    "螺钉安装力矩": 9,
+    "装配件总计": 8,
+    "产品工号工艺": 6,
+    "装配工具一字": 6,
+    "空中制导试验": 6,
+    "气和电子设备": 6,
+    "导弹装配工艺": 6,
+    "装配要求": 6,
+    "角螺母与设备": 6,
+    "螺钉拧紧力矩": 6,
+    "插头安装力矩": 6,
+    "舱体表面": 6,
+    "漆层表面": 6,
+    "试验导弹整体": 6,
+    "装配工艺规范": 6,
+    "内容简述设备": 4,
+    "钳六舱设备": 4,
+    "单件总计检验": 4,
+    "装配件": 4,
+    "电缆装配规程": 3,
+    "装配规程": 3,
+    "专用工艺": 3,
+    "六舱设备": 3
+  },
+  "ai_generated_summary": "[装配]领域工艺文件画像。三元组5条。含数值规格。摘要: ## 第 1 页",
+  "source_document_ids": [
+    "1"
+  ],
+  "triples": [
+    {
+      "s": "螺钉加施加",
+      "r": "力矩",
+      "o": "3.60.4N·m"
+    },
+    {
+      "s": "螺钉拧紧",
+      "r": "力矩",
+      "o": "3.60.4N·m"
+    },
+    {
+      "s": "工装施加拧紧",
+      "r": "力矩",
+      "o": "1.9N·m"
+    },
+    {
+      "s": "开关护套拧紧",
+      "r": "力矩",
+      "o": "1.9N·m"
+    },
+    {
+      "s": "开关按钮拧紧",
+      "r": "力矩",
+      "o": "1.1N·m"
+    },
+    {
+      "s": "螺钉安装",
+      "r": "力矩",
+      "o": "1.9N·m"
+    },
+    {
+      "s": "插头安装",
+      "r": "力矩",
+      "o": "0.5N·m"
+    },
+    {
+      "s": "工艺",
+      "r": "力矩",
+      "o": "0.5N·m"
+    },
+    {
+      "s": "检验",
+      "r": "标准",
+      "o": "照工艺文件的"
+    },
+    {
+      "s": "检验",
+      "r": "标准",
+      "o": "照工艺"
+    }
+  ],
+  "preferences": {
+    "preferred_sentence_length": "long",
+    "use_passive_voice": false,
+    "include_caution_notes": true
+  },
+  "graph": {
+    "nodes": {
+      "螺钉加施加": {
+        "type": "process_step",
+        "label": "螺钉加施加"
+      },
+      "螺钉加施加_力矩": {
+        "type": "parameter",
+        "label": "3.60.4N·m"
+      },
+      "螺钉拧紧": {
+        "type": "process_step",
+        "label": "螺钉拧紧"
+      },
+      "螺钉拧紧_力矩": {
+        "type": "parameter",
+        "label": "3.60.4N·m"
+      },
+      "工装施加拧紧": {
+        "type": "process_step",
+        "label": "工装施加拧紧"
+      },
+      "工装施加拧紧_力矩": {
+        "type": "parameter",
+        "label": "1.9N·m"
+      },
+      "开关护套拧紧": {
+        "type": "process_step",
+        "label": "开关护套拧紧"
+      },
+      "开关护套拧紧_力矩": {
+        "type": "parameter",
+        "label": "1.9N·m"
+      },
+      "开关按钮拧紧": {
+        "type": "process_step",
+        "label": "开关按钮拧紧"
+      },
+      "开关按钮拧紧_力矩": {
+        "type": "parameter",
+        "label": "1.1N·m"
+      },
+      "螺钉安装": {
+        "type": "process_step",
+        "label": "螺钉安装"
+      },
+      "螺钉安装_力矩": {
+        "type": "parameter",
+        "label": "1.9N·m"
+      },
+      "插头安装": {
+        "type": "process_step",
+        "label": "插头安装"
+      },
+      "插头安装_力矩": {
+        "type": "parameter",
+        "label": "0.5N·m"
+      },
+      "工艺": {
+        "type": "process_step",
+        "label": "工艺"
+      },
+      "工艺_力矩": {
+        "type": "parameter",
+        "label": "0.5N·m"
+      },
+      "检验": {
+        "type": "process_step",
+        "label": "检验"
+      },
+      "照工艺文件的": {
+        "type": "material",
+        "label": "照工艺文件的"
+      },
+      "照工艺": {
+        "type": "material",
+        "label": "照工艺"
+      }
+    },
+    "edges": [
+      {
+        "source": "螺钉加施加",
+        "target": "螺钉加施加_力矩",
+        "type": "depends_on",
+        "relation": "力矩"
+      },
+      {
+        "source": "螺钉拧紧",
+        "target": "螺钉拧紧_力矩",
+        "type": "depends_on",
+        "relation": "力矩"
+      },
+      {
+        "source": "工装施加拧紧",
+        "target": "工装施加拧紧_力矩",
+        "type": "depends_on",
+        "relation": "力矩"
+      },
+      {
+        "source": "开关护套拧紧",
+        "target": "开关护套拧紧_力矩",
+        "type": "depends_on",
+        "relation": "力矩"
+      },
+      {
+        "source": "开关按钮拧紧",
+        "target": "开关按钮拧紧_力矩",
+        "type": "depends_on",
+        "relation": "力矩"
+      },
+      {
+        "source": "螺钉安装",
+        "target": "螺钉安装_力矩",
+        "type": "depends_on",
+        "relation": "力矩"
+      },
+      {
+        "source": "插头安装",
+        "target": "插头安装_力矩",
+        "type": "depends_on",
+        "relation": "力矩"
+      },
+      {
+        "source": "工艺",
+        "target": "工艺_力矩",
+        "type": "depends_on",
+        "relation": "力矩"
+      },
+      {
+        "source": "检验",
+        "target": "照工艺文件的",
+        "type": "references"
+      },
+      {
+        "source": "检验",
+        "target": "照工艺",
+        "type": "references"
+      }
+    ]
+  }
+}
