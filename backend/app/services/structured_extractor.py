@@ -372,12 +372,7 @@ def _extract_tabular_fields(
         # No header found, fall back to singleton extraction
         return _extract_singleton_fields(structured_cols, full_text)
 
-    # Locate 序号 column (key "seq") for dual-header subheader filtering.
-    # 双层列头表 (G12a/G14a): Row3 上层表头 + Row4 下层细分(代号/名称/数量...) + Row5+ 数据.
-    # Subheader row has empty/非数字 序号; real data rows have numeric 1-999.
-    seq_col_idx = best_col_map.get("seq")
-
-    # Extract data rows (after header), filtering noise + dual-header subheader rows.
+    # Extract data rows (after header), filtering noise
     results: Dict[str, List[str]] = {col.key: [] for col in structured_cols}
     data_start = best_header_idx + 1
 
@@ -385,11 +380,6 @@ def _extract_tabular_fields(
         # Skip noise rows (signatures, dates, page headers, etc.)
         if _is_noise_row(row):
             continue
-        # Dual-header subheader filter: when 序号 column is mapped, require numeric
-        # 1-999; subheader rows (代号/名称 labels) have empty 序号 → skip.
-        if seq_col_idx is not None and seq_col_idx < len(row):
-            if not re.match(r"^[1-9]\d{0,2}$", row[seq_col_idx].strip()):
-                continue
         for col in structured_cols:
             col_idx = best_col_map.get(col.key)
             if col_idx is not None and col_idx < len(row):
