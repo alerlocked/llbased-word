@@ -8,10 +8,11 @@
 
 ## P0 · 挡交付质量（优先）
 
-### 1. G5a/G12a/G14a extract 漏抽（双层列头 colspan/rowspan）
-- 现状：`structured_extraction_done` fields_found 低（G5a ref_name=1 / G12a quota=1 / G14a material_desc=0）。`documents/1` content.html table3/6/7 均为双层列头，`_extract_tabular_fields` 列映射偏移；G5a 首条"文件名称=小产品"系产品区串入
-- 建议：**另立 lead**，逐章改 extract 列映射（对标 G25a 提质）。⚠ 区分 `g5a_file_refs_injected ref_count=5`（source-driven 注入正常）≠ `structured_extraction ref_name=1`（extract 债务）
-- 关联：[[exp-generation-debugging]] 待办 / gen-test-fixes #1 归档
+### 1. ✅ G5a/G12a/G14a extract 漏抽 → G12a/G14a 修（v2），G5a 不修（OK）
+- **G12a/G14a ✅ 修**（extract-fields-fix v2，commit `c06b036`）：双层列头 v2 支持（A material alias + B/B+ 去空格/长优先 + C 双层合并），material_desc 抽真材料、quota 无"净重"/"单套"噪声。真实 fixture 单测 + pytest 670 不回归
+- **G5a ✅ 不修**：file_references 直填覆盖（ref_name=1 是兜底日志残留）
+- **留（可选增强）**：G12a `unit=0`（根因 4 网格列轴错位 unit@15 vs 数据@14，上游 `_expand_table_grid` colspan 起点）— 影响小，等 unit 仍空再上
+- 关联：[[exp-dual-header-extract]] / commit `c06b036`
 
 ### 2. G4a 工艺文件目录 extract（同 #1 根因，更复杂）
 - 现状：G4a 同 G5a 是文件目录类，但双层列（工艺文件名/编号 + 零部件代号/名称），未修，会同样串源/漏抽
