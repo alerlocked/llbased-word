@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-19T15:12:26+08:00
-last_commit: 36cc39e
+updated_at: 2026-07-19T15:32:07+08:00
+last_commit: e173814
 status: gen-test-fixes 完成（post-test 后端修复：health/echo/async + extract 债务归档，5节点全过）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `36cc39e` docs(todo): project debt backlog — 11 items from gen-test-fixes wrap-up (0 seconds ago)
+- `e173814` docs(devlog): point 当前状态 to TODO.md (single entry to backlog) (1 second ago)
+- `36cc39e` docs(todo): project debt backlog — 11 items from gen-test-fixes wrap-up (20 minutes ago)
 - `b3143a2` chore(gen-test-fixes): task done — 5 nodes closed, #4 e2e verified (2 hours ago)
-- `bf954f2` fix(gen-test-fixes): health route order, sql echo decouple, llm async client (2 hours ago)
-- `1028785` plan(gen-test-fixes): seal — health/echo/async fixes + extract debt archive (2 hours ago)
-- `dd1641b` fix(specialty-rules): web review wiring — profile + top-level issues (17 hours ago)
+- `bf954f2` fix(gen-test-fixes): health route order, sql echo decouple, llm async client (3 hours ago)
+- `1028785` plan(gen-test-fixes): seal — health/echo/async fixes + extract debt archive (3 hours ago)
+- `dd1641b` fix(specialty-rules): web review wiring — profile + top-level issues (18 hours ago)
 - `9d34daa` test(specialty-rules): N5 TestImplRules + task done (18 hours ago)
 - `dc7afc7` feat(specialty-rules): N3 mandatory-param LLM check (fail-soft) (18 hours ago)
 - `4232344` feat(specialty-rules): N2 sensitive-word rule check in review_service (18 hours ago)
-- `f3bf77c` feat(specialty-rules): N1 seed impl-rules into 3 profiles + sensitive words (18 hours ago)
-- `6865d09` plan(specialty-rules): seal — implementation rules into profile + review (18 hours ago)
+- `f3bf77c` feat(specialty-rules): N1 seed impl-rules into 3 profiles + sensitive words (19 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
