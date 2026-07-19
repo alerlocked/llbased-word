@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-19T13:01:08+08:00
-last_commit: bf954f2
+updated_at: 2026-07-19T13:23:18+08:00
+last_commit: b3143a2
 status: gen-test-fixes 完成（post-test 后端修复：health/echo/async + extract 债务归档，5节点全过）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `bf954f2` fix(gen-test-fixes): health route order, sql echo decouple, llm async client (0 seconds ago)
-- `1028785` plan(gen-test-fixes): seal — health/echo/async fixes + extract debt archive (14 minutes ago)
-- `dd1641b` fix(specialty-rules): web review wiring — profile + top-level issues (15 hours ago)
+- `b3143a2` chore(gen-test-fixes): task done — 5 nodes closed, #4 e2e verified (0 seconds ago)
+- `bf954f2` fix(gen-test-fixes): health route order, sql echo decouple, llm async client (22 minutes ago)
+- `1028785` plan(gen-test-fixes): seal — health/echo/async fixes + extract debt archive (36 minutes ago)
+- `dd1641b` fix(specialty-rules): web review wiring — profile + top-level issues (16 hours ago)
 - `9d34daa` test(specialty-rules): N5 TestImplRules + task done (16 hours ago)
 - `dc7afc7` feat(specialty-rules): N3 mandatory-param LLM check (fail-soft) (16 hours ago)
 - `4232344` feat(specialty-rules): N2 sensitive-word rule check in review_service (16 hours ago)
 - `f3bf77c` feat(specialty-rules): N1 seed impl-rules into 3 profiles + sensitive words (16 hours ago)
-- `6865d09` plan(specialty-rules): seal — implementation rules into profile + review (16 hours ago)
+- `6865d09` plan(specialty-rules): seal — implementation rules into profile + review (17 hours ago)
 - `93782a9` docs: thin-pointer README (cure doc-rot, single source of truth) (4 days ago)
-- `b4d7e98` test(mineru): skip obsolete 0.7.x API suite (0 fail) (5 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
