@@ -295,6 +295,8 @@ app.include_router(draft.router, prefix="/api/drafts", tags=["初稿管理"])
 # Profile API
 app.include_router(profile.router, prefix="/api/profile", tags=["用户画像"])
 
+# Frontend SPA mount moved to file end (after all @app routes) so /health and
+# API routes match first; previously it sat here, intercepting /health -> 404.
 
 
 @app.get("/")
@@ -310,6 +312,17 @@ async def root():
 async def health_check():
     """健康检查接口"""
     return {"status": "healthy"}
+
+
+# --- Portable/production: serve prebuilt frontend as SPA fallback (mounted LAST) ---
+# Must register AFTER all @app routes: API routes + /health match first, only
+# unmatched paths fall through to the SPA. (was above @app.get("/health") -> 404)
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
+    logger.info(f"📦 前端静态托管已启用: {_FRONTEND_DIST}")
+else:
+    logger.info("📦 前端 dist 不存在，开发模式（前端走 vite dev server）")
 
 if __name__ == "__main__":
     import uvicorn

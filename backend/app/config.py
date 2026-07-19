@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "智能工艺文件辅助编辑系统"
     VERSION: str = "0.1.0"
     DEBUG: bool = True
+    SQL_ECHO: bool = False  # sqlalchemy engine echo (decouple from DEBUG, which also gates uvicorn reload)
     HOST: str = "127.0.0.1"
     PORT: int = 8000
 

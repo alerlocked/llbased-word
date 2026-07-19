@@ -5,7 +5,7 @@
 import time
 from typing import List, Dict, Optional, Literal, AsyncGenerator
 import httpx
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from app.config import settings
 from app.shared.logging import get_logger
@@ -28,13 +28,13 @@ class QwenLLMService:
         # timeout: 30s connect (model server may be loading), 300s read (inference can be slow)
         self._timeout = httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
 
-        self._complex_client = OpenAI(
+        self._complex_client = AsyncOpenAI(
             api_key=self.api_key,
             base_url=settings.DASHSCOPE_BASE_URL_COMPLEX or self._default_base_url,
             timeout=self._timeout,
             max_retries=1,
         )
-        self._simple_client = OpenAI(
+        self._simple_client = AsyncOpenAI(
             api_key=self.api_key,
             base_url=settings.DASHSCOPE_BASE_URL_SIMPLE or self._default_base_url,
             timeout=self._timeout,
@@ -122,7 +122,7 @@ class QwenLLMService:
             logger.info(f"📝 开始生成{type_info['name']}稿件...")
             
             # 调用通义千问API
-            response = self._get_client("complex").chat.completions.create(
+            response = await self._get_client("complex").chat.completions.create(
                 model=self._get_model("complex"),
                 messages=[
                     {"role": "system", "content": "你是一位经验丰富的专业新闻记者和编辑，擅长将采访内容整理成高质量的新闻稿件。"},
@@ -198,7 +198,7 @@ class QwenLLMService:
 
 请生成摘要："""
             
-            response = self._get_client("complex").chat.completions.create(
+            response = await self._get_client("complex").chat.completions.create(
                 model=self._get_model("complex"),
                 messages=[
                     {"role": "system", "content": "你是一位专业的文本摘要专家。"},
@@ -262,7 +262,7 @@ class QwenLLMService:
 
 请提取实体："""
             
-            response = self._get_client("complex").chat.completions.create(
+            response = await self._get_client("complex").chat.completions.create(
                 model=self._get_model("complex"),
                 messages=[
                     {"role": "system", "content": "你是一位专业的信息提取专家，擅长从文本中识别和提取关键实体。"},
@@ -325,7 +325,7 @@ class QwenLLMService:
         )
 
         try:
-            response = self._get_client(tier).chat.completions.create(
+            response = await self._get_client(tier).chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "user", "content": prompt}
@@ -383,7 +383,7 @@ class QwenLLMService:
         )
 
         try:
-            response = self._get_client(tier).chat.completions.create(
+            response = await self._get_client(tier).chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
@@ -436,7 +436,7 @@ class QwenLLMService:
         client = self._get_client(tier)
 
         try:
-            stream = client.chat.completions.create(
+            stream = await client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
@@ -445,7 +445,7 @@ class QwenLLMService:
                 extra_body={"enable_thinking": True},
             )
 
-            for chunk in stream:
+            async for chunk in stream:
                 choice = chunk.choices[0] if chunk.choices else None
                 if not choice:
                     continue

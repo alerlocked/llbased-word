@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 engine = create_engine(
     settings.DATABASE_URL,
     connect_args={"check_same_thread": False},  # SQLite需要此参数
-    echo=settings.DEBUG,  # 开发模式下打印SQL语句
+    echo=settings.SQL_ECHO,  # decoupled from DEBUG (DEBUG also gates uvicorn reload)
 )
 
 # 创建会话工厂
