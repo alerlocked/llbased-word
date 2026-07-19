@@ -22,7 +22,7 @@ FIELD_ALIASES: Dict[str, List[str]] = {
     "quantity":   ["数量", "单套数量", "每装配件"],
     "unit":       ["计量单位"],
     "source":     ["来自何处", "交往何处"],
-    "material":   ["材料名称、牌号", "名称、牌号"],
+    "material":   ["材料名称、牌号", "名称、牌号", "材料"],
     "step_name":  ["工序名称"],
     "description": ["工序内容简述", "工序内容"],
     "equipment":  ["设备"],

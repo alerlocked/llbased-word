@@ -354,12 +354,18 @@ def _extract_tabular_fields(
     best_count = 0
     best_col_map: Dict[str, int] = {}  # col_key -> column index
 
+    # B+: match longest labels first so a short alias (名称) doesn't grab a
+    # cell meant for a longer label (材料名称、牌号...). B: ignore whitespace
+    # in both cell and label (source headers like "材 料" have embedded spaces).
+    sorted_labels = sorted(label_to_key.items(), key=lambda kv: -len(kv[0]))
+
     for i, row in enumerate(rows[:5]):  # scan first 5 rows
         col_map: Dict[str, int] = {}
         for col_i, cell in enumerate(row):
-            cell_text = cell.strip()
-            for label, key in label_to_key.items():
-                if label in cell_text and key not in col_map:
+            cell_text = re.sub(r"\s", "", cell)
+            for label, key in sorted_labels:
+                lbl = re.sub(r"\s", "", label)
+                if lbl and lbl in cell_text and key not in col_map:
                     col_map[key] = col_i
                     break
 
@@ -372,9 +378,39 @@ def _extract_tabular_fields(
         # No header found, fall back to singleton extraction
         return _extract_singleton_fields(structured_cols, full_text)
 
+    # C: dual-header merge — if the row after best_header is itself a subheader
+    # (≥2 labels matched), merge its labels (fill missing keys, don't override
+    # upper layer) and skip it: data_start jumps past the subheader so its label
+    # cells (净重/单套/名称...) aren't read as data values.
+    data_start = best_header_idx + 1
+    if best_header_idx + 1 < len(rows):
+        # Detect subheader row using ALL field aliases, not just this table's
+        # columns — subheader cells (代号/名称/单套数量/...) often map to columns
+        # not in structured_cols, so counting only col matches under-counts
+        # (G14a r3 matched just 1 col but is clearly a subheader row).
+        from app.services.table_schemas import _ALIAS_TO_FIELD
+        all_aliases = sorted(_ALIAS_TO_FIELD.keys(), key=lambda a: -len(a))
+        sub_map: Dict[str, int] = {}
+        alias_hits = 0
+        for col_i, cell in enumerate(rows[best_header_idx + 1]):
+            cell_text = re.sub(r"\s", "", cell)
+            for a in all_aliases:
+                if re.sub(r"\s", "", a) in cell_text:
+                    alias_hits += 1
+                    break
+            for label, key in sorted_labels:
+                lbl = re.sub(r"\s", "", label)
+                if lbl and lbl in cell_text and key not in sub_map:
+                    sub_map[key] = col_i
+                    break
+        if alias_hits >= 2:
+            for k, v in sub_map.items():
+                if k not in best_col_map:
+                    best_col_map[k] = v
+            data_start = best_header_idx + 2
+
     # Extract data rows (after header), filtering noise
     results: Dict[str, List[str]] = {col.key: [] for col in structured_cols}
-    data_start = best_header_idx + 1
 
     for row in rows[data_start:]:
         # Skip noise rows (signatures, dates, page headers, etc.)

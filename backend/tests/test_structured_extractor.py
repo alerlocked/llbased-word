@@ -186,3 +186,43 @@ class TestParseSourceRows:
         rows = _parse_source_rows(text)
         assert len(rows) == 2
         assert rows[1] == ["1", "2", "3"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: 双层列头材料表 (G12a/G14a) — 真实 fixture (documents/1/content.html)
+# commit1 (A+B+B+): material_desc 抽真材料名, 不被短别名 名称 抢列.
+# quota 噪声 (净重/单套) 断言在 commit2/3 (C 双层合并) 后加.
+# ---------------------------------------------------------------------------
+
+class TestDualHeaderMaterialTables:
+    def test_g12a_material_desc_real(self):
+        from tests.fixtures.material_tables import G12A_MD
+        cols = [
+            _make_col("seq", "序号"),
+            _make_col("part_code", "代号"),
+            _make_col("part_name", "名称"),
+            _make_col("material_desc", "材料名称"),
+            _make_col("unit", "计量单位"),
+            _make_col("quota", "定额"),
+        ]
+        res = extract_structured_fields("G12a", cols, G12A_MD)
+        # B+: material_desc grabs the material cell (长 label 先占), not part_name
+        assert res["material_desc"][0] == "硫化硅橡胶GD414"
+        assert len(res["material_desc"]) == 6
+        assert "硫化硅橡胶GD414" not in res.get("part_name", [])
+        assert len(res["seq"]) == 6
+        # C: subheader row skipped → 净重 label not read as data; quota is the 定额 values
+        assert "净重" not in res["quota"]
+        assert res["quota"] == ["0.1", "15", "0.2", "4", "20", "2"]
+
+    def test_g14a_material_desc_space_label(self):
+        from tests.fixtures.material_tables import G14A_MD
+        cols = [
+            _make_col("seq", "序号"),
+            _make_col("material_desc", "材料名称"),
+            _make_col("unit", "计量单位"),
+            _make_col("per_set_quota", "定额"),
+        ]
+        res = extract_structured_fields("G14a", cols, G14A_MD)
+        # A+B: source header "材 料" (含空格) matches via alias "材料" + whitespace strip
+        assert res["material_desc"] == ["白棉布(1.2m宽)"]
