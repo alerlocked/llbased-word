@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-19T20:11:04+08:00
-last_commit: 7ebb60e
+updated_at: 2026-07-19T20:36:37+08:00
+last_commit: 1e3e723
 status: extract-fields-fix 执行中（G12a/G14a 双层列头 extract 修复，G5a 核验已 OK 不修）
 task_state: paused
 task_slug: extract-fields-fix
@@ -11,16 +11,16 @@ task_slug: extract-fields-fix
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `7ebb60e` plan(extract-fields-fix): seal — G12a/G14a dual-header extract (G5a already OK) (0 seconds ago)
+- `1e3e723` revert(extract-fields-fix): rollback dual-header filter — G12a/G14a all-zero regression (0 seconds ago)
+- `25d4876` fix(extract-fields-fix): skip dual-header subheader rows (序号 non-numeric) (15 minutes ago)
+- `7ebb60e` plan(extract-fields-fix): seal — G12a/G14a dual-header extract (G5a already OK) (26 minutes ago)
 - `e173814` docs(devlog): point 当前状态 to TODO.md (single entry to backlog) (5 hours ago)
 - `36cc39e` docs(todo): project debt backlog — 11 items from gen-test-fixes wrap-up (5 hours ago)
 - `b3143a2` chore(gen-test-fixes): task done — 5 nodes closed, #4 e2e verified (7 hours ago)
-- `bf954f2` fix(gen-test-fixes): health route order, sql echo decouple, llm async client (7 hours ago)
-- `1028785` plan(gen-test-fixes): seal — health/echo/async fixes + extract debt archive (7 hours ago)
-- `dd1641b` fix(specialty-rules): web review wiring — profile + top-level issues (22 hours ago)
+- `bf954f2` fix(gen-test-fixes): health route order, sql echo decouple, llm async client (8 hours ago)
+- `1028785` plan(gen-test-fixes): seal — health/echo/async fixes + extract debt archive (8 hours ago)
+- `dd1641b` fix(specialty-rules): web review wiring — profile + top-level issues (23 hours ago)
 - `9d34daa` test(specialty-rules): N5 TestImplRules + task done (23 hours ago)
-- `dc7afc7` feat(specialty-rules): N3 mandatory-param LLM check (fail-soft) (23 hours ago)
-- `4232344` feat(specialty-rules): N2 sensitive-word rule check in review_service (23 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
