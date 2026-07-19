@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-18T21:11:16+08:00
-last_commit: 9d34daa
+updated_at: 2026-07-18T21:44:27+08:00
+last_commit: dd1641b
 status: specialty-rules 完成（实施细则固化到画像+review，5节点全过，pytest 10passed 2skipped 7xfail 不回归）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `9d34daa` test(specialty-rules): N5 TestImplRules + task done (1 second ago)
-- `dc7afc7` feat(specialty-rules): N3 mandatory-param LLM check (fail-soft) (3 minutes ago)
-- `4232344` feat(specialty-rules): N2 sensitive-word rule check in review_service (8 minutes ago)
-- `f3bf77c` feat(specialty-rules): N1 seed impl-rules into 3 profiles + sensitive words (12 minutes ago)
-- `6865d09` plan(specialty-rules): seal — implementation rules into profile + review (20 minutes ago)
+- `dd1641b` fix(specialty-rules): web review wiring — profile + top-level issues (0 seconds ago)
+- `9d34daa` test(specialty-rules): N5 TestImplRules + task done (33 minutes ago)
+- `dc7afc7` feat(specialty-rules): N3 mandatory-param LLM check (fail-soft) (37 minutes ago)
+- `4232344` feat(specialty-rules): N2 sensitive-word rule check in review_service (42 minutes ago)
+- `f3bf77c` feat(specialty-rules): N1 seed impl-rules into 3 profiles + sensitive words (45 minutes ago)
+- `6865d09` plan(specialty-rules): seal — implementation rules into profile + review (53 minutes ago)
 - `93782a9` docs: thin-pointer README (cure doc-rot, single source of truth) (3 days ago)
 - `b4d7e98` test(mineru): skip obsolete 0.7.x API suite (0 fail) (4 days ago)
 - `53ac3a3` chore(mineru): bump version lock 0.7.6 -> 3.4.0 (align server VLM 2605) (4 days ago)
 - `77d0412` fix(upload): atomic material upload — rollback orphan file/task/material on failure (4 days ago)
-- `4ae3869` plan: upload-atomic seal — material upload rollback no orphan (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
