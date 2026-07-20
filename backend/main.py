@@ -44,6 +44,8 @@ def _check_model_server():
     llm_ok = False
     try:
         req = urllib.request.Request(f"{llm_url.rstrip('/')}/models", method="GET")
+        if settings.DASHSCOPE_API_KEY:
+            req.add_header("Authorization", f"Bearer {settings.DASHSCOPE_API_KEY}")
         with urllib.request.urlopen(req, timeout=5) as resp:
             llm_ok = resp.status == 200
             body = resp.read().decode("utf-8")[:200]
@@ -66,7 +68,7 @@ def _check_model_server():
         except Exception as e:
             print(f"  VLM  ({vlm_url}): FAILED - {e}")
     else:
-        print("  VLM  : skipped (not configured)")
+        print("  VLM  : local mode (built-in transformers, no http VLM server)")
 
     print("=" * 50)
     if not llm_ok or (vlm_url and not vlm_ok):
@@ -143,8 +145,10 @@ async def lifespan(app: FastAPI):
         print("  LLM       : FAILED")
     if vlm_ok:
         print("  VLM       : OK")
+    elif vlm_url:
+        print("  VLM       : FAILED")
     else:
-        print("  VLM       : FAILED/SKIP")
+        print("  VLM       : local mode (built-in)")
     print("=" * 50 + "\n")
 
     yield  # 应用运行中
