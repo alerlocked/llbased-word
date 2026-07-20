@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T00:01:51+08:00
-last_commit: 85698ed
+updated_at: 2026-07-21T00:32:25+08:00
+last_commit: da91c16
 status: g4a-source-extract 完成（三件套+676回归，端到端留web/sync后验）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (0 seconds ago)
-- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (14 minutes ago)
-- `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (25 minutes ago)
-- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (39 minutes ago)
-- `b5759cd` chore(extract-fields-fix): task done — v2 dual-header closed, TODO #1 修 (25 hours ago)
-- `c06b036` fix(extract-fields-fix): v2 dual-header full support (A+B+B+C) (25 hours ago)
+- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (0 seconds ago)
+- `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (31 minutes ago)
+- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (44 minutes ago)
+- `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (56 minutes ago)
+- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (70 minutes ago)
+- `b5759cd` chore(extract-fields-fix): task done — v2 dual-header closed, TODO #1 修 (26 hours ago)
+- `c06b036` fix(extract-fields-fix): v2 dual-header full support (A+B+B+C) (26 hours ago)
 - `85cd053` plan(extract-fields-fix): v2 re-seal — dual-header full support (5 root causes) (26 hours ago)
-- `1e3e723` revert(extract-fields-fix): rollback dual-header filter — G12a/G14a all-zero regression (27 hours ago)
+- `1e3e723` revert(extract-fields-fix): rollback dual-header filter — G12a/G14a all-zero regression (28 hours ago)
 - `25d4876` fix(extract-fields-fix): skip dual-header subheader rows (序号 non-numeric) (28 hours ago)
-- `7ebb60e` plan(extract-fields-fix): seal — G12a/G14a dual-header extract (G5a already OK) (28 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

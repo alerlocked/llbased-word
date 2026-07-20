@@ -138,6 +138,7 @@ async def lifespan(app: FastAPI):
     print(f"  Data dir  : {settings.DATA_DIR}")
     print(f"  Debug     : {settings.DEBUG}")
     print(f"  PDF Queue : {'OK' if queue_manager else 'FAILED'}")
+    vlm_url = settings.MINERU_VL_SERVER
     llm_ok, vlm_ok = _check_model_server()
     if llm_ok:
         print("  LLM       : OK")
