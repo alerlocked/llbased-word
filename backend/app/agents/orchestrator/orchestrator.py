@@ -901,7 +901,7 @@ class ProcessOrchestrator:
     ) -> None:
         """Strong node: derive list/detail tables from upstream unconditionally.
 
-        For each list chapter (G4a/G5a/G10a/G12a/G14a/B12a/G18a), call
+        For each list chapter (G10a/G12a/G14a/B12a/G18a), call
         writing.derive_list_strong to reverse-derive rows from already-generated
         upstream chapters (G19a/G22a/G25a via generated_chapters). Then:
         original-first merge (don't overwrite existing structured values) and
@@ -910,7 +910,7 @@ class ProcessOrchestrator:
         Replaces the weak 三空 fallback inside _do_template_fill (节点3 removes it).
         """
         writing = self._agents["writing"]
-        LIST_CHAPTERS = {"G4a", "G10a", "G12a", "G14a", "B12a", "G18a"}  # G5a excluded: 引借用文件只能从源 extract，derive 倒推必串零件 (fileref-source-extract)
+        LIST_CHAPTERS = {"G10a", "G12a", "G14a", "B12a", "G18a"}  # G4a/G5a excluded: 文件目录类只能从源 extract，derive 倒推必串零件 (fileref/g4a-source-extract)
 
         for idx, key in enumerate(task_keys):
             task = tasks[idx]
@@ -2899,6 +2899,35 @@ class ProcessOrchestrator:
                             )
                     except Exception as e:
                         logger.warning("g5a_file_refs_failed", error=str(e))
+
+                # G4a: inject 工艺文件目录 rows extracted from the source
+                # chapter (本文件章节目录), so doc_name is source-driven
+                # (chapter names), not reverse-derived. G4a is excluded from
+                # LIST_CHAPTERS above so derive never touches it. Mirrors G5a.
+                for idx in phase_task_indices:
+                    if tasks[idx].get("chapter_code") != "G4a":
+                        continue
+                    title = tasks[idx].get("chapter_title", "")
+                    doc_dir = ""
+                    for mc in self._collected_info.get("missing_chapters", []):
+                        if mc.get("title") == title:
+                            doc_dir = mc.get("_doc_dir", "")
+                            break
+                    if not doc_dir:
+                        logger.warning("g4a_no_doc_dir_fallback", chapter=title)
+                        continue
+                    try:
+                        from app.services.hierarchical_context import hierarchical_context
+                        doc_catalog = hierarchical_context.extract_doc_catalog(doc_dir)
+                        if doc_catalog:
+                            tasks[idx]["params"]["doc_catalog"] = doc_catalog
+                            logger.info(
+                                "g4a_doc_catalog_injected",
+                                doc_dir=doc_dir,
+                                row_count=len(doc_catalog),
+                            )
+                    except Exception as e:
+                        logger.warning("g4a_doc_catalog_failed", error=str(e))
 
                 # Inject accumulated upstream chapter text so list-type
                 # chapters (清单类) can derive content from earlier chapters.

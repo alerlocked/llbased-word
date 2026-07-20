@@ -2,15 +2,17 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-20T23:22:36+08:00
-last_commit: f72c2fb
-status: extract-fields-fix 完成（G12a/G14a 双层列头 v2 修复，G5a 不修）
-task_state: done
+updated_at: 2026-07-20T23:36:54+08:00
+last_commit: 3f3df0a
+status: g4a-source-extract running（N1 extract_doc_catalog 进行中）
+task_state: running
+task_slug: g4a-source-extract
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (0 seconds ago)
+- `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (0 seconds ago)
+- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (14 minutes ago)
 - `b5759cd` chore(extract-fields-fix): task done — v2 dual-header closed, TODO #1 修 (25 hours ago)
 - `c06b036` fix(extract-fields-fix): v2 dual-header full support (A+B+B+C) (25 hours ago)
 - `85cd053` plan(extract-fields-fix): v2 re-seal — dual-header full support (5 root causes) (25 hours ago)
@@ -19,12 +21,12 @@ task_state: done
 - `7ebb60e` plan(extract-fields-fix): seal — G12a/G14a dual-header extract (G5a already OK) (27 hours ago)
 - `e173814` docs(devlog): point 当前状态 to TODO.md (single entry to backlog) (32 hours ago)
 - `36cc39e` docs(todo): project debt backlog — 11 items from gen-test-fixes wrap-up (32 hours ago)
-- `b3143a2` chore(gen-test-fixes): task done — 5 nodes closed, #4 e2e verified (34 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
+- **在做（g4a-source-extract，PLAN f72c2fb seal）**：G4a 工艺文件目录 source-driven extract（TODO #2）。照 G5a fileref-source-extract 三件套：extract_doc_catalog（hierarchical_context）+ orchestrator 注入 + writing_agent 消费 + LIST_CHAPTERS 删 G4a。源 documents/1 G4a 10 行目录齐全，直填。**N1 进行中**（extract_doc_catalog 方法+单测）。
 - **完成（extract-fields-fix，PLAN 7ebb60e/85cd053 seal）**：G12a/G14a 双层列头 extract v2 修复。**v1（序号过滤 25d4876）回归**（盲改未诊断真实 source + 简化 fixture → G12a/G14a 全 0）→ revert `1e3e723`。重传 source 诊断 5 根因，v2 改 `_extract_tabular_fields`：**A**(material alias 加"材料") + **B**(cell/label 去空格) + **B+**(label 长优先，短别名"名称"不抢"材料名称...") + **C**(双层合并：全 alias 判下层列头行 ≥2 → 跳 + 合并补缺)。**真实 fixture**（content.html G12a/G14a markdown）单测过（material_desc 抽真材料、quota 无"净重"/"单套"噪声）+ pytest **670 passed 0 failed 不回归**。**G5a 不修**（file_references 覆盖）。G12a unit 留可选增强（根因 4 列轴错位，上游 `_expand_table_grid`）。commit `c06b036`。**全闭环，task_state: done。**
 - **在做（gen-test-fixes，PLAN 1028785 seal）**：post-test 后端修复。**节点①✅完成（#1 定性归档）**：实证 documents/1/content.html，G5a=table3/G12a=table6/G14a=table7 均为**双层列头(colspan/rowspan)复杂表**；G5a 首条数据"文件名称=小产品"系产品区串入(colspan 错位)；extract `_extract_tabular_fields` 列映射在此类表偏移→fields_found 低（G5a ref_name=1/G12a quota=1/G14a material_desc=0）。**定性=extract 漏抽，已知 colspan 债务(exp §1.10/待办#128)，归档不修，逐章提质另立 lead**。**节点②③④✅完成**：#2 main.py mount 块移到 @app.get("/health") 后注册；#3 config 加 SQL_ECHO=False + database.py echo=settings.SQL_ECHO（解耦 DEBUG/reload）；#4 llm_service OpenAI→AsyncOpenAI + 5 处 create 加 await + stream 加 await/async-for（方法全 async，调用链不动，照搬 deepseek_service）。**pytest 668 passed 0 failed 不回归**（27 skipped/62 xfailed/1 xpassed，0 failed；warnings 为预存 AsyncMock 隔离）。**节点⑤✅完成**：重启后端实测，监控覆盖生成期(13:19:58 executing_chapters_parallel→13:21:34 completion，含 per_step LLM 并行 + derive 倒推 4 章)，生成中 /health 全 2-3ms 秒回、最慢 1.05s（改前 66.92s），**#4 端到端坐实**。**全 5 节点闭环，task_state: done。**
 - **在做（specialty-rules，PLAN 6865d09 seal）**：实施细则固化到画像+review。ALIGN定：3专业(装配/焊接/涂装)先做+分层混合review(①敏感词规则②必填参数LLM校验③模板注入生成)+仅主仓。review与画像关系已理清(review用画像principles规则匹配无LLM，_check_standards被v1-cleanup砍，review_service:215注释skip until LLM)。5节点 N1 seed(必填参数ConditionGroup+模板principle+敏感词JSON+新建welding/coating.json)→N2敏感词规则→N3必填参数LLM校验→N4生成注入验证→N5测试。**N1✅完成**（sensitive_words.json 16纯模糊词[排除拧紧/稍紧/较轻走必填参数]+seed_impl_rules.py[settings.DATA_DIR定位+复用add_knowledge/add_principle幂等]+welding/coating.json新建+assembly追加knowledge0→4/principles5→11且legacy triples/graph完好;seed/from_json/幂等3验证过）。**N2✅完成**（review_service.py 加 _load_sensitive_words 模块级缓存[fail-soft 文件缺失/JSON坏→warning+[]] + _check_sensitive_words[word全词优先/aliases≥3匹配+'也可'短alias跳过防误报] + review()L141调用[_check_universal后if profile前,无profile也检测];命中WARNING+fix_hint塞standard_example;_check_universal旧4 vague_words保留超集;5验证：import ok/适量→sensitive_word/拧紧不误报/fix_hint标准范例/pytest 6passed 7xfail 1xpassed不回归）。**N3✅完成**（review_service.py 加 async _check_mandatory_params + _llm_check_entity_params[方法内import llm_service避循环+prompt三段(entity+必填清单+content截断1500)+2条few-shot JSON示例] + _parse_missing_params[正则兜底解析missing数组];复用entity命中+str(v).startswith(REQUIRED)筛必填+skip_standard_check复用当skip_llm;fail-soft三层(status!=success/JSON None/except→INFO mandatory_param_check_skipped+logger.warning不改passed);review()L149 await调用;真实LLM验证[key已配]：缺焊接电流TIG→报missing焊接电流+氩气流量/钨极直径已给不报/参数齐全0报;pytest 14项6passed 7xfail不回归）。**N4✅完成**（writing_agent.py:1002-1012 读 enabled principles 自动注入"## 画像强约束"system_msg，N1 seed principles enabled=True，生成注入机制现成无需改码；真实生成留web验收）。**N5✅完成**（test_review_service.py 加 TestImplRules 6方法[敏感词检测适量→sensitive_word/fix_hint含standard_example/拧紧不误报/skip_llm必填不误报 + 2个real LLM @skip] + welding_profile fixture;pytest 10passed 2skipped 7xfail 1xpassed 不回归）。**全节点闭环，task_state: done。** **web 验收（用户要）**：起 gywj 后端 + POST /api/tasks/review 实测。首次 issues=0（空白）→ 查因发现 web 端 3 集成 gap：① review_only 没传 profile（ReviewAgent 走 fallback 不调 ReviewService，诊断 log review_profile_branch_entered 确认）② ReviewRequest 无 domain ③ ReviewAgent profile 分支返回 results/warnings 无顶层 issues（task.py AgentResultResponse 取 result.issues 永远空，格式 mismatch）。修：review_only 复用 execute_workflow 的 profile 加载 + ReviewRequest 加 domain + ReviewAgent profile 分支返回加顶层 issues。重测 Case A(涂适量密封脂+气密检查缺参)→报 sensitive_word(适量)+missing_mandatory_param(检查压力/检查时间/压降上限，真实LLM判)；Case B(0.5MPa/30min/0.01MPa 齐全)→无 sensitive/无 missing（仅 missing_field 章节=单句无章节，合理）。**N2/N3 web 端真实生效。**
@@ -50,6 +52,7 @@ task_state: done
 - **历史**：g25a-perstep 已完成（A✅B✅C✅ web 验证）；g25a-write 已落地
 
 ## 关键决策
+- **G4a source-driven extract 照 G5a 套路**：G4a 工艺文件目录（本文件章节目录）同 G5a 病根（derive 倒推串零件 + 双层列头漏抽），照 fileref-source-extract 三件套改；但 G4a 有两个"名称"列歧义，列头锚点用"编号+代号"而非 G5a 的"序号+文件名称"
 - **G25a 检验=单独工序行（用户定+截图验证）**：检验不单独成列（前端不加列），后端生成检验工序行（step_name=检验），贴合真实工艺文件格式。方案Y（merge 后处理）不动 g25a-perstep 并行核心
 - **前后端契约校验=guard hook（用户定）**：PostToolUse warn 脚本对比模板 key vs layout key；G10a/G14a/G12a 历史不一致白名单兜底（KNOWN_DIFFS），本次不修，TODO 单独排期
 - **docx2pdf 中文路径=Word COM 卡死根因**：Word.Application COM Open/SaveAs 对非 ASCII 路径卡死/URL 编码 %20；解法=staging 到 ASCII temp dir 转换再复制出（纯文件复制不怕中文）

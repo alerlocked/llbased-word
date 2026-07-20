@@ -903,6 +903,22 @@ class WritingAgent(BaseAgent):
             # the LLM doesn't fabricate part names into the 文件名称 column.
             unstructured_cols = [c for c in unstructured_cols if c.key != "ref_name"]
 
+        # --- G4a: source-driven 工艺文件目录 (extract 直填, 不交 LLM) ---
+        _doc_catalog = task.get("doc_catalog") or task.get("params", {}).get("doc_catalog")
+        if chapter_code == "G4a" and _doc_catalog:
+            structured_values["seq"] = [str(r.get("seq", "")) for r in _doc_catalog]
+            structured_values["doc_name"] = [r.get("doc_name", "") for r in _doc_catalog]
+            structured_values["doc_number"] = [r.get("doc_number", "") for r in _doc_catalog]
+            structured_values["component_code"] = [r.get("component_code", "") for r in _doc_catalog]
+            structured_values["component_name"] = [r.get("component_name", "") for r in _doc_catalog]
+            structured_values["pages"] = [str(r.get("pages", "")) for r in _doc_catalog]
+            structured_values["volume"] = [r.get("volume", "") for r in _doc_catalog]
+            structured_values["remarks"] = [r.get("remarks", "") for r in _doc_catalog]
+            struct_row_count = len(_doc_catalog)
+            # doc_name direct-filled from source; drop it from unstructured so
+            # the LLM doesn't fabricate chapter names into the 文件名称 column.
+            unstructured_cols = [c for c in unstructured_cols if c.key != "doc_name"]
+
         if unstructured_cols:
             slot_desc = ", ".join(
                 f'"{c.key}"({c.label})' for c in unstructured_cols
