@@ -23,6 +23,13 @@
 - 建议：单独排期对齐（影响 structured 提取 + 前端取值 + 已有数据）
 - 关联：[[exp-generation-debugging]] §1.7 / `scripts/hooks/guard-column-align.py` KNOWN_DIFFS
 
+### G25a 装配卡检验项堆最后（应穿插每步后）
+- 现状：G25a 生成检验项全堆最后（应每道工序后穿插,有的工序有检验/有的没）。代码层穿插对：后端 `_expand_inspection_rows`(writing_agent:2054)每步后插检验行 + 前端 `ProcessCard` step.inspections 每步 footer + `processCardParser.ts:102` 检验归当前 step
+- 根因(最可能)：**LLM 生成 G25a content(markdown)检验块全堆文档末** → parser 解析末尾检验块时"当前 step"=最后工序 → 检验全归最后 → 渲染堆最后
+- 方案：A(推荐)后端 content 生成时检验穿插每步后 / B LLM prompt"每工序后跟检验" / C 前端 parser 智能归步(难)
+- 定位：2026-07-21 便携包 v0.2 测试(portable localhost:8000 project=2 G25a),主仓同 bug
+- 关联：`writing_agent:2054` / `processCardParser.ts:102` / `ProcessCard.tsx:135`
+
 ---
 
 ## P1 · 系统完善（场景驱动 / 上线前）
