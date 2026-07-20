@@ -2,16 +2,17 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-19T22:35:16+08:00
-last_commit: c06b036
+updated_at: 2026-07-19T22:36:24+08:00
+last_commit: b5759cd
 status: extract-fields-fix 完成（G12a/G14a 双层列头 v2 修复，G5a 不修）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `c06b036` fix(extract-fields-fix): v2 dual-header full support (A+B+B+C) (0 seconds ago)
-- `85cd053` plan(extract-fields-fix): v2 re-seal — dual-header full support (5 root causes) (13 minutes ago)
+- `b5759cd` chore(extract-fields-fix): task done — v2 dual-header closed, TODO #1 修 (0 seconds ago)
+- `c06b036` fix(extract-fields-fix): v2 dual-header full support (A+B+B+C) (68 seconds ago)
+- `85cd053` plan(extract-fields-fix): v2 re-seal — dual-header full support (5 root causes) (14 minutes ago)
 - `1e3e723` revert(extract-fields-fix): rollback dual-header filter — G12a/G14a all-zero regression (2 hours ago)
 - `25d4876` fix(extract-fields-fix): skip dual-header subheader rows (序号 non-numeric) (2 hours ago)
 - `7ebb60e` plan(extract-fields-fix): seal — G12a/G14a dual-header extract (G5a already OK) (2 hours ago)
@@ -19,7 +20,6 @@ task_state: done
 - `36cc39e` docs(todo): project debt backlog — 11 items from gen-test-fixes wrap-up (7 hours ago)
 - `b3143a2` chore(gen-test-fixes): task done — 5 nodes closed, #4 e2e verified (9 hours ago)
 - `bf954f2` fix(gen-test-fixes): health route order, sql echo decouple, llm async client (10 hours ago)
-- `1028785` plan(gen-test-fixes): seal — health/echo/async fixes + extract debt archive (10 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
