@@ -14,10 +14,9 @@
 - **留（可选增强）**：G12a `unit=0`（根因 4 网格列轴错位 unit@15 vs 数据@14，上游 `_expand_table_grid` colspan 起点）— 影响小，等 unit 仍空再上
 - 关联：[[exp-dual-header-extract]] / commit `c06b036`
 
-### 2. G4a 工艺文件目录 extract（同 #1 根因，更复杂）
-- 现状：G4a 同 G5a 是文件目录类，但双层列（工艺文件名/编号 + 零部件代号/名称），未修，会同样串源/漏抽
-- 建议：和 #1 **合并**到 extract 逐章提质 lead
-- 关联：[[exp-fileref-source-extract]] 待办（G4a 独立设计，不能照搬 G5a）
+### 2. ✅ G4a 工艺文件目录 extract（g4a-source-extract）
+- **完成**（PLAN f72c2fb，commit 3f3df0a/0142020）：照 G5a 三件套 `extract_doc_catalog`（非空顺序法抗 colspan 漂移 + 编号/代号 header 锚点）+ orchestrator 注入 + writing_agent 消费 8 列直填 + LIST_CHAPTERS 删 G4a。真实 documents/1 抠 10 行全对（doc_name=章节名/零部组件=产品本身/页数真实）+ pytest 676 不回归。端到端留 web/sync 后验。
+- 关联：[[exp-g4a-source-extract]] / commit 0142020
 
 ### 3. G10a/G14a/G12a 前后端 column-key 不一致
 - 现状：契约 guard 暴露 KNOWN_DIFFS（G10a `for_component_*`↔`for_*`、G14a `component_*`↔`comp_*`、G12a 前端多 `blank_yield`），guard 白名单兜底
