@@ -428,5 +428,82 @@ class TestExtractFileReferences:
         assert "2080.S2427" not in seqs
 
 
+class TestExtractDocCatalog:
+    """测试 extract_doc_catalog 对工艺文件目录 (G4a) 的解析。
+
+    G4a 是本文件自身的章节目录（不是零件 BOM）。extract 从源 Markdown
+    抠出 序号/文件名称/文件编号/零部组件代号/名称/页数，供生成端直填，
+    绕过 derive 倒推。G4a 源表双层列头 + 数据行列位置漂移（序号因前置
+    空 colspan 落在不同列），用非空 cells 顺序映射 + 序号正则鲁棒解析。
+    """
+
+    # 忠实复刻 _html_to_readable 对真实 G4a 的输出（双层列头 + 序号漂移）。
+    G4A_MD = (
+        "--- 第2页 ---\n"
+        "G4a\n"
+        "| 产品工号 |  | 工艺文件目录 |  |  |  |  | 产品数字 |  | 零、部、组(整)件代号 |  |  | 零、部、组(整)件名称 |  |  | 工艺文件编号 |  |  |  |  |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        "|  |  |  |  |  |  |  |  |  | KA0-0-KZD |  |  | 小产品 |  |  | 2080. S2427 |  |  |  |  |\n"
+        "|  |  | 会签 | 工艺文件 |  |  |  |  |  | 零、部、组(整)件 |  |  |  |  | 页数 |  | 册数 | 备注 |  |  |\n"
+        "|  |  |  | 名称 |  | 编号 |  |  |  | 代号 |  | 名称 |  |  |  |  |  |  |  |  |\n"
+        "|  |  | 1 | 引借用文件目录 |  | 2080. S2427 |  |  |  | KA0-0-KZD |  | 小产品 |  |  | 1 |  |  |  |  |  |\n"
+        "|  |  | 2 | 专用工艺装备明细表 |  | 2080. S2427 |  |  |  | KA0-0-KZD |  | 小产品 |  |  | 1 |  |  |  |  |  |\n"
+        "|  |  |  | 6 | 工艺流程图 |  | 2080. S2427 |  |  | KA0-0-KZD |  | 小产品 |  |  | 1 |  |  |  |  |  |\n"
+        "|  |  |  | 9 | 装配工艺卡片 |  | 2080. S2427 |  |  | KA0-0-KZD |  | 小产品 |  |  | 30 |  |  |  |  |  |\n"
+        "|  |  | 10 | 工艺简图 |  | 2080. S2427 |  |  |  | KA0-0-KZD |  | 小产品 |  |  | 9 |  |  |  |  |  |\n"
+        "| 牛超 | 20240828 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n"
+    )
+
+    def test_extract_catalog_rows(self):
+        """真实 G4a：抠出 5 行，doc_name 是章节名。"""
+        rows = _ctx().extract_doc_catalog(text=self.G4A_MD)
+        assert len(rows) == 5
+        assert [r["seq"] for r in rows] == ["1", "2", "6", "9", "10"]
+        assert [r["doc_name"] for r in rows] == [
+            "引借用文件目录",
+            "专用工艺装备明细表",
+            "工艺流程图",
+            "装配工艺卡片",
+            "工艺简图",
+        ]
+
+    def test_column_drift_handled(self):
+        """序号因前置空 colspan 落在不同列（1@col3, 6@col4），非空顺序法仍正确。"""
+        rows = _ctx().extract_doc_catalog(text=self.G4A_MD)
+        by_seq = {r["seq"]: r for r in rows}
+        assert by_seq["6"]["doc_name"] == "工艺流程图"
+        assert by_seq["9"]["doc_name"] == "装配工艺卡片"
+        assert by_seq["9"]["pages"] == "30"
+        assert by_seq["10"]["pages"] == "9"
+
+    def test_component_is_product_not_part(self):
+        """零部组件列恒为产品本身（KA0-0-KZD/小产品），不串零件名。"""
+        rows = _ctx().extract_doc_catalog(text=self.G4A_MD)
+        for r in rows:
+            assert r["component_code"] == "KA0-0-KZD"
+            assert r["component_name"] == "小产品"
+            assert r["doc_number"] == "2080. S2427"
+        names = " ".join(r["doc_name"] for r in rows) + " ".join(r["component_name"] for r in rows)
+        for part in ("六舱", "尾焰挡板组件", "行程延时开关"):
+            assert part not in names
+
+    def test_missing_source_returns_empty(self):
+        """源缺失/空文本返回空列表，不抛异常。"""
+        assert _ctx().extract_doc_catalog(text="") == []
+        assert _ctx().extract_doc_catalog(text=None) == []
+
+    def test_no_header_returns_empty(self):
+        """找不到 G4a 列头（缺 编号+代号 同时出现）返回空，且不误判 G5a 表。"""
+        # G5a 列头有 代号 无 编号，不应被当 G4a
+        g5a_like = "|  |  | 序号 | 代号 |  | 文件名称 |  |  | 页数 | 备注 |\n|  |  | 1 |  |  | 小产品 |  |  |  |  |"
+        assert _ctx().extract_doc_catalog(text=g5a_like) == []
+
+    def test_big_number_not_mistaken_as_seq(self):
+        """签名行日期/产品编号（20240828 / 2080. S2427）不被误判为序号。"""
+        seqs = [r["seq"] for r in _ctx().extract_doc_catalog(text=self.G4A_MD)]
+        assert "20240828" not in seqs
+        assert "2080. S2427" not in seqs
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

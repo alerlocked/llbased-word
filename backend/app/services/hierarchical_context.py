@@ -1582,6 +1582,74 @@ class HierarchicalContext:
             })
         return refs
 
+    def extract_doc_catalog(self, doc_dir_name: str = None, text: str = None) -> List[Dict[str, str]]:
+        """Extract 工艺文件目录 (G4a) rows from the source chapter.
+
+        G4a is the document's own table of contents (本文件章节目录). Like
+        G5a it is source-driven: rows are pulled from the source chapter so
+        generation fills them directly instead of derive-ing from the
+        assembly card — derive leaks part names into 文件名称 and overwrites
+        the product code/name in 零部组件 (which are always the product
+        itself in G4a, never sub-parts).
+
+        The G4a source table has a dual-row header AND data rows whose pipe
+        column index drifts row-to-row: 源 HTML prefixes some 序号 cells
+        with an empty colspan, so 序号 lands on a different column index in
+        different rows (序号 1 -> col 3, 序号 6 -> col 4 in the same table).
+        A fixed column index would misalign. Instead, after confirming the
+        header (a row carrying both 编号 and 代号, G4a's unique sub-labels),
+        each data row is reduced to its non-empty cells — stably ordered as
+        [序号, 文件名称, 文件编号, 零部组件代号, 零部组件名称, 页数] — and the
+        序号 cell must be a small integer (1..999), which also rejects dates
+        in signature rows like 20240828.
+
+        Args:
+            doc_dir_name: document dir (e.g. "1") — fetches the 工艺文件目录
+                chapter if text is not given.
+            text: pre-fetched chapter text (skips the lookup).
+
+        Returns:
+            Ordered list of {seq, doc_name, doc_number, component_code,
+            component_name, pages, volume, remarks}. 册数/备注 are blank in
+            source data rows by convention. Empty list if source missing or
+            the header row is not found.
+        """
+        if text is None and doc_dir_name:
+            text = self.get_chapter_content(doc_dir_name, "工艺文件目录")
+        if not text:
+            return []
+
+        pipe_lines = [ln for ln in text.split("\n") if "|" in ln]
+
+        # 1. Confirm this is a G4a catalog table: a header row must carry
+        #    both 编号 and 代号 (G4a's dual-header sub-labels). G5a's header
+        #    has neither, so this also disambiguates from a G5a chapter.
+        def _cells(ln: str) -> List[str]:
+            return [c.strip() for c in ln.split("|")]
+
+        if not any("编号" in _cells(ln) and "代号" in _cells(ln) for ln in pipe_lines):
+            return []
+
+        # 2. Pull data rows by non-empty-cell sequence. Column index drifts
+        #    across rows, but the ordered non-empty values are stable.
+        rows: List[Dict[str, str]] = []
+        for ln in pipe_lines:
+            vals = [v for v in _cells(ln) if v]  # drop pipe padding + colspan fillers
+            if not vals or not re.match(r"^[1-9]\d{0,2}$", vals[0]):
+                continue
+            # vals = [seq, doc_name, doc_number, component_code, component_name, pages, ...]
+            rows.append({
+                "seq": vals[0],
+                "doc_name": vals[1] if len(vals) > 1 else "",
+                "doc_number": vals[2] if len(vals) > 2 else "",
+                "component_code": vals[3] if len(vals) > 3 else "",
+                "component_name": vals[4] if len(vals) > 4 else "",
+                "pages": vals[5] if len(vals) > 5 else "",
+                "volume": "",   # 册数/备注 blank in source data rows
+                "remarks": "",
+            })
+        return rows
+
     def extract_assembly_steps(self, doc_dir_name: str) -> Dict[int, Dict[str, Any]]:
         """Extract per-step substeps (操作/材料/设备) from 装配工艺卡片 (G25a).
 
