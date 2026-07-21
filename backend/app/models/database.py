@@ -382,7 +382,7 @@ class MaterialCatalog(Base):
     name = Column(String(255), comment="名称")
     brand = Column(String(255), comment="品牌")
     model = Column(String(255), comment="型号")
-    standard_code = Column(String(100), comment="标准代码")
+    standard_code = Column(String(100), index=True, comment="标准代码")
     spec = Column(Text, comment="规格")
     unit = Column(String(20), comment="单位")
     source_doc = Column(String(255), comment="来源文档")

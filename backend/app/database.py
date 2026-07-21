@@ -48,6 +48,17 @@ def _migrate_db():
             """))
         logger.info("✅ Auto-migration: added folder_id to materials")
 
+    # Index material_catalog.standard_code for G18a catalog enrich exact lookup (P1-1)
+    if "material_catalog" in insp.get_table_names():
+        idx_names = {i["name"] for i in insp.get_indexes("material_catalog")}
+        if "idx_material_catalog_standard_code" not in idx_names:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE INDEX idx_material_catalog_standard_code "
+                    "ON material_catalog(standard_code)"
+                ))
+            logger.info("✅ Auto-migration: added index on material_catalog.standard_code")
+
 
 def init_db():
     """初始化数据库，创建所有表"""
