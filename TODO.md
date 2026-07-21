@@ -18,8 +18,9 @@
 - **完成**（PLAN f72c2fb，commit 3f3df0a/0142020）：照 G5a 三件套 `extract_doc_catalog`（非空顺序法抗 colspan 漂移 + 编号/代号 header 锚点）+ orchestrator 注入 + writing_agent 消费 8 列直填 + LIST_CHAPTERS 删 G4a。真实 documents/1 抠 10 行全对（doc_name=章节名/零部组件=产品本身/页数真实）+ pytest 676 不回归。端到端留 web/sync 后验。
 - 关联：[[exp-g4a-source-extract]] / commit 0142020
 
-### 3. G10a/G14a/G12a 前后端 column-key 不一致
-- 现状：契约 guard 暴露 KNOWN_DIFFS（G10a `for_component_*`↔`for_*`、G14a `component_*`↔`comp_*`、G12a 前端多 `blank_yield`），guard 白名单兜底
+### 3. ✅ G10a/G14a/G12a 前后端 column-key 不一致（已对齐，方案A）
+- **已修**（PLAN cb7aa10，主仓 `f8fc1a6` + win10 `d05aa1c`，2026-07-21）：backend template 对齐 frontend 名（G10a `for_code/name`、G14a `comp_code/name`、G12a 加 `blank_yield`）+ `_CODE_LIKE_KEYS` 保留 `component_code`（G1a/G4a 隔离）。guard `validate()` 0 mismatch + pytest 676 passed。前端 layout 0 改。guard `KNOWN_DIFFS` 死白名单留 harmless（清走 NTM_MAINT）。
+- 原现状：契约 guard 暴露 KNOWN_DIFFS（G10a `for_component_*`↔`for_*`、G14a `component_*`↔`comp_*`、G12a 前端多 `blank_yield`），guard 白名单兜底
 - 建议：单独排期对齐（影响 structured 提取 + 前端取值 + 已有数据）
 - 关联：[[exp-generation-debugging]] §1.7 / `scripts/hooks/guard-column-align.py` KNOWN_DIFFS
 

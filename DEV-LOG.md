@@ -2,25 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T22:06:50+08:00
-last_commit: f8fc1a6
+updated_at: 2026-07-21T22:08:23+08:00
+last_commit: 5b39a97
 status: column-key-align 完成（G10a/G14a/G12a 后端 key 对齐前端，guard 0 mismatch）
 task_state: done
-task_slug: column-key-align
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `f8fc1a6` fix(column-key): align G10a/G14a/G12a backend keys to frontend (plan A) (0 seconds ago)
-- `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (11 minutes ago)
+- `5b39a97` chore(column-key-align): task done — G10a/G14a/G12a keys aligned, guard 0 mismatch (1 second ago)
+- `f8fc1a6` fix(column-key): align G10a/G14a/G12a backend keys to frontend (plan A) (2 minutes ago)
+- `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (12 minutes ago)
 - `0072130` chore(llm-failfast-v02): task done — fast-fail + profile backport + win10 v0.2 pack (2 hours ago)
 - `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (2 hours ago)
 - `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (2 hours ago)
 - `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (3 hours ago)
 - `146a747` docs(todo): G25a inspection piled at end — should interleave per step (20 hours ago)
-- `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (21 hours ago)
+- `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (22 hours ago)
 - `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (22 hours ago)
-- `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (22 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
