@@ -887,6 +887,15 @@ async def generate_stream(request: GenerateStreamRequest):
                 yield f"data: {json.dumps({'type': 'error', 'error': 'API密钥未配置，请联系管理员配置DASHSCOPE_API_KEY'})}\n\n"
                 return
 
+            # ── Fast-fail: probe LLM reachability before entering generation ──
+            # Sync urllib probe wrapped in to_thread to avoid blocking the event loop.
+            import asyncio as _asyncio
+            reachable, reason = await _asyncio.to_thread(llm_service.check_llm_reachable)
+            if not reachable:
+                logger.error(f"[AI助手] LLM 不可达,快速失败: {reason}")
+                yield f"data: {json.dumps({'type': 'error', 'error': f'模型服务不可达:{reason}。请检查 .env 内网地址(DASHSCOPE_BASE_URL_COMPLEX)及模型服务状态。'}, ensure_ascii=False)}\n\n"
+                return
+
             # ── Mode detection (for frontend UI hints) ──
             mode = detect_mode(user_input)
             if uploaded_file_content:
@@ -1005,18 +1014,6 @@ async def generate_stream(request: GenerateStreamRequest):
                     user_response=confirm_response,
                 )
                 logger.info(f"[draft_complete] continue_conversation 返回: success={exec_result.get('success')}, keys={list(exec_result.keys())}")
-
-                # DEBUG: write to file for diagnosis
-                import pathlib
-                pathlib.Path("D:/tmp/ntm-debug.txt").write_text(
-                    f"exec_result success={exec_result.get('success')}\n"
-                    f"keys={list(exec_result.keys())}\n"
-                    f"state={exec_result.get('state')}\n"
-                    f"result keys={list(exec_result.get('result',{}).keys()) if isinstance(exec_result.get('result'),dict) else 'not-dict'}\n"
-                    f"sr={list(exec_result.get('result',{}).get('structured_results',{}).keys()) if isinstance(exec_result.get('result',{}).get('structured_results'),dict) else 'not-dict'}\n"
-                    f"sr_type={type(exec_result.get('result',{}).get('structured_results')).__name__}\n",
-                    encoding="utf-8"
-                )
 
                 if exec_result.get("success"):
                     # Extract generated content from _execute_draft_modification result

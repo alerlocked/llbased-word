@@ -532,8 +532,11 @@ class TestStreamingEndpoints:
             # SSE response
             assert "text/event-stream" in response.headers.get("content-type", "")
 
-    def test_generate_stream(self, client):
+    def test_generate_stream(self, client, monkeypatch):
         """Test streaming generation"""
+        # Mock LLM reachability probe so the test does not depend on network.
+        from app.services.llm_service import llm_service
+        monkeypatch.setattr(llm_service, "check_llm_reachable", lambda timeout=5.0: (True, ""))
         start_response = client.post(
             "/api/agent/start-conversation",
             json={

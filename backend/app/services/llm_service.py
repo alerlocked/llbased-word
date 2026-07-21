@@ -54,6 +54,29 @@ class QwenLLMService:
             else settings.MODEL_TIER_COMPLEX
         )
         
+    def check_llm_reachable(self, timeout: float = 5.0) -> tuple[bool, str]:
+        """Probe LLM server reachability via GET /models.
+
+        Sync (blocking) — callers MUST run via asyncio.to_thread to avoid
+        blocking the event loop. Mirrors main.py _check_model_server LLM probe.
+        Returns (True, "") if reachable, else (False, reason).
+        """
+        import urllib.request
+        import urllib.error
+        llm_url = settings.DASHSCOPE_BASE_URL_COMPLEX or self._default_base_url
+        try:
+            req = urllib.request.Request(f"{llm_url.rstrip('/')}/models", method="GET")
+            if self.api_key:
+                req.add_header("Authorization", f"Bearer {self.api_key}")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if resp.status == 200:
+                    return True, ""
+                return False, f"HTTP {resp.status}"
+        except urllib.error.URLError as e:
+            return False, f"连接失败: {e.reason}"
+        except Exception as e:
+            return False, f"{type(e).__name__}: {e}"
+
     async def generate_article(
         self,
         content: str,
