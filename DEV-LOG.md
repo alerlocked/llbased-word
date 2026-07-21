@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T00:38:08+08:00
-last_commit: d8d2bd6
+updated_at: 2026-07-21T02:19:37+08:00
+last_commit: 146a747
 status: g4a-source-extract 完成（三件套+676回归，端到端留web/sync后验）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (1 second ago)
-- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (6 minutes ago)
-- `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (36 minutes ago)
-- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (50 minutes ago)
-- `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (61 minutes ago)
-- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (76 minutes ago)
-- `b5759cd` chore(extract-fields-fix): task done — v2 dual-header closed, TODO #1 修 (26 hours ago)
-- `c06b036` fix(extract-fields-fix): v2 dual-header full support (A+B+B+C) (26 hours ago)
-- `85cd053` plan(extract-fields-fix): v2 re-seal — dual-header full support (5 root causes) (26 hours ago)
-- `1e3e723` revert(extract-fields-fix): rollback dual-header filter — G12a/G14a all-zero regression (28 hours ago)
+- `146a747` docs(todo): G25a inspection piled at end — should interleave per step (0 seconds ago)
+- `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (2 hours ago)
+- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (2 hours ago)
+- `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (2 hours ago)
+- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (3 hours ago)
+- `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (3 hours ago)
+- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (3 hours ago)
+- `b5759cd` chore(extract-fields-fix): task done — v2 dual-header closed, TODO #1 修 (28 hours ago)
+- `c06b036` fix(extract-fields-fix): v2 dual-header full support (A+B+B+C) (28 hours ago)
+- `85cd053` plan(extract-fields-fix): v2 re-seal — dual-header full support (5 root causes) (28 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
