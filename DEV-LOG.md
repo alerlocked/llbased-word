@@ -2,29 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T23:30:52+08:00
-last_commit: a36fddc
-status: arch-catalog-index 进行中（ARCHITECTURE.md 单一源 + 维护机制 + P1-1 索引）
-task_state: running
+updated_at: 2026-07-21T23:31:57+08:00
+last_commit: f7d4753
+status: arch-catalog-index 完成（ARCHITECTURE.md 单一源 + 维护机制 + P1-1 索引）
+task_state: done
 task_slug: arch-catalog-index
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `a36fddc` perf(catalog): index material_catalog.standard_code (P1-1, G18a enrich) (0 seconds ago)
-- `c2aa28d` docs(arch): ARCHITECTURE.md single source + CLAUDE.md pointer + maintenance rule (8 minutes ago)
-- `4ffe0e5` plan(arch-catalog-index): seal — ARCHITECTURE.md single source + maintenance rule + P1-1 catalog index (12 minutes ago)
-- `d7ef835` docs(todo): mark #3 column-key-align done (f8fc1a6 + win10 d05aa1c) (81 minutes ago)
-- `5b39a97` chore(column-key-align): task done — G10a/G14a/G12a keys aligned, guard 0 mismatch (83 minutes ago)
-- `f8fc1a6` fix(column-key): align G10a/G14a/G12a backend keys to frontend (plan A) (84 minutes ago)
+- `f7d4753` chore(arch-catalog-index): task done — ARCHITECTURE.md + maintenance rule + P1-1 index (1 second ago)
+- `a36fddc` perf(catalog): index material_catalog.standard_code (P1-1, G18a enrich) (65 seconds ago)
+- `c2aa28d` docs(arch): ARCHITECTURE.md single source + CLAUDE.md pointer + maintenance rule (9 minutes ago)
+- `4ffe0e5` plan(arch-catalog-index): seal — ARCHITECTURE.md single source + maintenance rule + P1-1 catalog index (13 minutes ago)
+- `d7ef835` docs(todo): mark #3 column-key-align done (f8fc1a6 + win10 d05aa1c) (82 minutes ago)
+- `5b39a97` chore(column-key-align): task done — G10a/G14a/G12a keys aligned, guard 0 mismatch (84 minutes ago)
+- `f8fc1a6` fix(column-key): align G10a/G14a/G12a backend keys to frontend (plan A) (85 minutes ago)
 - `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (2 hours ago)
 - `0072130` chore(llm-failfast-v02): task done — fast-fail + profile backport + win10 v0.2 pack (3 hours ago)
 - `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (4 hours ago)
-- `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (4 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（arch-catalog-index，PLAN 4ffe0e5 seal）**：ARCHITECTURE.md 单一架构源 + 维护机制 + P1-1 catalog 索引。① **ARCHITECTURE.md**（新建,当前真实架构:3 活检索路径 source-driven/HierarchicalContext/material_catalog + 功能 Agent writing/review/proofread + orchestrator 状态机 + 数据表 + 前端;向量/图谱/SearchAgent 标已删）+ CLAUDE.md 架构段→指针 + **维护规范**（架构变更 lead 收尾必更新 ARCHITECTURE.md）。② **P1-1 索引**（`MaterialCatalog.standard_code` `index=True` + `_migrate_db` idempotent `CREATE INDEX`;G18a `_enrich_names_from_catalog` 33x exact 全表扫→索引查;数据 62 行不变;init_db idempotent）。pytest **676 passed 0 回归**。**主仓 `c2aa28d`（文档）+ `a36fddc`（索引），win10 `b61262c`（sync ARCHITECTURE.md/CLAUDE.md/database×2）**。P1-2（刷新丢）弃（现象没了）。task_state: done。
 
 - **完成（column-key-align，PLAN cb7aa10 seal）**：G10a/G14a/G12a 前后端 column-key 对齐（方案A 后端改）。**根因**：guard KNOWN_DIFFS 白名单 3 表前后端 key 不一致（G10a `for_component_*`↔`for_*`、G14a `component_*`↔`comp_*`、G12a 前端多 `blank_yield`）→ 前端 `ProcessTableEditor` 按 frontend key 取值取不到 backend 数据 → 潜在空列。**修**：backend template 对齐 frontend 名（G10a `for_code/for_name`、G14a `comp_code/comp_name`、G12a 加 `blank_yield`）+ `_CODE_LIKE_KEYS` 加 `for_code/comp_code` **保留 `component_code`**（G1a 封面/G4a 目录同名隔离）。**验证**：guard `validate()` 0 mismatch + G4a `component_code` 隔离确认 + pytest **676 passed 0 回归**。**主仓 `f8fc1a6`，win10 `d05aa1c`**（sync template+extractor，前端 layout 0 改）。guard `KNOWN_DIFFS` 留死白名单无害（要清走 NTM_MAINT）。task_state: done。
 
