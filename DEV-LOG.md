@@ -2,16 +2,17 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T19:58:20+08:00
-last_commit: e261eaf
-status: llm-failfast-v02 进行中（入口快速失败 + 画像图谱回流 + 同步win10 + 打包V0.2）
-task_state: running
+updated_at: 2026-07-21T19:58:25+08:00
+last_commit: ea8b2eb
+status: llm-failfast-v02 完成（快速失败+画像回流+同步win10+打包V0.2 zip 0.86G）
+task_state: done
 task_slug: llm-failfast-v02
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (0 seconds ago)
+- `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (0 seconds ago)
+- `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (5 seconds ago)
 - `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (22 minutes ago)
 - `146a747` docs(todo): G25a inspection piled at end — should interleave per step (18 hours ago)
 - `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (19 hours ago)
@@ -20,11 +21,12 @@ task_slug: llm-failfast-v02
 - `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (20 hours ago)
 - `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (20 hours ago)
 - `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (21 hours ago)
-- `b5759cd` chore(extract-fields-fix): task done — v2 dual-header closed, TODO #1 修 (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（llm-failfast-v02，PLAN 6512682 seal）**：LLM 静默假成功治本 + V0.2 打包。**根因**：v0.2 忘配 .env→LLM 回退公网默认→连接失败被各层 try/except 吞→降级空模板→`success=True` 假成功（根因被藏，调试成本大；区别于 exp-kylin-deploy-shared-bugs 状态机 warn-not-raise 假成功，那个 `8687cfd` 已修，本次是 LLM 调用层）。**修**：① 入口快速失败（`agent.py` generate 加预探：`llm_service.check_llm_reachable` urllib `/models` + `asyncio.to_thread` 包，不通 yield SSE error+return，对照现有 key 检查范本）② 画像 `graph.nodes` dict slice 崩回流麒麟 `KnowledgeGraph`（新增 `services/knowledge_graph.py` + 改 `profile.py to_context_text`）③ 删 `ntm-debug` 调试残留。**验证**：探活双向（可达 True / 不可达 `连接失败: timed out`）+ pytest **676 passed 0 回归** + assembly.json 冒烟（图谱产出 LEN 1156）+ win10 同步（cp 前 diff 确认三文件差异恰好=本次改动）+ 打包 V0.2（dist 同步改动 + VERSION 0.2.0 + .env.deploy.example + networkx 已在 env/，zip 0.86G，env/ 复用）。**主仓 `e261eaf`/`ea8b2eb`，win10 `e9e9425`/`7e49c3d`**。经验回流 exp-silent-fake-success-fast-fail。task_state: done。
 
 - **完成（g4a-source-extract，PLAN f72c2fb seal）**：G4a 工艺文件目录 source-driven extract（TODO #2）。照 G5a 三件套：**N1✅** extract_doc_catalog（hierarchical_context，非空顺序法抗 colspan 漂移 + 编号/代号 header 锚点，真实 documents/1 抠 10 行全对：doc_name=章节名/零部组件=产品本身/页数真实，commit 3f3df0a）+ **N2✅** orchestrator（LIST_CHAPTERS 删 G4a 不倒推 + G4a 注入段照 G5a）+ **N3✅** writing_agent（消费 8 列直填 + doc_name 移出 unstructured 防臆造，commit 0142020）。pytest **676 passed 0 failed 不回归**（+6 G4a 单测）。**端到端 web 验收留用户**（明天 sync 内网真实环境验，三件套同构 G5a 已 web 验过）。**代码闭环，task_state: done。**
 - **完成（extract-fields-fix，PLAN 7ebb60e/85cd053 seal）**：G12a/G14a 双层列头 extract v2 修复。**v1（序号过滤 25d4876）回归**（盲改未诊断真实 source + 简化 fixture → G12a/G14a 全 0）→ revert `1e3e723`。重传 source 诊断 5 根因，v2 改 `_extract_tabular_fields`：**A**(material alias 加"材料") + **B**(cell/label 去空格) + **B+**(label 长优先，短别名"名称"不抢"材料名称...") + **C**(双层合并：全 alias 判下层列头行 ≥2 → 跳 + 合并补缺)。**真实 fixture**（content.html G12a/G14a markdown）单测过（material_desc 抽真材料、quota 无"净重"/"单套"噪声）+ pytest **670 passed 0 failed 不回归**。**G5a 不修**（file_references 覆盖）。G12a unit 留可选增强（根因 4 列轴错位，上游 `_expand_table_grid`）。commit `c06b036`。**全闭环，task_state: done。**
