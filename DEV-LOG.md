@@ -2,24 +2,25 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T20:19:34+08:00
-last_commit: 0072130
-status: llm-failfast-v02 完成（快速失败+画像回流+同步win10+打包V0.2 zip 0.86G）
-task_state: done
+updated_at: 2026-07-21T21:55:56+08:00
+last_commit: cb7aa10
+status: column-key-align 进行中（G10a/G14a/G12a 后端 key 对齐前端）
+task_state: running
+task_slug: column-key-align
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `0072130` chore(llm-failfast-v02): task done — fast-fail + profile backport + win10 v0.2 pack (0 seconds ago)
-- `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (21 minutes ago)
-- `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (21 minutes ago)
-- `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (43 minutes ago)
-- `146a747` docs(todo): G25a inspection piled at end — should interleave per step (18 hours ago)
-- `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (20 hours ago)
-- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (20 hours ago)
-- `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (20 hours ago)
-- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (21 hours ago)
-- `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (21 hours ago)
+- `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (0 seconds ago)
+- `0072130` chore(llm-failfast-v02): task done — fast-fail + profile backport + win10 v0.2 pack (2 hours ago)
+- `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (2 hours ago)
+- `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (2 hours ago)
+- `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (2 hours ago)
+- `146a747` docs(todo): G25a inspection piled at end — should interleave per step (20 hours ago)
+- `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (21 hours ago)
+- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (21 hours ago)
+- `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (22 hours ago)
+- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (22 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

@@ -69,7 +69,7 @@ _COMMON_SURNAMES = set(
 # Column keys that should NEVER contain person names
 _CODE_LIKE_KEYS = {
     "part_code", "equipment_code", "component_code", "ref_code",
-    "doc_number", "for_component_code",
+    "doc_number", "for_code", "comp_code",
 }
 
 # Column keys where values should be numeric
