@@ -2,25 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T19:58:25+08:00
-last_commit: ea8b2eb
+updated_at: 2026-07-21T20:19:34+08:00
+last_commit: 0072130
 status: llm-failfast-v02 完成（快速失败+画像回流+同步win10+打包V0.2 zip 0.86G）
 task_state: done
-task_slug: llm-failfast-v02
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (0 seconds ago)
-- `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (5 seconds ago)
-- `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (22 minutes ago)
+- `0072130` chore(llm-failfast-v02): task done — fast-fail + profile backport + win10 v0.2 pack (0 seconds ago)
+- `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (21 minutes ago)
+- `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (21 minutes ago)
+- `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (43 minutes ago)
 - `146a747` docs(todo): G25a inspection piled at end — should interleave per step (18 hours ago)
-- `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (19 hours ago)
-- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (19 hours ago)
+- `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (20 hours ago)
+- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (20 hours ago)
 - `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (20 hours ago)
-- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (20 hours ago)
-- `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (20 hours ago)
-- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (21 hours ago)
+- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (21 hours ago)
+- `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (21 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
