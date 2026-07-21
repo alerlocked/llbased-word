@@ -2,29 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T21:55:56+08:00
-last_commit: cb7aa10
-status: column-key-align 进行中（G10a/G14a/G12a 后端 key 对齐前端）
-task_state: running
+updated_at: 2026-07-21T22:06:50+08:00
+last_commit: f8fc1a6
+status: column-key-align 完成（G10a/G14a/G12a 后端 key 对齐前端，guard 0 mismatch）
+task_state: done
 task_slug: column-key-align
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (0 seconds ago)
+- `f8fc1a6` fix(column-key): align G10a/G14a/G12a backend keys to frontend (plan A) (0 seconds ago)
+- `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (11 minutes ago)
 - `0072130` chore(llm-failfast-v02): task done — fast-fail + profile backport + win10 v0.2 pack (2 hours ago)
 - `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (2 hours ago)
 - `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (2 hours ago)
-- `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (2 hours ago)
+- `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (3 hours ago)
 - `146a747` docs(todo): G25a inspection piled at end — should interleave per step (20 hours ago)
 - `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (21 hours ago)
-- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (21 hours ago)
+- `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (22 hours ago)
 - `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (22 hours ago)
-- `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (22 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（column-key-align，PLAN cb7aa10 seal）**：G10a/G14a/G12a 前后端 column-key 对齐（方案A 后端改）。**根因**：guard KNOWN_DIFFS 白名单 3 表前后端 key 不一致（G10a `for_component_*`↔`for_*`、G14a `component_*`↔`comp_*`、G12a 前端多 `blank_yield`）→ 前端 `ProcessTableEditor` 按 frontend key 取值取不到 backend 数据 → 潜在空列。**修**：backend template 对齐 frontend 名（G10a `for_code/for_name`、G14a `comp_code/comp_name`、G12a 加 `blank_yield`）+ `_CODE_LIKE_KEYS` 加 `for_code/comp_code` **保留 `component_code`**（G1a 封面/G4a 目录同名隔离）。**验证**：guard `validate()` 0 mismatch + G4a `component_code` 隔离确认 + pytest **676 passed 0 回归**。**主仓 `f8fc1a6`，win10 `d05aa1c`**（sync template+extractor，前端 layout 0 改）。guard `KNOWN_DIFFS` 留死白名单无害（要清走 NTM_MAINT）。task_state: done。
 
 - **完成（llm-failfast-v02，PLAN 6512682 seal）**：LLM 静默假成功治本 + V0.2 打包。**根因**：v0.2 忘配 .env→LLM 回退公网默认→连接失败被各层 try/except 吞→降级空模板→`success=True` 假成功（根因被藏，调试成本大；区别于 exp-kylin-deploy-shared-bugs 状态机 warn-not-raise 假成功，那个 `8687cfd` 已修，本次是 LLM 调用层）。**修**：① 入口快速失败（`agent.py` generate 加预探：`llm_service.check_llm_reachable` urllib `/models` + `asyncio.to_thread` 包，不通 yield SSE error+return，对照现有 key 检查范本）② 画像 `graph.nodes` dict slice 崩回流麒麟 `KnowledgeGraph`（新增 `services/knowledge_graph.py` + 改 `profile.py to_context_text`）③ 删 `ntm-debug` 调试残留。**验证**：探活双向（可达 True / 不可达 `连接失败: timed out`）+ pytest **676 passed 0 回归** + assembly.json 冒烟（图谱产出 LEN 1156）+ win10 同步（cp 前 diff 确认三文件差异恰好=本次改动）+ 打包 V0.2（dist 同步改动 + VERSION 0.2.0 + .env.deploy.example + networkx 已在 env/，zip 0.86G，env/ 复用）。**主仓 `e261eaf`/`ea8b2eb`，win10 `e9e9425`/`7e49c3d`**。经验回流 exp-silent-fake-success-fast-fail。task_state: done。
 
