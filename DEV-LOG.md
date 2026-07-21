@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T19:36:18+08:00
-last_commit: 6512682
+updated_at: 2026-07-21T19:58:20+08:00
+last_commit: e261eaf
 status: llm-failfast-v02 进行中（入口快速失败 + 画像图谱回流 + 同步win10 + 打包V0.2）
 task_state: running
 task_slug: llm-failfast-v02
@@ -11,16 +11,16 @@ task_slug: llm-failfast-v02
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (0 seconds ago)
-- `146a747` docs(todo): G25a inspection piled at end — should interleave per step (17 hours ago)
+- `e261eaf` feat(llm-failfast): probe LLM reachability at generate entry, fail loud on unreachable (0 seconds ago)
+- `6512682` plan(llm-failfast-v02): seal — fast-fail on LLM unreachable + profile/debug residue + win10 repack v0.2 (22 minutes ago)
+- `146a747` docs(todo): G25a inspection piled at end — should interleave per step (18 hours ago)
 - `d8d2bd6` fix(diag): define vlm_url in lifespan — was NameError on startup (regression from probe fix) (19 hours ago)
 - `da91c16` fix(diag): probe with auth header + add VISION stage 1 (intranet multi-terminal) (19 hours ago)
 - `85698ed` chore(g4a-source-extract): task done — TODO #2 code-closed, e2e deferred to web/sync (20 hours ago)
 - `0142020` feat(g4a-source-extract): N2+N3 orchestrator inject + writing_agent consume (20 hours ago)
 - `3f3df0a` feat(g4a-source-extract): N1 extract_doc_catalog + 6 unit tests (20 hours ago)
-- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (20 hours ago)
+- `f72c2fb` plan(g4a-source-extract): seal G4a doc catalog source-driven extract (21 hours ago)
 - `b5759cd` chore(extract-fields-fix): task done — v2 dual-header closed, TODO #1 修 (2 days ago)
-- `c06b036` fix(extract-fields-fix): v2 dual-header full support (A+B+B+C) (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
