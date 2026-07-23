@@ -411,14 +411,51 @@ class QwenLLMService:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                extra_body={"enable_thinking": False},
+                # enable_thinking=True aligns with the streaming path. Reasoning
+                # models (e.g. qwen3-30b-a3b) populate message.content only when
+                # thinking is enabled; with False the content comes back empty.
+                extra_body={"enable_thinking": True},
             )
 
-            content = response.choices[0].message.content.strip()
+            message = response.choices[0].message
+            content = (message.content or "").strip()
             # Expose finish_reason so callers can detect max_tokens truncation
             # (finish_reason == "length") — critical for large-output chapters
             # like G25a whose JSON silently breaks when truncated.
             finish_reason = getattr(response.choices[0], "finish_reason", None)
+
+            # reasoning_content is the chain-of-thought, NOT the final answer —
+            # never merge it into content (would corrupt JSON consumers like
+            # _detect_missing_chapters). Kept only for debugging.
+            reasoning = getattr(message, "reasoning_content", None)
+            if reasoning:
+                logger.debug("llm_reasoning_content", reasoning_len=len(reasoning))
+
+            # Fail-fast on empty content (no silent fake-success): retry once
+            # via streaming collection, which reliably yields content on
+            # reasoning models; surface a real error if still empty.
+            if not content:
+                logger.warning(
+                    "llm_empty_content_fallback_stream",
+                    model=model, finish_reason=finish_reason,
+                )
+                content, finish_reason = await self._collect_stream_content(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tier=tier,
+                )
+            if not content:
+                logger.error(
+                    "llm_empty_content_after_fallback",
+                    model=model, finish_reason=finish_reason,
+                )
+                return {
+                    "status": "error",
+                    "error": "LLM 返回空内容（推理模型 content 为空，流式降级后仍空）",
+                    "content": "",
+                    "finish_reason": finish_reason,
+                }
 
             duration_ms = (time.time() - start_time) * 1000
             log_api_call("通义千问LLM", "消息生成", "success", duration_ms)
@@ -440,6 +477,41 @@ class QwenLLMService:
                 "content": "",
                 "finish_reason": None,
             }
+
+    async def _collect_stream_content(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+        tier: str,
+    ) -> tuple:
+        """Collect the full content via streaming (empty-content fallback).
+
+        Reasoning models reliably emit the final answer as delta.content when
+        streaming with enable_thinking=True; reasoning_content (chain-of-thought)
+        is discarded. Returns (content, finish_reason).
+        """
+        content_parts: List[str] = []
+        finish_reason = None
+        stream = await self._get_client(tier).chat.completions.create(
+            model=self._get_model(tier),
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+            extra_body={"enable_thinking": True},
+        )
+        async for chunk in stream:
+            choice = chunk.choices[0] if chunk.choices else None
+            if not choice:
+                continue
+            delta = choice.delta
+            if delta.content:
+                content_parts.append(delta.content)
+            if choice.finish_reason:
+                finish_reason = choice.finish_reason
+                break
+        return "".join(content_parts).strip(), finish_reason
 
     async def generate_with_messages_stream(
         self,

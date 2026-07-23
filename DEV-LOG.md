@@ -2,29 +2,30 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-21T23:31:57+08:00
-last_commit: f7d4753
-status: arch-catalog-index 完成（ARCHITECTURE.md 单一源 + 维护机制 + P1-1 索引）
+updated_at: 2026-07-24T00:44:51+08:00
+last_commit: 5682888
+status: 阶段1 Gap C 止血完成（PLAN 5682888）— generate_with_messages 推理模型空 content 修复 + fail-fast
 task_state: done
-task_slug: arch-catalog-index
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `f7d4753` chore(arch-catalog-index): task done — ARCHITECTURE.md + maintenance rule + P1-1 index (1 second ago)
-- `a36fddc` perf(catalog): index material_catalog.standard_code (P1-1, G18a enrich) (65 seconds ago)
-- `c2aa28d` docs(arch): ARCHITECTURE.md single source + CLAUDE.md pointer + maintenance rule (9 minutes ago)
-- `4ffe0e5` plan(arch-catalog-index): seal — ARCHITECTURE.md single source + maintenance rule + P1-1 catalog index (13 minutes ago)
-- `d7ef835` docs(todo): mark #3 column-key-align done (f8fc1a6 + win10 d05aa1c) (82 minutes ago)
-- `5b39a97` chore(column-key-align): task done — G10a/G14a/G12a keys aligned, guard 0 mismatch (84 minutes ago)
-- `f8fc1a6` fix(column-key): align G10a/G14a/G12a backend keys to frontend (plan A) (85 minutes ago)
-- `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (2 hours ago)
-- `0072130` chore(llm-failfast-v02): task done — fast-fail + profile backport + win10 v0.2 pack (3 hours ago)
-- `ea8b2eb` fix(profile): render graph via KnowledgeGraph (root-cause dict-slice crash) (4 hours ago)
+- `5682888` plan(llm-reasoning-empty-fix): seal — fix non-streaming LLM empty content on reasoning models (enable_thinking=True + fail-fast fallback) (0 seconds ago)
+- `06db8f5` docs(devlog): record arch-catalog-index completion (frontmatter done + status entry) (2 days ago)
+- `f7d4753` chore(arch-catalog-index): task done — ARCHITECTURE.md + maintenance rule + P1-1 index (2 days ago)
+- `a36fddc` perf(catalog): index material_catalog.standard_code (P1-1, G18a enrich) (2 days ago)
+- `c2aa28d` docs(arch): ARCHITECTURE.md single source + CLAUDE.md pointer + maintenance rule (2 days ago)
+- `4ffe0e5` plan(arch-catalog-index): seal — ARCHITECTURE.md single source + maintenance rule + P1-1 catalog index (2 days ago)
+- `d7ef835` docs(todo): mark #3 column-key-align done (f8fc1a6 + win10 d05aa1c) (2 days ago)
+- `5b39a97` chore(column-key-align): task done — G10a/G14a/G12a keys aligned, guard 0 mismatch (2 days ago)
+- `f8fc1a6` fix(column-key): align G10a/G14a/G12a backend keys to frontend (plan A) (2 days ago)
+- `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（llm-reasoning-empty-fix，PLAN 5682888 seal）阶段1 Gap C 止血**：2026-07-23 内网部署（qwen3-30b-a3b）补齐出"llm读取失败"+装配卡工序内容全空。根因=`generate_with_messages` 非流式 `enable_thinking=False` 与推理模型冲突→content 空+静默 success。修：`enable_thinking=True`（对齐流式）+ 只读 content（不合并 reasoning_content，防污染 JSON 场景）+ content 空降级 `_collect_stream_content` 流式收集+fail-fast。**验证**：pytest 676 passed 0 回归；本地 smoke（云端 qwen-turbo）`enable_thinking=True` 兼容不报错 + content 非空 + reasoning_content 单独不污染。推理模型(qwen3)真实 G25a 生成验证留内网部署（用户）。阶段2 相辅相成新模型（ALIGN-g25a-method-aux-bind）已留待启动；问题2 qa检索本轮不做。
 
 - **完成（arch-catalog-index，PLAN 4ffe0e5 seal）**：ARCHITECTURE.md 单一架构源 + 维护机制 + P1-1 catalog 索引。① **ARCHITECTURE.md**（新建,当前真实架构:3 活检索路径 source-driven/HierarchicalContext/material_catalog + 功能 Agent writing/review/proofread + orchestrator 状态机 + 数据表 + 前端;向量/图谱/SearchAgent 标已删）+ CLAUDE.md 架构段→指针 + **维护规范**（架构变更 lead 收尾必更新 ARCHITECTURE.md）。② **P1-1 索引**（`MaterialCatalog.standard_code` `index=True` + `_migrate_db` idempotent `CREATE INDEX`;G18a `_enrich_names_from_catalog` 33x exact 全表扫→索引查;数据 62 行不变;init_db idempotent）。pytest **676 passed 0 回归**。**主仓 `c2aa28d`（文档）+ `a36fddc`（索引），win10 `b61262c`（sync ARCHITECTURE.md/CLAUDE.md/database×2）**。P1-2（刷新丢）弃（现象没了）。task_state: done。
 
