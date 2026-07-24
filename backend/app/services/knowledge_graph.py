@@ -390,3 +390,56 @@ def _safe_id(text: str) -> str:
     """Convert text to a safe node ID."""
     import re
     return re.sub(r"[^a-zA-Z0-9_\u4e00-\u9fff]", "_", text.strip())[:64]
+
+
+# ========================================
+# Global craft knowledge graph
+# Decoupled from Profile.graph (per-domain profile); this is the cross-domain
+# process KG persisted to data/knowledge_graph.json, loaded at startup.
+# ========================================
+import json
+import os
+
+
+def get_craft_kg_path() -> str:
+    """Path to the global craft knowledge graph JSON file."""
+    from app.config import settings
+    return os.path.join(str(settings.DATA_DIR), "knowledge_graph.json")
+
+
+def load_craft_kg() -> KnowledgeGraph:
+    """Load global craft KG from data/knowledge_graph.json (empty graph if missing/corrupt)."""
+    path = get_craft_kg_path()
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return KnowledgeGraph.from_dict(data)
+    except Exception as e:
+        logger.warning(f"load_craft_kg failed: {e}")
+    return KnowledgeGraph()
+
+
+def save_craft_kg(kg: KnowledgeGraph) -> None:
+    """Persist global craft KG to data/knowledge_graph.json."""
+    path = get_craft_kg_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(kg.to_dict(), f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"save_craft_kg failed: {e}")
+
+
+# Module-level global instance (populated at startup; import-safe: instance
+# identity is stable, only its internal _graph is swapped on reload).
+craft_kg: KnowledgeGraph = KnowledgeGraph()
+
+
+def init_craft_kg() -> None:
+    """Load the global craft KG file into the module-level craft_kg instance."""
+    loaded = load_craft_kg()
+    craft_kg._graph = loaded._graph
+    logger.info(
+        f"craft_kg loaded: {craft_kg.node_count} nodes / {craft_kg.edge_count} edges"
+    )

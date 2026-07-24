@@ -384,6 +384,7 @@ class MaterialCatalog(Base):
     model = Column(String(255), comment="型号")
     standard_code = Column(String(100), index=True, comment="标准代码")
     spec = Column(Text, comment="规格")
+    tech_params = Column(Text, comment="技术参数JSON: [{param_name,value,unit,standard_source}]")
     unit = Column(String(20), comment="单位")
     source_doc = Column(String(255), comment="来源文档")
     specialty = Column(String(50), comment="工艺专业（穿透维度，从 Material 带）")

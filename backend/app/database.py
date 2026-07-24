@@ -58,6 +58,15 @@ def _migrate_db():
                     "ON material_catalog(standard_code)"
                 ))
             logger.info("✅ Auto-migration: added index on material_catalog.standard_code")
+        # Add tech_params column for auxiliary material technical parameters
+        # (力矩/固化/温度 etc.) — 辅料牌号自带参数, in-context 先行 (2a), 结构化下沉 (2b)
+        mc_cols = {c["name"] for c in insp.get_columns("material_catalog")}
+        if "tech_params" not in mc_cols:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE material_catalog ADD COLUMN tech_params TEXT"
+                ))
+            logger.info("✅ Auto-migration: added tech_params to material_catalog")
 
 
 def init_db():

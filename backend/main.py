@@ -99,6 +99,10 @@ async def lifespan(app: FastAPI):
     from app.database import init_db
     init_db()
 
+    # 加载全局工艺知识图谱（跨 profile，持久化 data/knowledge_graph.json）
+    from app.services.knowledge_graph import init_craft_kg
+    init_craft_kg()
+
     # 初始化PDF解析队列管理器
     try:
         queue_manager = get_pdf_queue_manager()

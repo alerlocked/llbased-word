@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-24T00:44:51+08:00
-last_commit: 5682888
+updated_at: 2026-07-24T20:18:18+08:00
+last_commit: 67c835d
 status: 阶段1 Gap C 止血完成（PLAN 5682888）— generate_with_messages 推理模型空 content 修复 + fail-fast
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `5682888` plan(llm-reasoning-empty-fix): seal — fix non-streaming LLM empty content on reasoning models (enable_thinking=True + fail-fast fallback) (0 seconds ago)
-- `06db8f5` docs(devlog): record arch-catalog-index completion (frontmatter done + status entry) (2 days ago)
-- `f7d4753` chore(arch-catalog-index): task done — ARCHITECTURE.md + maintenance rule + P1-1 index (2 days ago)
-- `a36fddc` perf(catalog): index material_catalog.standard_code (P1-1, G18a enrich) (2 days ago)
-- `c2aa28d` docs(arch): ARCHITECTURE.md single source + CLAUDE.md pointer + maintenance rule (2 days ago)
-- `4ffe0e5` plan(arch-catalog-index): seal — ARCHITECTURE.md single source + maintenance rule + P1-1 catalog index (2 days ago)
-- `d7ef835` docs(todo): mark #3 column-key-align done (f8fc1a6 + win10 d05aa1c) (2 days ago)
-- `5b39a97` chore(column-key-align): task done — G10a/G14a/G12a keys aligned, guard 0 mismatch (2 days ago)
-- `f8fc1a6` fix(column-key): align G10a/G14a/G12a backend keys to frontend (plan A) (2 days ago)
-- `cb7aa10` plan(column-key-align): seal — align G10a/G14a/G12a backend keys to frontend (plan A) (2 days ago)
+- `67c835d` plan(g25a-method-aux-bind): seal — cohesive gen model (KG + layered context, aux-from-method binding, no vector) (1 second ago)
+- `7a82a6c` fix(llm-reasoning-empty-fix): adapt generate_with_messages for reasoning models + fail-fast on empty content (19 hours ago)
+- `5682888` plan(llm-reasoning-empty-fix): seal — fix non-streaming LLM empty content on reasoning models (enable_thinking=True + fail-fast fallback) (20 hours ago)
+- `06db8f5` docs(devlog): record arch-catalog-index completion (frontmatter done + status entry) (3 days ago)
+- `f7d4753` chore(arch-catalog-index): task done — ARCHITECTURE.md + maintenance rule + P1-1 index (3 days ago)
+- `a36fddc` perf(catalog): index material_catalog.standard_code (P1-1, G18a enrich) (3 days ago)
+- `c2aa28d` docs(arch): ARCHITECTURE.md single source + CLAUDE.md pointer + maintenance rule (3 days ago)
+- `4ffe0e5` plan(arch-catalog-index): seal — ARCHITECTURE.md single source + maintenance rule + P1-1 catalog index (3 days ago)
+- `d7ef835` docs(todo): mark #3 column-key-align done (f8fc1a6 + win10 d05aa1c) (3 days ago)
+- `5b39a97` chore(column-key-align): task done — G10a/G14a/G12a keys aligned, guard 0 mismatch (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
