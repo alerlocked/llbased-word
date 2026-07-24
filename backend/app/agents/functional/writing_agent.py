@@ -1102,13 +1102,23 @@ class WritingAgent(BaseAgent):
                 # call (Semaphore(4) concurrent). Avoids max_tokens truncation
                 # (critical for local qwen3-30b-a3b, maxIterTimes=2048) and
                 # improves quality — each call focuses on one step's content.
-                unstructured_slots, llm_row_count = await self._generate_g25a_per_row_parallel(
+                unstructured_slots, llm_row_count, aux_overrides = await self._generate_g25a_per_row_parallel(
                     base_system_msg=system_msg,
                     user_parts=user_parts,
                     unstructured_cols=unstructured_cols,
                     asm=asm, skel=skel,
                     chapter_code=chapter_code,
+                    reference_methods=task.get("params", {}).get("reference_methods"),
+                    aux_standards=task.get("params", {}).get("aux_standards", "") or "",
+                    user_input=(task.get("user_input") or task.get("params", {}).get("user_input") or ""),
                 )
+                # N5 相辅相成: LLM 产出的 aux_materials 覆盖辅料列 (与 content 同源);
+                # 没产出的工序保持 substeps 直填 (fallback)
+                if aux_overrides and structured_values.get("aux_materials"):
+                    for row, val in aux_overrides.items():
+                        if 1 <= row <= len(structured_values["aux_materials"]):
+                            structured_values["aux_materials"][row - 1] = val
+                    logger.info("g25a_aux_overridden", count=len(aux_overrides))
             else:
                 gen_max_tokens = 8192 if (chapter_type == "process_card" or is_g25a_sourced) else 6000
                 result = await llm_service.generate_with_messages(
@@ -1561,6 +1571,9 @@ class WritingAgent(BaseAgent):
         asm: Dict[int, Dict[str, Any]],
         skel: List[str],
         chapter_code: str,
+        reference_methods: Optional[List[Dict[str, Any]]] = None,
+        aux_standards: str = "",
+        user_input: str = "",
     ) -> tuple:
         """G25a per-step parallel generation.
 
@@ -1579,9 +1592,15 @@ class WritingAgent(BaseAgent):
         # G25a inspection column removed from template (now expanded into '检验'
         # process rows), but the LLM still needs to generate this slot so the
         # post-processor can split it into inspection rows.
-        if chapter_code == "G25a" and "inspection" not in slot_keys:
-            slot_keys.append("inspection")
-            slot_desc += ', "inspection"(检验)'
+        if chapter_code == "G25a":
+            # inspection: expanded into 检验 rows by post-processor
+            if "inspection" not in slot_keys:
+                slot_keys.append("inspection")
+                slot_desc += ', "inspection"(检验)'
+            # aux_materials: LLM 同次产出 (与 content 一致), 覆盖辅料列 (相辅相成 N5)
+            if "aux_materials" not in slot_keys:
+                slot_keys.append("aux_materials")
+                slot_desc += ', "aux_materials"(辅助材料清单)'
         semaphore = asyncio.Semaphore(4)
         user_msg = "\n\n".join(user_parts) if user_parts else "请生成。"
 
@@ -1594,18 +1613,43 @@ class WritingAgent(BaseAgent):
                 + (f" | 辅材:{s.get('material')}" if s.get("material") else "")
                 for s in subs
             ) or "  （原文未提供）"
+            # N5 相辅相成: 套用素材 + 辅料标准 + 用户需求导向 block
+            ref_block = ""
+            if reference_methods:
+                ref_for_step = [r for r in reference_methods if r.get("step_name") == name]
+                if ref_for_step:
+                    ref_text = "\n---\n".join(
+                        f"[{r.get('doc_name')} 第{r.get('page')}页]\n{(r.get('method_segment','') or '')[:300]}"
+                        for r in ref_for_step[:2]
+                    )
+                    ref_block = (
+                        f"\n## 同类工序工艺方法参考（套用素材，针对性改写适配本工件，绝不照抄）\n{ref_text}\n"
+                    )
+            aux_block = (
+                f"\n## 辅料技术参数标准（据此写准确参数，标注来源标准）\n{aux_standards}\n"
+                if aux_standards else ""
+            )
+            user_block = (
+                f"\n## 用户本次需求（生成导向，优先满足）\n{user_input}\n"
+                if user_input else ""
+            )
             step_msg = base_system_msg + (
                 f"\n\n## 当前任务：只生成第 {i} 道工序（{name}）的内容\n"
                 f"只输出 row={i} 的列：{slot_desc}\n"
                 f"输出格式：JSON 数组，每个元素 {{\"row\": {i}, \"slot\": 列key, \"value\": 值}}\n"
-                f"不要输出其他工序，不要输出已由系统提取的列（车间/工序号/工序名称/辅助材料）。\n"
+                f"不要输出其他工序；车间/工序号/工序名称 已由系统提取（不输出）。\n"
+                f"{user_block}"
+                f"{ref_block}"
+                f"{aux_block}"
                 f"## 工序内容(content) 写法：基于「工序{i}（{name}）工步原文」逐工步详实展开，保留 1.1/1.2/1.3 等工步编号与层次结构。\n"
                 f"每个工步写清：操作动作 + 关键参数（力矩/尺寸/规格/数量）+ 使用的辅材/仪器。多个工步用换行分段，结构：「工步号」操作描述；关键参数；辅材/仪器。\n"
                 f"约束（强制）：\n"
-                f"  1. 只用工步原文里出现的信息，不得新增原文没有的参数、数值、步骤；原文不足则如实写已有的，不要补全。\n"
+                f"  1. 只用工步原文 + 辅料标准里出现的信息，不得新增原文没有的参数、数值、步骤；原文不足则如实写已有的，不要补全。\n"
                 f"  2. 不要带「钳：」「机：」前缀（工序名称已单独提取到 step_name 列）。\n"
-                f"  3. 目标长度：本工序有多少工步就写多少段，每工步 1-3 句（约 30-60 字/工步），整道工序通常 100-200 字；工步多的可更长。宁详勿简，但绝不超过工步原文提供的信息量。\n"
+                f"  3. 目标长度：本工序有多少工步就写多少段，每工步 1-3 句（约 30-60 字/工步），整道工序通常 100-200 字；工步多的可更长。宁详勿简，但绝不超过工步原文+辅料标准提供的信息量。\n"
                 f"  4. 若该工序工步原文为「（原文未提供）」，content 留空字符串，不要臆造。\n\n"
+                f"## 辅助材料(aux_materials) 写法：列出本工序 content 中**实际使用**的辅料，多个用「、」分隔。"
+                f"必须与 content 提到的辅材完全一致（相辅相成）；基于工步原文辅材 + 辅料标准，不得臆造。若 content 无辅材则留空字符串。\n\n"
                 f"## 检验(inspection) 写法：仅对【关键质检工序】生成检验点——"
                 f"即涉及力矩/密封性/电气性能/位置度/关键尺寸测量，且原文工步中出现检验或测量要求的工序，生成 1-2 个检验点。"
                 f"普通装配动作（装密封圈、拧螺钉、搬运、清洗、涂胶、普通装配）一律不生成检验点，该 slot 留空字符串。"
@@ -1649,8 +1693,19 @@ class WritingAgent(BaseAgent):
                 logger.error("g25a_per_step_exception", step=idx, error=str(r))
             else:
                 all_slots.extend(r)
-        logger.info("g25a_per_step_parallel_done", steps=n, slots=len(all_slots))
-        return all_slots, n
+        # N5 相辅相成: 分离 aux_materials slots (覆盖辅料列), 其余为 content/inspection
+        aux_overrides: Dict[int, str] = {}
+        content_slots: List[Dict[str, Any]] = []
+        for s in all_slots:
+            if s.get("slot") == "aux_materials" and s.get("value"):
+                aux_overrides[s["row"]] = s["value"]
+            else:
+                content_slots.append(s)
+        logger.info(
+            "g25a_per_step_parallel_done",
+            steps=n, slots=len(content_slots), aux_overrides=len(aux_overrides),
+        )
+        return content_slots, n, aux_overrides
 
     def _get_preference_prompt_fragment(self) -> str:
         """Generate a prompt fragment from loaded preferences."""
