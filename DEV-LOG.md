@@ -2,28 +2,30 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-24T20:18:18+08:00
-last_commit: 67c835d
-status: 阶段1 Gap C 止血完成（PLAN 5682888）— generate_with_messages 推理模型空 content 修复 + fail-fast
+updated_at: 2026-07-24T20:38:46+08:00
+last_commit: f0b6f7a
+status: 阶段2 相辅相成生成模型完成（N1-N6 主仓）— KG+分层+套用素材+辅料一致；真生成验证留内网qwen3
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `67c835d` plan(g25a-method-aux-bind): seal — cohesive gen model (KG + layered context, aux-from-method binding, no vector) (1 second ago)
-- `7a82a6c` fix(llm-reasoning-empty-fix): adapt generate_with_messages for reasoning models + fail-fast on empty content (19 hours ago)
+- `f0b6f7a` feat(g25a-method-aux-bind): N5 gen_one cohesive prompt — reference/aux_standards/user_input + LLM aux overrides aux column (0 seconds ago)
+- `6589153` feat(g25a-method-aux-bind): N4 orchestrator inject reference_methods + aux_standards into G25a (8 minutes ago)
+- `c0fd910` feat(g25a-method-aux-bind): N3 L3.5 KG layer — _search_knowledge_graph + build_context wiring (11 minutes ago)
+- `cffafec` feat(g25a-method-aux-bind): N2 reference-method extraction (step-level segment, boundary-truncated) (13 minutes ago)
+- `69c9e5e` feat(g25a-method-aux-bind): N1 data layer — MaterialCatalog.tech_params + global craft KG (file-persisted) (16 minutes ago)
+- `67c835d` plan(g25a-method-aux-bind): seal — cohesive gen model (KG + layered context, aux-from-method binding, no vector) (20 minutes ago)
+- `7a82a6c` fix(llm-reasoning-empty-fix): adapt generate_with_messages for reasoning models + fail-fast on empty content (20 hours ago)
 - `5682888` plan(llm-reasoning-empty-fix): seal — fix non-streaming LLM empty content on reasoning models (enable_thinking=True + fail-fast fallback) (20 hours ago)
 - `06db8f5` docs(devlog): record arch-catalog-index completion (frontmatter done + status entry) (3 days ago)
 - `f7d4753` chore(arch-catalog-index): task done — ARCHITECTURE.md + maintenance rule + P1-1 index (3 days ago)
-- `a36fddc` perf(catalog): index material_catalog.standard_code (P1-1, G18a enrich) (3 days ago)
-- `c2aa28d` docs(arch): ARCHITECTURE.md single source + CLAUDE.md pointer + maintenance rule (3 days ago)
-- `4ffe0e5` plan(arch-catalog-index): seal — ARCHITECTURE.md single source + maintenance rule + P1-1 catalog index (3 days ago)
-- `d7ef835` docs(todo): mark #3 column-key-align done (f8fc1a6 + win10 d05aa1c) (3 days ago)
-- `5b39a97` chore(column-key-align): task done — G10a/G14a/G12a keys aligned, guard 0 mismatch (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（g25a-method-aux-bind，PLAN 67c835d seal）阶段2 相辅相成**：G25a 装配卡割裂→相辅相成（套用素材精准抽取 + 辅料标准 KG + LLM 同次产出工艺方法+辅料+参数 + 辅料覆盖辅料列一致性）。数据层 KG(networkx, 文件持久化 data/knowledge_graph.json) + 分层上下文 L3.5 KG 层，**不向量**。**N1-N6 全完成**：N1 MaterialCatalog.tech_params + 全局 craft_kg(`69c9e5e`) → N2 套用素材精准抽取 extract_reference_methods(`cffafec`) → N3 L3.5 _search_knowledge_graph + build_context(`c0fd910`) → N4 orchestrator 注入 reference_methods/aux_standards(`6589153`) → N5 gen_one 同次产出 + aux 覆盖辅料列(`f0b6f7a`) → N6 pytest **676 passed 0 回归** + 各节点冒烟过（N4 实证从知识库抽 4 段套用素材注入）。辅料参数 in-context 先行(2a, KG/DB 空态)；工艺方法导向=套用素材+针对工件+**用户需求导向**。**真生成验证留内网 qwen3**(本地 qwen-plus 非 qwen3，端到端生成 + 套用素材可溯源 + 辅料一致待用户部署验)。
 
 - **完成（llm-reasoning-empty-fix，PLAN 5682888 seal）阶段1 Gap C 止血**：2026-07-23 内网部署（qwen3-30b-a3b）补齐出"llm读取失败"+装配卡工序内容全空。根因=`generate_with_messages` 非流式 `enable_thinking=False` 与推理模型冲突→content 空+静默 success。修：`enable_thinking=True`（对齐流式）+ 只读 content（不合并 reasoning_content，防污染 JSON 场景）+ content 空降级 `_collect_stream_content` 流式收集+fail-fast。**验证**：pytest 676 passed 0 回归；本地 smoke（云端 qwen-turbo）`enable_thinking=True` 兼容不报错 + content 非空 + reasoning_content 单独不污染。推理模型(qwen3)真实 G25a 生成验证留内网部署（用户）。阶段2 相辅相成新模型（ALIGN-g25a-method-aux-bind）已留待启动；问题2 qa检索本轮不做。
 
