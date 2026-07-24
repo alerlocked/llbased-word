@@ -884,6 +884,68 @@ class HierarchicalContext:
         logger.info(f"[上下文] L3 搜索完成: 找到 {len(results)} 个匹配片段")
         return results
 
+    def extract_reference_methods(
+        self,
+        step_names: List[str],
+        top_k: int = 2,
+        context_chars: int = 400,
+    ) -> List[Dict[str, Any]]:
+        """按工序名召回同类工艺文件的「工序工艺方法段落」（套用素材，N2）。
+
+        global_keyword_search 先按工序名召回整页 → 从页内精准抽取该工序
+        附近的工艺方法段落（工序级，非整页片段），供 LLM 套用改写（不照抄）。
+
+        Returns:
+            [{step_name, doc_name, page, method_segment}, ...]
+        """
+        results: List[Dict[str, Any]] = []
+        for step_name in step_names or []:
+            if not step_name or len(step_name) < 2:
+                continue
+            hits = self.global_keyword_search(step_name, top_k=top_k)
+            for hit in hits:
+                snippet = hit.get("snippet", "")
+                segment = self._extract_step_segment(snippet, step_name, context_chars)
+                if segment:
+                    results.append({
+                        "step_name": step_name,
+                        "doc_name": hit.get("doc_name"),
+                        "page": hit.get("page"),
+                        "method_segment": segment,
+                    })
+        logger.info(
+            f"[上下文] 套用素材抽取: {len(step_names or [])} 工序 → {len(results)} 段落"
+        )
+        return results
+
+    def _extract_step_segment(
+        self,
+        text: str,
+        step_name: str,
+        context_chars: int = 400,
+    ) -> str:
+        """从整页文本中抽取工序名附近的工艺方法段落（工序级）。
+
+        定位工序名位置 → 取前后 context_chars 字符，并在下一个工序边界
+        （「工序N」「第N道」等标记）处截断，避免跨工序。
+        """
+        if not text or not step_name:
+            return ""
+        idx = text.find(step_name)
+        if idx < 0:
+            return ""
+        start = max(0, idx - 60)  # include a little before (工序号/名)
+        end = min(len(text), idx + context_chars)
+        segment = text[start:end]
+        # Truncate at the next step boundary if one appears after the anchor
+        import re
+        anchor_in_seg = idx - start
+        for m in re.finditer(r"(?:工序\s*\d|第\s*\d+\s*道|下一道)", segment):
+            if m.start() > anchor_in_seg + len(step_name):
+                segment = segment[: m.start()]
+                break
+        return segment.strip()
+
     def _extract_snippet(self, paragraph: str, hit_keywords: Set[str]) -> str:
         """从段落中提取包含关键词的片段
 
