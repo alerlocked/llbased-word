@@ -725,6 +725,22 @@ class HierarchicalContext:
 
         self._layer_tokens["layer3"] = layer3_tokens
 
+        # Layer 3.5: KG (辅料-标准-参数图谱) — N3
+        layer35_tokens = 0
+        kg_remaining = effective_max_tokens - used_tokens
+        kg_budget = min(1500, int(kg_remaining * 0.5))  # 留一半给 L4 memory
+        if kg_budget > 200:
+            try:
+                kg_context = self._search_knowledge_graph(query, kg_budget)
+                if kg_context:
+                    layer35_tokens = self._estimate_tokens(kg_context)
+                    context_parts.append(kg_context)
+                    used_tokens += layer35_tokens
+                    logger.info(f"[上下文] Layer 3.5 KG 加载完成: {layer35_tokens} tokens, 总计 {used_tokens} tokens")
+            except Exception as e:
+                logger.warning(f"[上下文] Layer 3.5 KG 加载失败: {e}")
+        self._layer_tokens["layer3.5"] = layer35_tokens
+
         # Layer 4: historical conversation memory
         layer4_tokens = 0
         if self._memory_service:
@@ -945,6 +961,56 @@ class HierarchicalContext:
                 segment = segment[: m.start()]
                 break
         return segment.strip()
+
+    def _search_knowledge_graph(self, query: str, max_tokens: int) -> str:
+        """L3.5 KG 层：辅料-标准-参数图谱检索 (N3)。
+
+        实体提取 → craft_kg expand(辅料-参数-工序) + KnowledgeSearchService(物料/标准条款)
+        → 组合注入文本。KG/DB 空时返回 ""(in-context 先行, 数据下沉后自动启用)。
+        """
+        from app.services.knowledge_graph import craft_kg
+        parts: List[str] = []
+
+        # 1. craft_kg: query 实体 → seed 节点 → expand_context (辅料-参数-工序关系)
+        if craft_kg.node_count > 0:
+            keywords = extract_keywords(query)
+            seed_ids: List[str] = []
+            for kw in keywords[:5]:
+                for nid in list(craft_kg._graph.nodes):
+                    if kw in (craft_kg._graph.nodes[nid].get("label", "") or ""):
+                        seed_ids.append(nid)
+                        break
+                if len(seed_ids) >= 5:
+                    break
+            if seed_ids:
+                kg_text = craft_kg.to_context_text(
+                    seed_node_ids=seed_ids, max_tokens=max_tokens // 2
+                )
+                if kg_text:
+                    parts.append("## 知识图谱(辅料-参数-工序)\n" + kg_text)
+
+        # 2. 结构化知识: MaterialCatalog + StandardClause (knowledge_search)
+        try:
+            from app.database import SessionLocal
+            from app.services.knowledge_search import KnowledgeSearchService
+            db = SessionLocal()
+            try:
+                ks = KnowledgeSearchService()
+                ks_text = ks.build_knowledge_context_text(db, query, max_items=4)
+                if ks_text:
+                    parts.append("## 结构化知识(物料/标准条款)\n" + ks_text)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"[上下文] L3.5 knowledge_search 失败: {e}")
+
+        if not parts:
+            return ""
+        text = "\n\n".join(parts)
+        max_chars = max_tokens * 4
+        if len(text) > max_chars:
+            text = text[:max_chars] + "\n...(KG 层内容已截断)"
+        return text
 
     def _extract_snippet(self, paragraph: str, hit_keywords: Set[str]) -> str:
         """从段落中提取包含关键词的片段
