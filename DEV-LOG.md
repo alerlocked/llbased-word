@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-24T20:38:46+08:00
-last_commit: f0b6f7a
+updated_at: 2026-07-24T20:54:31+08:00
+last_commit: e4de268
 status: 阶段2 相辅相成生成模型完成（N1-N6 主仓）— KG+分层+套用素材+辅料一致；真生成验证留内网qwen3
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `f0b6f7a` feat(g25a-method-aux-bind): N5 gen_one cohesive prompt — reference/aux_standards/user_input + LLM aux overrides aux column (0 seconds ago)
-- `6589153` feat(g25a-method-aux-bind): N4 orchestrator inject reference_methods + aux_standards into G25a (8 minutes ago)
-- `c0fd910` feat(g25a-method-aux-bind): N3 L3.5 KG layer — _search_knowledge_graph + build_context wiring (11 minutes ago)
-- `cffafec` feat(g25a-method-aux-bind): N2 reference-method extraction (step-level segment, boundary-truncated) (13 minutes ago)
-- `69c9e5e` feat(g25a-method-aux-bind): N1 data layer — MaterialCatalog.tech_params + global craft KG (file-persisted) (16 minutes ago)
-- `67c835d` plan(g25a-method-aux-bind): seal — cohesive gen model (KG + layered context, aux-from-method binding, no vector) (20 minutes ago)
+- `e4de268` chore(g25a-method-aux-bind): task done — N1-N6 complete (KG+layered+cohesive), pytest 676 passed 0 regression (0 seconds ago)
+- `f0b6f7a` feat(g25a-method-aux-bind): N5 gen_one cohesive prompt — reference/aux_standards/user_input + LLM aux overrides aux column (16 minutes ago)
+- `6589153` feat(g25a-method-aux-bind): N4 orchestrator inject reference_methods + aux_standards into G25a (24 minutes ago)
+- `c0fd910` feat(g25a-method-aux-bind): N3 L3.5 KG layer — _search_knowledge_graph + build_context wiring (27 minutes ago)
+- `cffafec` feat(g25a-method-aux-bind): N2 reference-method extraction (step-level segment, boundary-truncated) (29 minutes ago)
+- `69c9e5e` feat(g25a-method-aux-bind): N1 data layer — MaterialCatalog.tech_params + global craft KG (file-persisted) (31 minutes ago)
+- `67c835d` plan(g25a-method-aux-bind): seal — cohesive gen model (KG + layered context, aux-from-method binding, no vector) (36 minutes ago)
 - `7a82a6c` fix(llm-reasoning-empty-fix): adapt generate_with_messages for reasoning models + fail-fast on empty content (20 hours ago)
 - `5682888` plan(llm-reasoning-empty-fix): seal — fix non-streaming LLM empty content on reasoning models (enable_thinking=True + fail-fast fallback) (20 hours ago)
 - `06db8f5` docs(devlog): record arch-catalog-index completion (frontmatter done + status entry) (3 days ago)
-- `f7d4753` chore(arch-catalog-index): task done — ARCHITECTURE.md + maintenance rule + P1-1 index (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

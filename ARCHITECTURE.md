@@ -29,13 +29,14 @@
 - **入口**:`POST /api/agent/generate-stream`(`api/agent.py:853`)→ `orchestrator.process_intent` → SSE 事件(mode/progress/content/content_section/result/error)。
 - **source-driven 直注(真主路径)**:`extract_*`(`services/hierarchical_context.py`)抽章节 → orchestrator 注入 `task["params"]` → writing_agent `preloaded_content` 直填。
   - extract 函数:assembly_steps(G25a)/ process_steps(G19a)/ process_card_steps(G22a)/ file_references(G5a)/ doc_catalog(G4a)/ assembly_overview。
+  - **G25a 相辅相成**(2026-07-24 g25a-method-aux-bind):gen_one 套用素材(`extract_reference_methods`)+辅料标准(L3.5 KG)→ LLM 同次产出工艺方法+辅料+参数 → aux 覆盖辅料列(绑定一致,substeps 直填退 fallback)。详见 `exp-g25a-cohesive-model`。
 - 倒推(`orchestrator._derive_strong_node`):G25a → G18a/G14a 等配套表;G18a 走 catalog enrich(`_enrich_names_from_catalog`,代号→名称 exact 查纠错位/填待补)。
 - 无 source 章节 / chat → HierarchicalContext 兜底。
 
 ## 4. 上下文 + 检索
 
 ### HierarchicalContext(`services/hierarchical_context.py:105`,4 层)
-- L0 元信息索引(`load_meta_index`)/ L1 表格索引(`load_table_index`)/ L2 表格 HTML(`extract_table_html`)/ L3 关键词检索(`global_keyword_search`,jieba 分词)。
+- L0 元信息索引(`load_meta_index`)/ L1 表格索引(`load_table_index`)/ L2 表格 HTML(`extract_table_html`)/ L3 关键词检索(`global_keyword_search`,jieba 分词)/ **L3.5 KG**(`_search_knowledge_graph`,全局 craft_kg 辅料-标准-参数图谱,2026-07-24 加)。
 - material filter:型号(model)/ 专业(specialty)穿透。
 
 ### 3 活检索路径
@@ -46,7 +47,8 @@
 | **material_catalog**(KnowledgeSearchService) | 结构化 | G18a enrich(`standard_code` exact 查 → name) |
 
 ### 废弃组件(2026-07-05 cleanup 删,**勿复活**)
-向量(IndexingService / chromadb)/ 图谱(KnowledgeGraph)/ UnifiedRetrieval / SearchAgent。原因:工艺文件是结构化 QJ903 表格,向量召回引噪声;source-driven 直注 > 三层检索(见 `exp-retrieval-cleanup-and-dimensions`)。
+向量(IndexingService / chromadb)/ UnifiedRetrieval / SearchAgent。原因:工艺文件是结构化 QJ903 表格,向量召回引噪声;source-driven 直注 > 三层检索(见 `exp-retrieval-cleanup-and-dimensions`)。
+> ⚠️ **图谱区分**:2026-07-05 删的是**老 KG 死壳**(0 调用);2026-07-24 g25a-method-aux-bind 重新上**全局 craft_kg**(`services/knowledge_graph.py`,networkx,文件持久化 `data/knowledge_graph.json`,L3.5 层 + G25a 相辅相成用)——这是**活的**,勿与老死壳混淆(见 `exp-g25a-cohesive-model`)。
 
 ## 5. 数据存储
 
@@ -54,6 +56,8 @@
 - **DB 表**(`models/database.py`,SQLite):Material / MaterialCatalog / MaterialPage / Figure / ProcessStep / Standard / StandardClause / StepMaterial / StepTool。
   - 关联:ProcessStep ←StepMaterial/StepTool→ MaterialCatalog。
   - `MaterialCatalog.standard_code`:G18a catalog enrich exact 查键。
+  - `MaterialCatalog.tech_params`(JSON,2026-07-24):辅料技术参数 `[{param_name,value,unit,standard_source}]`,in-context 先行(2a),结构化下沉(2b)。
+- **全局 craft KG**(`data/knowledge_graph.json`,networkx,2026-07-24):跨 profile 工艺知识图谱(辅料-标准-参数-工序),启动加载(`init_craft_kg`),供 L3.5 层检索。详见 `exp-g25a-cohesive-model`。
 - `data/profiles/`(assembly/welding/coating.json 画像)/ `tasks/`(任务记忆)/ `memory/`(对话记忆)。
 
 ## 6. 前端(`frontend/src`)
