@@ -59,6 +59,29 @@ from app.agents.functional import discover_agents
 logger = get_logger(__name__)
 
 
+def _inject_g25a_aux_context(task: dict, skeleton_names: list) -> None:
+    """G25a 套用素材 + 辅料标准注入 (N4). 模块级, 两处 G25a 注入点共用。
+
+    reference_methods: 同类工序现成工艺方法段落 (extract_reference_methods, N2)
+    aux_standards: 辅料-标准参数 (KG + knowledge_search, N3)
+    KG/DB 空时静默跳过 (in-context 先行)。
+    """
+    from app.services.hierarchical_context import hierarchical_context as hc
+    try:
+        skel = [s for s in (skeleton_names or []) if s]
+        if not skel:
+            return
+        ref = hc.extract_reference_methods(skel, top_k=2)
+        if ref:
+            task.setdefault("params", {})["reference_methods"] = ref
+        aux = hc._search_knowledge_graph(" ".join(skel[:5]), 1200)
+        if aux:
+            task.setdefault("params", {})["aux_standards"] = aux
+        logger.info("g25a_aux_injected", ref_count=len(ref), has_aux=bool(aux))
+    except Exception as e:
+        logger.warning("g25a_aux_inject_failed", error=str(e))
+
+
 class IterationResult(str, Enum):
     """迭代结果状态"""
     CONTINUE = "continue"
@@ -2725,6 +2748,8 @@ class ProcessOrchestrator:
                                 _ov = hierarchical_context.extract_assembly_overview(_doc_dir)
                                 if _ov:
                                     task["params"]["assembly_overview"] = _ov
+                                # N4: 套用素材 + 辅料标准注入 (reference_methods/aux_standards)
+                                _inject_g25a_aux_context(task, task["params"].get("skeleton_steps", []))
                             except Exception as e:
                                 logger.warning("g25a_assembly_steps_failed", error=str(e))
 
@@ -2839,6 +2864,11 @@ class ProcessOrchestrator:
                                 "g25a_assembly_steps_injected",
                                 doc_dir=doc_dir,
                                 step_count=len(assembly_steps),
+                            )
+                            # N4: 套用素材 + 辅料标准注入 (reference_methods/aux_standards)
+                            _inject_g25a_aux_context(
+                                tasks[idx],
+                                (tasks[idx].get("inherited_context") or {}).get("step_names", []),
                             )
                     except Exception as e:
                         logger.warning("g25a_assembly_steps_failed", error=str(e))
