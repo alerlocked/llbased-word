@@ -20,7 +20,7 @@ except ImportError:
     logger.warning("[上下文] jieba 未安装，将使用简单分词")
 
 
-def extract_keywords(text: str) -> Set[str]:
+def extract_keywords(text: str) -> List[str]:
     """提取关键词（支持中文）
     
     使用 jieba 分词，如果未安装则回退到简单正则匹配
@@ -30,12 +30,15 @@ def extract_keywords(text: str) -> Set[str]:
         words = jieba.cut(text)
         # 过滤停用词和单字
         stopwords = {'的', '了', '是', '有', '在', '我', '你', '他', '这', '那', '和', '与', '或', '个', '们', '等', '要', '会', '能', '对', '把', '被', '让', '给', '到', '从', '向', '往', '在', '着', '过', '地', '得'}
-        return {w.lower() for w in words if len(w) > 1 and w not in stopwords and not w.isspace()}
+        return list(dict.fromkeys(
+            w.lower() for w in words
+            if len(w) > 1 and w not in stopwords and not w.isspace()
+        ))
     else:
         # 简单正则匹配（中文字符 + 英文单词）
-        chinese_words = set(re.findall(r'[\u4e00-\u9fff]{2,}', text))
-        english_words = set(re.findall(r'[a-zA-Z]{2,}', text.lower()))
-        return chinese_words | english_words
+        chinese_words = re.findall(r'[\u4e00-\u9fff]{2,}', text)
+        english_words = re.findall(r'[a-zA-Z]{2,}', text.lower())
+        return list(dict.fromkeys(chinese_words + english_words))
 
 
 # Audit/signature markers found in source process docs (every page has a
@@ -427,14 +430,14 @@ class HierarchicalContext:
                     else:
                         # 检查是否有部分匹配（如 "装配工艺卡片" 包含 "工艺卡片"）
                         type_keywords = extract_keywords(table_type)
-                        overlap = len(query_keywords & type_keywords)
+                        overlap = len(set(query_keywords) & set(type_keywords))
                         if overlap > 0:
                             score += overlap * 3.0
                 
                 # 3. 摘要关键词匹配（使用改进的分词）
                 if summary:
                     summary_keywords = extract_keywords(summary)
-                    overlap = len(query_keywords & summary_keywords)
+                    overlap = len(set(query_keywords) & set(summary_keywords))
                     score += overlap * 2.0
                 
                 # 4. 材料名称匹配
@@ -1203,7 +1206,7 @@ class HierarchicalContext:
                     scored.append((0.0, mf, content))
                 else:
                     content_keywords = extract_keywords(content)
-                    overlap = len(query_keywords & content_keywords)
+                    overlap = len(set(query_keywords) & set(content_keywords))
                     scored.append((float(overlap), mf, content))
             except Exception:
                 continue

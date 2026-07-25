@@ -230,7 +230,7 @@ class TestKeywordExtraction:
         keywords = extract_keywords("工艺文件目录包含产品基本信息")
 
         # 应该提取出有意义的词
-        assert isinstance(keywords, set)
+        assert isinstance(keywords, list)
         # 至少应该有一些关键词
         assert len(keywords) > 0
 
@@ -242,7 +242,7 @@ class TestKeywordExtraction:
         keywords = extract_keywords("G4a 工艺卡片包含 GD414 材料")
 
         # 应该提取出中英文关键词
-        assert isinstance(keywords, set)
+        assert isinstance(keywords, list)
         # 应该包含 G4a 或 gd414
         lower_keywords = {k.lower() for k in keywords}
         assert 'g4a' in lower_keywords or 'gd414' in lower_keywords
