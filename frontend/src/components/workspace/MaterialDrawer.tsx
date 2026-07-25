@@ -86,6 +86,11 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const [currentFile, setCurrentFile] = useState<string>('')
   const [pollingMaterialId, setPollingMaterialId] = useState<number | null>(null)
 
+  // batch profile-learning state (N3: folder-level learn-batch SSE)
+  const [batchLearn, setBatchLearn] = useState<{ active: boolean; current: number; total: number; file: string }>({
+    active: false, current: 0, total: 0, file: '',
+  })
+
   const processingStartTimeRef = useRef<number | null>(null)
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -442,6 +447,70 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     }
   }
 
+  // N3: batch-learn all files in a folder as profile via SSE stream
+  const handleLearnFolder = async (folderKey: string) => {
+    const fileIds = materials
+      .filter(m => (folderKey === 'root' ? !m.folderId : m.folderId === folderKey))
+      .map(m => String(m.id))
+
+    if (fileIds.length === 0) {
+      message.warning('该文件夹无可用文件')
+      return
+    }
+
+    const domain = materials.find(m => String(m.id) === fileIds[0])?.domain || 'assembly'
+
+    setBatchLearn({ active: true, current: 0, total: fileIds.length, file: '' })
+
+    try {
+      const resp = await fetch(`http://localhost:8000/api/profile/${domain}/learn-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_ids: fileIds }),
+      })
+
+      if (!resp.ok || !resp.body) {
+        throw new Error(`HTTP ${resp.status}`)
+      }
+
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.type === 'start') {
+              setBatchLearn({ active: true, current: 0, total: evt.total, file: '' })
+            } else if (evt.type === 'progress') {
+              setBatchLearn({ active: true, current: evt.current, total: evt.total, file: evt.file })
+            } else if (evt.type === 'item_error') {
+              message.warning(`跳过 ${evt.file}: ${evt.message}`)
+            } else if (evt.type === 'complete') {
+              message.success(`批量学习完成 ${evt.ok}/${evt.total},KG ${evt.kg_nodes} 节点`)
+              setBatchLearn({ active: false, current: evt.total, total: evt.total, file: '' })
+              fetchMaterials()
+            }
+          } catch {
+            // ignore parse errors on partial lines
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Batch profile learning failed:', error)
+      message.error('批量学习出错')
+    } finally {
+      setBatchLearn(prev => ({ ...prev, active: false }))
+    }
+  }
+
   // helpers
   const getFlatFolders = () => {
     const result: { key: string; title: string }[] = []
@@ -585,6 +654,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
               onCreate={handleCreateFolder}
               onRename={handleRenameFolder}
               onDelete={handleDeleteFolder}
+              onLearnFolder={handleLearnFolder}
             />
           </div>
 
@@ -606,6 +676,29 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
 
             {/* file list */}
             <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+              {batchLearn.active && (
+                <div style={{ marginBottom: 8 }}>
+                  <Alert
+                    message="正在批量学习为画像"
+                    description={
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ marginBottom: 8, fontSize: 14 }}>
+                          <LoadingOutlined spin /> 正在学习: {batchLearn.current}/{batchLearn.total}
+                          {batchLearn.file ? ` · ${batchLearn.file}` : ''}
+                        </div>
+                        <Progress
+                          percent={batchLearn.total > 0 ? Math.round((batchLearn.current / batchLearn.total) * 100) : 0}
+                          status="active"
+                          strokeColor={{ '0%': '#108ee9', '100%': '#87d068' }}
+                          size={['100%', 12]}
+                        />
+                      </div>
+                    }
+                    type="info"
+                    icon={<LoadingOutlined />}
+                  />
+                </div>
+              )}
               <FileList
                 files={materials}
                 loading={loading}

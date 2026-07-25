@@ -10,6 +10,7 @@ import {
   PlusOutlined,
   DeleteOutlined,
   EditOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 import type { TreeDataNode, TreeProps } from 'antd'
 import { colors } from '../../styles/design-tokens'
@@ -27,6 +28,8 @@ interface FolderTreeProps {
   onCreate: (name: string, parentId?: number | null) => Promise<void>
   onRename: (folderId: number, name: string) => Promise<void>
   onDelete: (folderId: number) => Promise<void>
+  /** Batch-learn all files in a folder as profile (N3) */
+  onLearnFolder?: (folderKey: string) => void
 }
 
 const API_BASE = 'http://localhost:8000/api/creation'
@@ -38,6 +41,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
   onCreate,
   onRename,
   onDelete,
+  onLearnFolder,
 }) => {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
@@ -143,6 +147,15 @@ const FolderTree: React.FC<FolderTreeProps> = ({
         setContextMenuNode(null)
       }
     },
+    ...(onLearnFolder ? [{
+      key: 'learn-folder',
+      icon: <UserOutlined />,
+      label: '批量学习为画像',
+      onClick: () => {
+        onLearnFolder(contextMenuNode.key)
+        setContextMenuNode(null)
+      }
+    }] : []),
     { type: 'divider' as const },
     {
       key: 'delete',
