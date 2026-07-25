@@ -1283,6 +1283,18 @@ class WritingAgent(BaseAgent):
                             chapter_data.left_data = retry_filled.get("left", [])
                             chapter_data.right_data = retry_filled.get("right", [])
 
+        if chapter_code == "G18a":
+            _sample = [{"part_code": r.get("part_code"), "part_name": r.get("part_name")} for r in chapter_data.filled_data]
+        elif chapter_code == "G25a":
+            _sample = [{"step": r.get("step_no"), "name": r.get("step_name"), "aux": r.get("aux_materials"), "instr": r.get("instruments")} for r in chapter_data.filled_data]
+        else:
+            _sample = chapter_data.filled_data[:3]
+        logger.info("writing_agent_result", chapter_code=chapter_code,
+                    filled_data=len(chapter_data.filled_data),
+                    sample=_sample,
+                    left=len(chapter_data.left_data or []),
+                    flow=len(chapter_data.flow_steps or []),
+                    fields=len(chapter_data.field_values or []))
         return {
             "success": True,
             "chapter_code": chapter_code,

@@ -1120,6 +1120,9 @@ async def generate_stream(request: GenerateStreamRequest):
                                 from app.services.template_types import ChapterData
                                 chapters = []
                                 for code, data in structured_results.items():
+                                    logger.info("template_assemble_chapter", code=code,
+                                                filled=len(data.get("filled_data", [])) if isinstance(data, dict) else -1,
+                                                data_keys=list(data.keys()) if isinstance(data, dict) else [])
                                     if isinstance(data, dict):
                                         chapters.append(ChapterData(
                                             chapter_code=code,

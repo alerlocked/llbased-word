@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-25T17:19:58+08:00
-last_commit: ad30b2c
+updated_at: 2026-07-26T00:20:00+08:00
+last_commit: 31723e2
 status: craft-kg-from-learn 完成（修 g25a-method-aux-bind N1 漏洞：learn→triples→craft KG 灌数据 + 文件夹批量 SSE；G25a aux_standards 真生成留周一内网 qwen3）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `ad30b2c` fix(g25a-aux-kg): extract_keywords Set->List + & intersection set() wrap (1 second ago)
-- `bbdee22` docs(arch): record craft KG feed-data lineage (learn->triples->craft_kg) (56 minutes ago)
-- `84d2ab8` test(craft-kg-from-learn): N4 KG unit tests + pytest 681 passed 0 failed (59 minutes ago)
-- `874f077` feat(craft-kg-from-learn): N3 frontend folder batch-learn button + SSE progress UI (87 minutes ago)
-- `216053a` feat(craft-kg-from-learn): N2 learn-batch endpoint + SSE per-file progress (2 hours ago)
-- `0c6ef13` feat(craft-kg-from-learn): N1 merge_from + _feed_craft_kg - learn feeds craft KG (2 hours ago)
-- `e367b15` chore(todo): drop G25a inspection-stacking entry (user confirmed not an issue) (2 hours ago)
-- `f564472` plan(craft-kg-from-learn): seal - learn triples feed craft KG + folder batch SSE (2 hours ago)
-- `e3cd6ce` docs(arch): update ARCHITECTURE.md — global craft KG + L3.5 layer + tech_params + G25a cohesive gen (g25a-method-aux-bind) (20 hours ago)
-- `e4de268` chore(g25a-method-aux-bind): task done — N1-N6 complete (KG+layered+cohesive), pytest 676 passed 0 regression (20 hours ago)
+- `31723e2` fix(llm): generate_with_messages stream + thinking_budget (enable_thinking slow rootcause) (0 seconds ago)
+- `ad30b2c` fix(g25a-aux-kg): extract_keywords Set->List + & intersection set() wrap (7 hours ago)
+- `bbdee22` docs(arch): record craft KG feed-data lineage (learn->triples->craft_kg) (8 hours ago)
+- `84d2ab8` test(craft-kg-from-learn): N4 KG unit tests + pytest 681 passed 0 failed (8 hours ago)
+- `874f077` feat(craft-kg-from-learn): N3 frontend folder batch-learn button + SSE progress UI (8 hours ago)
+- `216053a` feat(craft-kg-from-learn): N2 learn-batch endpoint + SSE per-file progress (9 hours ago)
+- `0c6ef13` feat(craft-kg-from-learn): N1 merge_from + _feed_craft_kg - learn feeds craft KG (9 hours ago)
+- `e367b15` chore(todo): drop G25a inspection-stacking entry (user confirmed not an issue) (9 hours ago)
+- `f564472` plan(craft-kg-from-learn): seal - learn triples feed craft KG + folder batch SSE (9 hours ago)
+- `e3cd6ce` docs(arch): update ARCHITECTURE.md — global craft KG + L3.5 layer + tech_params + G25a cohesive gen (g25a-method-aux-bind) (27 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
