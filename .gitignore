@@ -92,6 +92,7 @@ data/test_direct.csv
 backend/data/process_docs/*.pdf
 backend/data/extracted/
 backend/data/pdf_queue_state.json
+backend/data/knowledge_graph.json
 
 # Database files (contains user data)
 backend/data/database/

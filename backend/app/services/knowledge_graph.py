@@ -282,6 +282,25 @@ class KnowledgeGraph:
         return kg
 
     # ========================================
+    # Merge (additive, idempotent)
+    # ========================================
+
+    def merge_from(self, other: "KnowledgeGraph") -> None:
+        """Fold another KG's nodes/edges into this one (additive, idempotent).
+
+        Used to merge a per-learn triples-built KG into the global craft_kg.
+        Nodes/edges already present are skipped — node ids come from _safe_id,
+        so the same process step learned from different files merges into one
+        node (cross-file dedup of same-named steps).
+        """
+        for nid, props in other._graph.nodes(data=True):
+            if nid not in self._graph:
+                self._graph.add_node(nid, **dict(props))
+        for src, tgt, data in other._graph.edges(data=True):
+            if not self._graph.has_edge(src, tgt):
+                self._graph.add_edge(src, tgt, **dict(data))
+
+    # ========================================
     # Serialization
     # ========================================
 

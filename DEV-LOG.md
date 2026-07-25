@@ -2,28 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-24T20:57:59+08:00
-last_commit: e3cd6ce
-status: 阶段2 相辅相成生成模型完成（N1-N6 主仓）— KG+分层+套用素材+辅料一致；真生成验证留内网qwen3
-task_state: done
+updated_at: 2026-07-25T15:45:29+08:00
+last_commit: e367b15
+status: craft-kg-from-learn N1 进行中（修 g25a-method-aux-bind N1 漏洞：learn→triples→craft KG 灌数据）；阶段2 相辅相成代码 done 待内网 qwen3 验
+task_state: running
+task_slug: craft-kg-from-learn
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `e3cd6ce` docs(arch): update ARCHITECTURE.md — global craft KG + L3.5 layer + tech_params + G25a cohesive gen (g25a-method-aux-bind) (0 seconds ago)
-- `e4de268` chore(g25a-method-aux-bind): task done — N1-N6 complete (KG+layered+cohesive), pytest 676 passed 0 regression (3 minutes ago)
-- `f0b6f7a` feat(g25a-method-aux-bind): N5 gen_one cohesive prompt — reference/aux_standards/user_input + LLM aux overrides aux column (19 minutes ago)
-- `6589153` feat(g25a-method-aux-bind): N4 orchestrator inject reference_methods + aux_standards into G25a (27 minutes ago)
-- `c0fd910` feat(g25a-method-aux-bind): N3 L3.5 KG layer — _search_knowledge_graph + build_context wiring (30 minutes ago)
-- `cffafec` feat(g25a-method-aux-bind): N2 reference-method extraction (step-level segment, boundary-truncated) (33 minutes ago)
-- `69c9e5e` feat(g25a-method-aux-bind): N1 data layer — MaterialCatalog.tech_params + global craft KG (file-persisted) (35 minutes ago)
-- `67c835d` plan(g25a-method-aux-bind): seal — cohesive gen model (KG + layered context, aux-from-method binding, no vector) (40 minutes ago)
-- `7a82a6c` fix(llm-reasoning-empty-fix): adapt generate_with_messages for reasoning models + fail-fast on empty content (20 hours ago)
-- `5682888` plan(llm-reasoning-empty-fix): seal — fix non-streaming LLM empty content on reasoning models (enable_thinking=True + fail-fast fallback) (20 hours ago)
+- `e367b15` chore(todo): drop G25a inspection-stacking entry (user confirmed not an issue) (0 seconds ago)
+- `f564472` plan(craft-kg-from-learn): seal - learn triples feed craft KG + folder batch SSE (5 minutes ago)
+- `e3cd6ce` docs(arch): update ARCHITECTURE.md — global craft KG + L3.5 layer + tech_params + G25a cohesive gen (g25a-method-aux-bind) (19 hours ago)
+- `e4de268` chore(g25a-method-aux-bind): task done — N1-N6 complete (KG+layered+cohesive), pytest 676 passed 0 regression (19 hours ago)
+- `f0b6f7a` feat(g25a-method-aux-bind): N5 gen_one cohesive prompt — reference/aux_standards/user_input + LLM aux overrides aux column (19 hours ago)
+- `6589153` feat(g25a-method-aux-bind): N4 orchestrator inject reference_methods + aux_standards into G25a (19 hours ago)
+- `c0fd910` feat(g25a-method-aux-bind): N3 L3.5 KG layer — _search_knowledge_graph + build_context wiring (19 hours ago)
+- `cffafec` feat(g25a-method-aux-bind): N2 reference-method extraction (step-level segment, boundary-truncated) (19 hours ago)
+- `69c9e5e` feat(g25a-method-aux-bind): N1 data layer — MaterialCatalog.tech_params + global craft KG (file-persisted) (19 hours ago)
+- `67c835d` plan(g25a-method-aux-bind): seal — cohesive gen model (KG + layered context, aux-from-method binding, no vector) (19 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **在做（craft-kg-from-learn，PLAN f564472 seal）**：修 g25a-method-aux-bind N1 规划漏洞——craft KG 壳做了（`save_craft_kg` 全库零调用）→ `craft_kg` 永远空 → N3 `_search_knowledge_graph` 被 `node_count>0` 守卫跳过 → `aux_standards` 空 → 装配卡辅料标准关联空跑。本期：learn→triples→`build_from_triples`→合并 `craft_kg`+save + 文件夹批量（后端 SSE）。**N1 ✅ 完成**：`KnowledgeGraph.merge_from`（累加幂等）+ learn/learn-file handler `_feed_craft_kg`（build_from_triples→merge→save_craft_kg 首次接上）；冒烟 0→6 nodes/4 edges + `data/knowledge_graph.json` 生成 + 重复 merge 幂等 + 空 triples fail-soft。**下 N2**：后端 learn-batch 端点 + SSE 进度。
 
 - **完成（g25a-method-aux-bind，PLAN 67c835d seal）阶段2 相辅相成**：G25a 装配卡割裂→相辅相成（套用素材精准抽取 + 辅料标准 KG + LLM 同次产出工艺方法+辅料+参数 + 辅料覆盖辅料列一致性）。数据层 KG(networkx, 文件持久化 data/knowledge_graph.json) + 分层上下文 L3.5 KG 层，**不向量**。**N1-N6 全完成**：N1 MaterialCatalog.tech_params + 全局 craft_kg(`69c9e5e`) → N2 套用素材精准抽取 extract_reference_methods(`cffafec`) → N3 L3.5 _search_knowledge_graph + build_context(`c0fd910`) → N4 orchestrator 注入 reference_methods/aux_standards(`6589153`) → N5 gen_one 同次产出 + aux 覆盖辅料列(`f0b6f7a`) → N6 pytest **676 passed 0 回归** + 各节点冒烟过（N4 实证从知识库抽 4 段套用素材注入）。辅料参数 in-context 先行(2a, KG/DB 空态)；工艺方法导向=套用素材+针对工件+**用户需求导向**。**真生成验证留内网 qwen3**(本地 qwen-plus 非 qwen3，端到端生成 + 套用素材可溯源 + 辅料一致待用户部署验)。
 

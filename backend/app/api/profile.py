@@ -38,6 +38,7 @@ from app.models.profile import (
     get_default_assembly_profile, get_default_welding_profile,
 )
 from app.services.document_profile_learner import DocumentProfileLearner
+from app.services.knowledge_graph import craft_kg, save_craft_kg, KnowledgeGraph
 from app.services.feedback_learner import FeedbackLearner
 from app.config import settings
 
@@ -214,6 +215,24 @@ def reset_profile(domain: str) -> Dict[str, Any]:
     return {"status": "ok", "message": "Profile reset to default", "profile": default.to_dict()}
 
 
+def _feed_craft_kg(triples: List[Dict[str, str]]) -> int:
+    """Build a KG from learned triples, merge into the global craft_kg, persist.
+
+    Returns the merged global craft_kg node count. Fail-soft: any error logs
+    a warning and returns the current node_count — KG feed never blocks learning
+    (craft-kg-from-learn: closes g25a-method-aux-bind N1 gap, N3 needs data).
+    """
+    if not triples:
+        return craft_kg.node_count
+    try:
+        local = KnowledgeGraph.build_from_triples(triples)
+        craft_kg.merge_from(local)
+        save_craft_kg(craft_kg)
+    except Exception as e:
+        logger.warning(f"_feed_craft_kg failed: {e}")
+    return craft_kg.node_count
+
+
 @router.post("/{domain}/learn")
 async def learn_from_content(domain: str, req: LearnRequest) -> Dict[str, Any]:
     """Learn profile features from document text content."""
@@ -231,12 +250,16 @@ async def learn_from_content(domain: str, req: LearnRequest) -> Dict[str, Any]:
     updated = Profile.from_dict(merged)
     _save_profile(updated)
 
+    # Feed global craft KG (learn→triples→craft_kg, closes N3 empty-aux gap)
+    kg_nodes = _feed_craft_kg(features.get("triples", []))
+
     return {
         "status": "ok",
         "message": f"Learned from document",
         "extracted_features": {
             "terms_count": len(features.get("frequent_terms", {})),
             "patterns_count": len(features.get("document_patterns", [])),
+            "kg_nodes": kg_nodes,
         },
         "profile": updated.to_dict(),
     }
@@ -284,9 +307,13 @@ async def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
     updated = Profile.from_dict(merged)
     _save_profile(updated)
 
+    # Feed global craft KG (same as learn endpoint)
+    kg_nodes = _feed_craft_kg(features.get("triples", []))
+
     return {
         "status": "ok",
         "message": f"Learned from file: {file_path.name}",
+        "kg_nodes": kg_nodes,
         "profile": updated.to_dict(),
     }
 
