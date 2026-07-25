@@ -57,7 +57,7 @@
   - 关联:ProcessStep ←StepMaterial/StepTool→ MaterialCatalog。
   - `MaterialCatalog.standard_code`:G18a catalog enrich exact 查键。
   - `MaterialCatalog.tech_params`(JSON,2026-07-24):辅料技术参数 `[{param_name,value,unit,standard_source}]`,in-context 先行(2a),结构化下沉(2b)。
-- **全局 craft KG**(`data/knowledge_graph.json`,networkx,2026-07-24):跨 profile 工艺知识图谱(辅料-标准-参数-工序),启动加载(`init_craft_kg`),供 L3.5 层检索。详见 `exp-g25a-cohesive-model`。
+- **全局 craft KG**(`data/knowledge_graph.json`,networkx,2026-07-24):跨 profile 工艺知识图谱(辅料-标准-参数-工序),启动加载(`init_craft_kg`),供 L3.5 层检索。**灌数据链路**(2026-07-25 craft-kg-from-learn):「学习为画像」(`POST /api/profile/{domain}/learn` 单文件 / `learn-file` / `learn-batch` 文件夹批量 SSE)→ `DocumentProfileLearner.learn_from_content` 产 triples → `_feed_craft_kg`(`build_from_triples`→`craft_kg.merge_from` 累加幂等,`_safe_id` 跨文件同名工序去重→`save_craft_kg` per-file 增量持久化);learn-batch 端点预读 content(gen 不持 DB Session)+ SSE per-file 进度。详见 `exp-g25a-cohesive-model` / `exp-craft-kg-feed-from-learn`。
 - `data/profiles/`(assembly/welding/coating.json 画像)/ `tasks/`(任务记忆)/ `memory/`(对话记忆)。
 
 ## 6. 前端(`frontend/src`)
