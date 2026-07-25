@@ -146,9 +146,35 @@ class DocumentProfileLearner:
             (r"([\u4e00-\u9fff]{0,6})(?:硬度)(?:为|应[为在达到])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*(?:HRC|HB|HV|HRB))", "硬度"),
         ]
         current_section = self._guess_current_section(content)
+        # spec patterns: 元素规格（螺栓/螺钉/密封圈/焊条/电缆/楔环/工装代号），
+        # 作参数 triple 的 subject（比参数值提前一层），按工艺绑不同规格-参数。
+        spec_patterns = [
+            r"M\d+\S*螺[栓钉]",       # M5×8 螺栓 / M6螺钉
+            r"GB/T\s*\d+[—-]\d+",     # GB/T68-2000 标准件
+            r"密封圈\s*\d",            # 密封圈2
+            r"O[型]?圈",               # O型圈
+            r"焊[条丝]",               # 焊条/焊丝
+            r"涂[料漆]",               # 涂料/漆
+            r"W\d+电缆",              # W17电缆
+            r"楔环\s*\d",              # 楔环1
+            r"T2D\d+",                 # 工装代号 T2D30034
+        ]
+        def _find_spec(pos: int, window: int = 80) -> str:
+            # 同句（句号/换行/分号边界）内、参数前最近规格，避免跨句误绑
+            sent_start = max(content.rfind('。', 0, pos), content.rfind('\n', 0, pos), content.rfind('；', 0, pos)) + 1
+            before = content[sent_start: pos]
+            candidates: List[Tuple[int, str]] = []
+            for sp in spec_patterns:
+                for m in re.finditer(sp, before):
+                    candidates.append((m.start(), m.group(0).strip()))
+            if not candidates:
+                return ""
+            candidates.sort(key=lambda x: -x[0])  # 最近优先
+            return candidates[0][1]
         for pattern, relation in qty_patterns:
             for match in re.finditer(pattern, content):
-                subject = match.group(1) if match.group(1) else current_section
+                # subject 优先同句规格，其次 qty 主体，最后 current_section
+                subject = _find_spec(match.start()) or (match.group(1) or current_section)
                 _add(subject, relation, match.group(2))
 
         # Pattern 2: standards references — "按XX标准执行" / "符合XX"
