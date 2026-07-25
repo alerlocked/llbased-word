@@ -406,53 +406,25 @@ class QwenLLMService:
         )
 
         try:
-            response = await self._get_client(tier).chat.completions.create(
-                model=model,
+            # Stream mode (was non-stream + fallback): qwen3 enable_thinking
+            # requires stream call (400 "enable_thinking only support stream
+            # call" on non-stream). _collect_stream_content streams with
+            # enable_thinking+thinking_budget, collects delta.content (discards
+            # reasoning_content). Returns (content, finish_reason).
+            content, finish_reason = await self._collect_stream_content(
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                # enable_thinking=True aligns with the streaming path. Reasoning
-                # models (e.g. qwen3-30b-a3b) populate message.content only when
-                # thinking is enabled; with False the content comes back empty.
-                extra_body={"enable_thinking": True},
+                tier=tier,
             )
-
-            message = response.choices[0].message
-            content = (message.content or "").strip()
-            # Expose finish_reason so callers can detect max_tokens truncation
-            # (finish_reason == "length") — critical for large-output chapters
-            # like G25a whose JSON silently breaks when truncated.
-            finish_reason = getattr(response.choices[0], "finish_reason", None)
-
-            # reasoning_content is the chain-of-thought, NOT the final answer —
-            # never merge it into content (would corrupt JSON consumers like
-            # _detect_missing_chapters). Kept only for debugging.
-            reasoning = getattr(message, "reasoning_content", None)
-            if reasoning:
-                logger.debug("llm_reasoning_content", reasoning_len=len(reasoning))
-
-            # Fail-fast on empty content (no silent fake-success): retry once
-            # via streaming collection, which reliably yields content on
-            # reasoning models; surface a real error if still empty.
-            if not content:
-                logger.warning(
-                    "llm_empty_content_fallback_stream",
-                    model=model, finish_reason=finish_reason,
-                )
-                content, finish_reason = await self._collect_stream_content(
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    tier=tier,
-                )
             if not content:
                 logger.error(
-                    "llm_empty_content_after_fallback",
+                    "llm_empty_content_stream",
                     model=model, finish_reason=finish_reason,
                 )
                 return {
                     "status": "error",
-                    "error": "LLM 返回空内容（推理模型 content 为空，流式降级后仍空）",
+                    "error": "LLM 返回空内容（流式收集后仍空）",
                     "content": "",
                     "finish_reason": finish_reason,
                 }
@@ -499,7 +471,7 @@ class QwenLLMService:
             temperature=temperature,
             max_tokens=max_tokens,
             stream=True,
-            extra_body={"enable_thinking": True},
+            extra_body={"enable_thinking": True, "thinking_budget": 1024},
         )
         async for chunk in stream:
             choice = chunk.choices[0] if chunk.choices else None
@@ -537,7 +509,7 @@ class QwenLLMService:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=True,
-                extra_body={"enable_thinking": True},
+                extra_body={"enable_thinking": True, "thinking_budget": 1024},
             )
 
             async for chunk in stream:
