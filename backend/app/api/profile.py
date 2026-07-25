@@ -28,7 +28,7 @@ Preference CRUD:
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Body, Query
+from fastapi import APIRouter, HTTPException, Body, Query, Depends
 from pydantic import BaseModel, Field
 
 from app.shared.logging import get_logger
@@ -39,6 +39,12 @@ from app.models.profile import (
 )
 from app.services.document_profile_learner import DocumentProfileLearner
 from app.services.knowledge_graph import craft_kg, save_craft_kg, KnowledgeGraph
+
+import json
+import re
+from fastapi.responses import StreamingResponse
+from app.models.database import Material
+from app.database import Session, get_db
 from app.services.feedback_learner import FeedbackLearner
 from app.config import settings
 
@@ -316,6 +322,100 @@ async def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
         "kg_nodes": kg_nodes,
         "profile": updated.to_dict(),
     }
+
+
+class LearnBatchRequest(BaseModel):
+    file_ids: List[str] = Field(default_factory=list)
+
+
+def _read_material_content(material_id: int) -> str:
+    """Read material content text — content.json first, content.html fallback.
+
+    Mirrors creation.get_material_detail so batch-learn sees the same content
+    as the single-file learn button (which fetches /materials/{id}).
+    """
+    from app.config import settings
+    doc_dir = Path(settings.DATA_DIR) / "documents" / str(material_id)
+    content_json = doc_dir / settings.DOC_CONTENT_JSON_FILE
+    if content_json.exists():
+        try:
+            data = json.loads(content_json.read_text(encoding="utf-8"))
+            c = data.get("content", "") if isinstance(data, dict) else ""
+            if c:
+                return c
+        except Exception:
+            pass
+    html_path = settings.resolve_doc_content_html(doc_dir)
+    if html_path.exists():
+        return html_path.read_text(encoding="utf-8")
+    return ""
+
+
+def _html_to_text(html: str) -> str:
+    """Strip HTML tags + collapse whitespace (matches frontend replace(/<[^>]+>/g,''))."""
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html)).strip()
+
+
+def _sse(data: Dict[str, Any]) -> str:
+    """Format a Server-Sent Event line."""
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@router.post("/{domain}/learn-batch")
+async def learn_from_batch(
+    domain: str, req: LearnBatchRequest, db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Batch-learn a folder of materials + feed global craft KG (SSE progress).
+
+    Content is preloaded (sync, fast) before streaming so the generator holds
+    no DB session; the slow LLM learn runs inside the stream, one progress
+    event per file. Fail-soft per file: one bad file doesn't abort the batch.
+    """
+    items: List[tuple] = []  # (fid, name, domain, text)
+    for fid in req.file_ids:
+        try:
+            mid = int(fid)
+        except (TypeError, ValueError):
+            continue
+        m = db.query(Material).filter(Material.id == mid).first()
+        if not m:
+            continue
+        text = _html_to_text(_read_material_content(mid))
+        if len(text) < 10:
+            continue
+        items.append((str(mid), m.name or fid, m.specialty or domain, text))
+
+    total = len(items)
+
+    async def generate():
+        yield _sse({"type": "start", "total": total})
+        ok = 0
+        for idx, (fid, name, fdomain, text) in enumerate(items, 1):
+            try:
+                learner = DocumentProfileLearner()
+                features = await learner.learn_from_content(
+                    content=text, domain=fdomain, document_id=fid,
+                )
+                profile = _load_profile(fdomain)
+                merged = learner.merge_features_to_profile(profile.to_dict(), features)
+                updated = Profile.from_dict(merged)
+                _save_profile(updated)
+                kg_nodes = _feed_craft_kg(features.get("triples", []))
+                ok += 1
+                yield _sse({
+                    "type": "progress", "current": idx, "total": total,
+                    "file": name, "triples": len(features.get("triples", [])),
+                    "kg_nodes": kg_nodes,
+                })
+            except Exception as e:
+                logger.warning(f"learn-batch file {fid} failed: {e}")
+                yield _sse({"type": "item_error", "file": name, "message": str(e)})
+        yield _sse({
+            "type": "complete", "total": total, "ok": ok,
+            "kg_nodes": craft_kg.node_count,
+        })
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.post("/{domain}/learn-feedback")
