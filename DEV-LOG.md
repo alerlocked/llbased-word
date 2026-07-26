@@ -2,25 +2,25 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T14:43:55+08:00
-last_commit: 2747b91
-status: g25a-g18a-quality lead 开跑（PLAN seal）：修 G25a 工步漏(extract 跨页续页丢 substep)+工序名称填 skeleton 真工序名(非工种钳)+G18a source 列 derive 串源(源表真实"火工库"，方案A 跳 derive 填待补)。N1 extract 续页复位中
-task_state: running
+updated_at: 2026-07-26T14:45:53+08:00
+last_commit: 881bf97
+status: g25a-g18a-quality done：3 bug 修复 + playwright 前端确认场景目标达成（G25a 工序名称列=真工序名 装前准备/安装密封圈2/四五舱对接，不再全钳；G18a source 列不含工艺流程图=待补）。N1 工步漏 documents/1 不回归(工序7 全)，用户原素材预防性修复待用户验。全量 717 passed 0 回归
+task_state: done
 task_slug: g25a-g18a-quality
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (0 seconds ago)
-- `85b131d` plan(g25a-g18a-quality): seal - G25a substep跨页+工序名+G18a source derive串源 (5 minutes ago)
-- `faeb175` fix(writing-agent): str>int in max(llm_row_count) - LLM slot row str crash (48 minutes ago)
-- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (76 minutes ago)
-- `af8efa9` fix(craft-kg-quality): N3 guard used_in edge on _is_spec (non-spec subject no false link) (84 minutes ago)
-- `7a25451` feat(craft-kg-quality): N2' learn assembly extract (process=G19a skeleton) (89 minutes ago)
+- `881bf97` fix(g25a-g18a): N2 step_name=skeleton + N3 G18a source skip derive (0 seconds ago)
+- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (2 minutes ago)
+- `85b131d` plan(g25a-g18a-quality): seal - G25a substep跨页+工序名+G18a source derive串源 (7 minutes ago)
+- `faeb175` fix(writing-agent): str>int in max(llm_row_count) - LLM slot row str crash (50 minutes ago)
+- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (78 minutes ago)
+- `af8efa9` fix(craft-kg-quality): N3 guard used_in edge on _is_spec (non-spec subject no false link) (86 minutes ago)
+- `7a25451` feat(craft-kg-quality): N2' learn assembly extract (process=G19a skeleton) (2 hours ago)
 - `5f0033d` plan(craft-kg-quality): v2 redirect to G25a assembly extract (N2 _section_at failed) (2 hours ago)
 - `4af7222` feat(craft-kg-quality): N3+N4 NODE_SPEC + proc->spec edge + spec rendering (2 hours ago)
 - `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (2 hours ago)
-- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (2 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
