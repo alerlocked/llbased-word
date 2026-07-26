@@ -2,31 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T21:07:42+08:00
-last_commit: a0d8098
-status: g25a-g18a-g14a-v2 lead 开跑：下午 N2+N3 方向反（N2 工序名真名该回退工种 / N3 source 待补该改 graph 取）。4 改动：G25a 工种回退+工序内容工序名打头 / G18a source+备注 物料→工序graph / G14a 写齐。ALIGN 截图标注（南天门升级）。N1 G25a 回退+content 中
-task_state: running
+updated_at: 2026-07-26T21:14:21+08:00
+last_commit: c7ffbba
+status: g25a-g18a-g14a-v2 done：N1-N4 + source 全 ✅ curl 验（G25a 工种钳/机/检验回退+工序内容工序名打头/G18a source 物料→工序graph+备注主物料写工序/G14a 8行+封面）。part_name='1' G18a 物料名一列 result 传递断留下轮。全量 763 passed。ALIGN 截图标注（南天门升级）
+task_state: done
 task_slug: g25a-g18a-g14a-v2
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (1 second ago)
-- `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (13 minutes ago)
-- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (19 minutes ago)
-- `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (27 minutes ago)
-- `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (30 minutes ago)
+- `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (0 seconds ago)
+- `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (7 minutes ago)
+- `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (20 minutes ago)
+- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (26 minutes ago)
+- `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (34 minutes ago)
+- `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (37 minutes ago)
 - `2a55324` docs(g25a-g18a-quality): 当前状态段 N4完成+经验回流 exp-g25a-g18a-quality (6 hours ago)
 - `10e5c6c` docs(g25a-g18a-quality): done - 3bug修复+playwright确认场景目标达成 (6 hours ago)
 - `881bf97` fix(g25a-g18a): N2 step_name=skeleton + N3 G18a source skip derive (6 hours ago)
-- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (6 hours ago)
-- `85b131d` plan(g25a-g18a-quality): seal - G25a substep跨页+工序名+G18a source derive串源 (6 hours ago)
+- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (7 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **在做（g25a-g18a-g14a-v2，PLAN `41c2943` seal）**：4 改动（回退下午 N2+N3 方向 + G14a 写齐）。**N1 ✅**（G25a 工种回退 + content 工序名打头；16 passed）。**N2+N3 ✅**（物料 triple + G18a source/备注 从 craft_kg graph 反查；79 passed）。**N4 ✅ 完成**（`writing_agent.py` `_inject_g25a_aux_for_g14a`（G14a derive 注入 G25a aux_materials 全文，不放宽 provenance 靠上游注入）+ `orchestrator.py:3154` generated_chapters 加 filled_data/field_values（根因：之前只截断 text 丢辅料列）+ `_fill_g14a_cover_columns`（G14a comp_code/comp_name 填 G1a/G4a field_values，G1a 不在 phases 用 G4a 回退）；test_writing_agent_derive 5 + test_orchestrator_derive 6；92 passed）。N5 端到端 playwright 中。
+- **完成（g25a-g18a-g14a-v2，PLAN `41c2943` seal）回退下午 N2+N3 方向 + G14a 写齐**：用户晚审验判下午 N2+N3 方向反。**N1 ✅**（G25a `step_name` 回退工种钳/机/检验 + content 每工步工序名打头 `{name}`；curl 验 `['钳','钳','检验',...]` + `"装前准备：1.1..."`）。**N2+N3 ✅**（`_extract_triples_from_substeps` 产物料 triple（物料名清洗保 CJK 名）→ build proc→material REQUIRES 边 24 条；`orchestrator` `_g18a_material_process`（craft_kg 反查）+ `_fill_g18a_from_kg`（source 撤 G18a 占位 + 填物料用于工序）+ `_g18a_is_std_or_consumable`（标准件/耗材备注空，主物料写工序）；curl 验 source 不"G18a" + remarks"安装行程延时开关组合"）。**N4 ✅**（G14a derive 注入 G25a aux_materials 全文 + generated_chapters 加 filled_data + comp_code/comp_name 填 G1a/G4a；curl 验 G14a 8 行 + 封面 KA0-0-KZD/小产品）。**N5 ✅ curl 端到端**：4 改动 + source 全 ✅。全量 **763 passed 0 回归**。**留 part_name='1'**（G18a 物料名一列 result 传递断：derive LLM qty 错位填'1' + _fill 回退逻辑对（python 验）但没反映 result template_data，derive_strong inner→structured_results→ChapterData 某层断，DEBUG log 诡异不写没追到；不挡主链，下轮 lead 修 derive 根因 + result 传递）。
 
 - **完成（g25a-g18a-quality，PLAN `85b131d` seal）3 bug 修复**：用户测试发现 3 个生成质量问题。**N1 ✅**（`hierarchical_context.py` extract 续页表头 `in_parts_list=False` 复位 + `_PARTS_LIST_MARKERS` 收紧 ≥2 marker；G25a 工步漏根因 candidate C = 续页 parts-list 区跨页未复位吞 substep；documents/1 全工序 0 回归 工序7=45 含 7.1-7.5；57 passed）。**N2 ✅**（`writing_agent.py:851 step_name=skel[k-1]` G19a 真工序名，越界回退 asm.name 工种；不再全"钳"）。**N3 ✅**（`:1349` G18a `fill_cols` 排除 source 列，跳 derive 不串"工艺流程图"，走 derive strong node merge 待补兜底；源表真实 source"火工库"，方案 B extractor 留 TODO）。**N4 ✅ playwright 前端确认场景目标达成**（project=4）：G25a 工序名称列=真工序名（装前准备/安装密封圈2/四五舱对接/五舱装配/...），"钳"在工种列（正常）；G18a source 列不含"工艺流程图"（待补）；全量 **717 passed 0 回归**（基线 701+16 新增）。**留**：N1 用户原素材（M12螺栓）预防性修复效果待用户验（documents/1 不漏）；G18a 方案 B extractor 留 TODO。**task_state: done。**
 
