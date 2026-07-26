@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T15:06:04+08:00
-last_commit: 2a55324
+updated_at: 2026-07-26T20:37:50+08:00
+last_commit: 41c2943
 status: g25a-g18a-g14a-v2 lead 开跑：下午 N2+N3 方向反（N2 工序名真名该回退工种 / N3 source 待补该改 graph 取）。4 改动：G25a 工种回退+工序内容工序名打头 / G18a source+备注 物料→工序graph / G14a 写齐。ALIGN 截图标注（南天门升级）。N1 G25a 回退+content 中
 task_state: running
 task_slug: g25a-g18a-g14a-v2
@@ -11,20 +11,22 @@ task_slug: g25a-g18a-g14a-v2
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `2a55324` docs(g25a-g18a-quality): 当前状态段 N4完成+经验回流 exp-g25a-g18a-quality (1 second ago)
-- `10e5c6c` docs(g25a-g18a-quality): done - 3bug修复+playwright确认场景目标达成 (66 seconds ago)
-- `881bf97` fix(g25a-g18a): N2 step_name=skeleton + N3 G18a source skip derive (20 minutes ago)
-- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (22 minutes ago)
-- `85b131d` plan(g25a-g18a-quality): seal - G25a substep跨页+工序名+G18a source derive串源 (27 minutes ago)
-- `faeb175` fix(writing-agent): str>int in max(llm_row_count) - LLM slot row str crash (70 minutes ago)
-- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (2 hours ago)
-- `af8efa9` fix(craft-kg-quality): N3 guard used_in edge on _is_spec (non-spec subject no false link) (2 hours ago)
-- `7a25451` feat(craft-kg-quality): N2' learn assembly extract (process=G19a skeleton) (2 hours ago)
-- `5f0033d` plan(craft-kg-quality): v2 redirect to G25a assembly extract (N2 _section_at failed) (2 hours ago)
+- `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (0 seconds ago)
+- `2a55324` docs(g25a-g18a-quality): 当前状态段 N4完成+经验回流 exp-g25a-g18a-quality (6 hours ago)
+- `10e5c6c` docs(g25a-g18a-quality): done - 3bug修复+playwright确认场景目标达成 (6 hours ago)
+- `881bf97` fix(g25a-g18a): N2 step_name=skeleton + N3 G18a source skip derive (6 hours ago)
+- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (6 hours ago)
+- `85b131d` plan(g25a-g18a-quality): seal - G25a substep跨页+工序名+G18a source derive串源 (6 hours ago)
+- `faeb175` fix(writing-agent): str>int in max(llm_row_count) - LLM slot row str crash (7 hours ago)
+- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (7 hours ago)
+- `af8efa9` fix(craft-kg-quality): N3 guard used_in edge on _is_spec (non-spec subject no false link) (7 hours ago)
+- `7a25451` feat(craft-kg-quality): N2' learn assembly extract (process=G19a skeleton) (7 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **在做（g25a-g18a-g14a-v2，PLAN `41c2943` seal）**：4 改动（回退下午 N2+N3 方向 + G14a 写齐）。**N1 ✅ 完成**（`writing_agent.py` :846-851 `step_name` 回退 `asm.name` 工种（撤下午 N2）+ :1669 content prompt 每工步工序名打头 `{name}`（=skel[i-1]）；test_writing_agent 16 passed 含撤 N2 测试 + 新 6）。N2+N3 待做（物料 triple + G18a source/备注 从 craft_kg graph 取）。
 
 - **完成（g25a-g18a-quality，PLAN `85b131d` seal）3 bug 修复**：用户测试发现 3 个生成质量问题。**N1 ✅**（`hierarchical_context.py` extract 续页表头 `in_parts_list=False` 复位 + `_PARTS_LIST_MARKERS` 收紧 ≥2 marker；G25a 工步漏根因 candidate C = 续页 parts-list 区跨页未复位吞 substep；documents/1 全工序 0 回归 工序7=45 含 7.1-7.5；57 passed）。**N2 ✅**（`writing_agent.py:851 step_name=skel[k-1]` G19a 真工序名，越界回退 asm.name 工种；不再全"钳"）。**N3 ✅**（`:1349` G18a `fill_cols` 排除 source 列，跳 derive 不串"工艺流程图"，走 derive strong node merge 待补兜底；源表真实 source"火工库"，方案 B extractor 留 TODO）。**N4 ✅ playwright 前端确认场景目标达成**（project=4）：G25a 工序名称列=真工序名（装前准备/安装密封圈2/四五舱对接/五舱装配/...），"钳"在工种列（正常）；G18a source 列不含"工艺流程图"（待补）；全量 **717 passed 0 回归**（基线 701+16 新增）。**留**：N1 用户原素材（M12螺栓）预防性修复效果待用户验（documents/1 不漏）；G18a 方案 B extractor 留 TODO。**task_state: done。**
 

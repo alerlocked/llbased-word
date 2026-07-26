@@ -843,14 +843,11 @@ class WritingAgent(BaseAgent):
             n = len(skel)
             # Direct-fill structured columns from source (zero fabrication)
             structured_values["step_no"] = [str(i + 1) for i in range(n)]
-            # step_name (工序名称) uses skeleton (G19a) real flow-step names;
-            # asm[k]["name"] is only the work-type category (钳/机). Fall back
-            # to asm.name (work-type) when skeleton is shorter than asm — that
-            # keeps row count aligned with asm while preferring real step names.
-            structured_values["step_name"] = [
-                (skel[k - 1] if (k - 1) < len(skel) else asm.get(k, {}).get("name", "钳"))
-                for k in sorted(asm)
-            ]
+            # step_name (工序名称) is the work-type category (钳/机/检验) from
+            # asm[k]["name"]; skeleton only drives row count + provides the real
+            # step name that prefixes each substep inside content. Real step
+            # names do NOT go into the step_name column.
+            structured_values["step_name"] = [asm.get(k, {}).get("name", "钳") for k in sorted(asm)]
             _aux: List[str] = []
             _instr: List[str] = []
             _src_lines: List[str] = []
@@ -1666,7 +1663,7 @@ class WritingAgent(BaseAgent):
                 f"每个工步写清：操作动作 + 关键参数（力矩/尺寸/规格/数量）+ 使用的辅材/仪器。多个工步用换行分段，结构：「工步号」操作描述；关键参数；辅材/仪器。\n"
                 f"约束（强制）：\n"
                 f"  1. 只用工步原文 + 辅料标准里出现的信息，不得新增原文没有的参数、数值、步骤；原文不足则如实写已有的，不要补全。\n"
-                f"  2. 不要带「钳：」「机：」前缀（工序名称已单独提取到 step_name 列）。\n"
+                f"  2. 每个工步开头写工序名前缀「{name}：」，如「{name}：1.1 装配前的产品完整性检查...」（{name} = 该工序真工序名，已由 skeleton 提供）。每个工步（1.1/1.2/...）都要带这个前缀。\n"
                 f"  3. 目标长度：本工序有多少工步就写多少段，每工步 1-3 句（约 30-60 字/工步），整道工序通常 100-200 字；工步多的可更长。宁详勿简，但绝不超过工步原文+辅料标准提供的信息量。\n"
                 f"  4. 若该工序工步原文为「（原文未提供）」，content 留空字符串，不要臆造。\n\n"
                 f"## 辅助材料(aux_materials) 写法：列出本工序 content 中**实际使用**的辅料，多个用「、」分隔。"
