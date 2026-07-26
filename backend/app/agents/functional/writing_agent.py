@@ -1164,7 +1164,7 @@ class WritingAgent(BaseAgent):
 
                     if unstructured_slots:
                         llm_row_count = max(
-                            s.get("row", 0) for s in unstructured_slots
+                            _slot_row_int(s) for s in unstructured_slots
                         )
 
         # --- Step 3b: Derivation fallback REMOVED (节点3) ---
@@ -1175,7 +1175,7 @@ class WritingAgent(BaseAgent):
         # extraction returned partial data, leaving list tables incomplete.
 
         # --- Step 4: Merge structured + unstructured ---
-        total_rows = max(struct_row_count, llm_row_count, 1)
+        total_rows = max(int(struct_row_count or 0), int(llm_row_count or 0), 1)
 
         # Cap rows by inherited process flow step count (phased generation)
         # inherited already extracted above for prompt injection
@@ -2179,6 +2179,19 @@ def _expand_inspection_rows(
                 "time_total": "",
             })
     return out
+
+
+def _slot_row_int(slot: Dict[str, Any]) -> int:
+    """Coerce a slot's 'row' field to int.
+
+    LLM may return row as a string ("1" instead of 1). Falls back to 0 on
+    missing/non-numeric values so downstream max() never compares str vs int.
+    """
+    r = slot.get("row", 0)
+    try:
+        return int(r)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _legacy_to_slots(
