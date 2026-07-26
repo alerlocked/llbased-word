@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T20:48:16+08:00
-last_commit: 23eb9e0
+updated_at: 2026-07-26T20:54:24+08:00
+last_commit: e6816c1
 status: g25a-g18a-g14a-v2 lead 开跑：下午 N2+N3 方向反（N2 工序名真名该回退工种 / N3 source 待补该改 graph 取）。4 改动：G25a 工种回退+工序内容工序名打头 / G18a source+备注 物料→工序graph / G14a 写齐。ALIGN 截图标注（南天门升级）。N1 G25a 回退+content 中
 task_state: running
 task_slug: g25a-g18a-g14a-v2
@@ -11,16 +11,16 @@ task_slug: g25a-g18a-g14a-v2
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (1 second ago)
-- `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (8 minutes ago)
-- `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (10 minutes ago)
+- `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (0 seconds ago)
+- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (6 minutes ago)
+- `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (14 minutes ago)
+- `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (17 minutes ago)
 - `2a55324` docs(g25a-g18a-quality): 当前状态段 N4完成+经验回流 exp-g25a-g18a-quality (6 hours ago)
 - `10e5c6c` docs(g25a-g18a-quality): done - 3bug修复+playwright确认场景目标达成 (6 hours ago)
 - `881bf97` fix(g25a-g18a): N2 step_name=skeleton + N3 G18a source skip derive (6 hours ago)
 - `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (6 hours ago)
 - `85b131d` plan(g25a-g18a-quality): seal - G25a substep跨页+工序名+G18a source derive串源 (6 hours ago)
 - `faeb175` fix(writing-agent): str>int in max(llm_row_count) - LLM slot row str crash (7 hours ago)
-- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (7 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

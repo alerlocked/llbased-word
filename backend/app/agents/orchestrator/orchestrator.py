@@ -1234,12 +1234,17 @@ class ProcessOrchestrator:
         for row in rows:
             part_name = (row.get("part_name") or "").strip()
             proc = ProcessOrchestrator._g18a_material_process(part_name)
-            # source: graph process or blank (clear 待补)
-            if proc and (not row.get("source") or row["source"] == "待补"):
+            # source: graph 命中填真工序; derive 填的占位(待补/chapter_code"G18a"/空)清空; 真值(如"配套清单")保留.
+            # source 是 ai_filled(derive 产), derive 常填 chapter_code"G18a"占位(非真值) → 必须覆盖;
+            # 但源表/用户填的真值(如"配套清单")保留.
+            src_val = (row.get("source") or "").strip()
+            is_placeholder = (not src_val or src_val == "待补" or src_val == "G18a")
+            if proc and is_placeholder:
                 row["source"] = proc
                 src_hits += 1
-            elif not row.get("source") or row["source"] == "待补":
+            elif is_placeholder:
                 row["source"] = ""
+            # else: source 已是真值(非占位), 保留不动
             # remarks: std/consumable → always blank; main material → proc or blank
             if ProcessOrchestrator._g18a_is_std_or_consumable(part_name):
                 if not row.get("remarks") or row["remarks"] == "待补":
