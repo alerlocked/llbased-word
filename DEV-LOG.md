@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T13:11:03+08:00
-last_commit: 5f0033d
+updated_at: 2026-07-26T13:15:21+08:00
+last_commit: 7a25451
 status: craft-kg-quality v2 resume（N2' 接 G25a extract）：v1 的 N2 靠章节标题取工序名失败（装配文件无清晰工序标题 + G25a"工序名称"列填工种钳非工序名）→ v2 改 learn 接 extract_assembly_steps，process=G19a skeleton 真工序名，规格从 substep.content 提。N1/N3/N4 已 commit，做 N2'
 task_state: running
 task_slug: craft-kg-quality
@@ -11,22 +11,22 @@ task_slug: craft-kg-quality
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `5f0033d` plan(craft-kg-quality): v2 redirect to G25a assembly extract (N2 _section_at failed) (0 seconds ago)
-- `4af7222` feat(craft-kg-quality): N3+N4 NODE_SPEC + proc->spec edge + spec rendering (39 minutes ago)
-- `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (42 minutes ago)
-- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (48 minutes ago)
+- `7a25451` feat(craft-kg-quality): N2' learn assembly extract (process=G19a skeleton) (0 seconds ago)
+- `5f0033d` plan(craft-kg-quality): v2 redirect to G25a assembly extract (N2 _section_at failed) (4 minutes ago)
+- `4af7222` feat(craft-kg-quality): N3+N4 NODE_SPEC + proc->spec edge + spec rendering (43 minutes ago)
+- `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (46 minutes ago)
+- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (52 minutes ago)
 - `3c0c2a3` feat(triples): spec-param relation (spec as subject + sentence boundary) (12 hours ago)
 - `19b3c58` chore(diag): filled_data diagnostic logs + frontend-display/backend-filled ALIGN (13 hours ago)
 - `31723e2` fix(llm): generate_with_messages stream + thinking_budget (enable_thinking slow rootcause) (13 hours ago)
 - `ad30b2c` fix(g25a-aux-kg): extract_keywords Set->List + & intersection set() wrap (20 hours ago)
 - `bbdee22` docs(arch): record craft KG feed-data lineage (learn->triples->craft_kg) (21 hours ago)
-- `84d2ab8` test(craft-kg-from-learn): N4 KG unit tests + pytest 681 passed 0 failed (21 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **在做（craft-kg-quality，PLAN v2 `5f0033d` seal）**：B 方案 规格-工序关联。**v1 纠错**：N2 靠 `_section_at` 章节标题取工序名失败（装配文件 3.1/3.2 是规程条款 + G25a「工序名称」列填工种钳非工序名）→ v2 改 N2' 接 G25a extract。**N1 ✅**（spec_patterns 12条）+ **N3+N4 ✅**（NODE_SPEC + proc→spec 边 + 渲染）已 commit。**N2' ✅ 完成**（v2：`document_profile_learner.py` 抽 QTY/SPEC_PATTERNS 模块级 + `_extract_triples_from_substeps`（process=skeleton G19a 真工序名，越界保护，规格 fallback material）+ `learn_from_content` 加 assembly_steps/skeleton_steps 参；`profile.py` learn-file/learn-batch 接 `extract_assembly_steps`+`extract_process_steps`；test_document_profile_learner 13 passed 含新增 4，累计 23 passed）。N5 端到端验证中（删 json→learn 接 extract→验 proc→spec 边→真生成 G25a）。
+- **在做（craft-kg-quality，PLAN v2 `5f0033d` seal）**：B 方案 规格-工序关联。**v1 纠错**：N2 靠 `_section_at` 章节标题取工序名失败（装配文件 3.1/3.2 是规程条款 + G25a「工序名称」列填工种钳非工序名）→ v2 改 N2' 接 G25a extract。**N1 ✅**（spec_patterns 12条）+ **N3+N4 ✅**（NODE_SPEC + proc→spec 边 + 渲染）+ **N2' ✅**（learn 接 extract_assembly_steps，process=skeleton G19a 真工序名）已 commit。**N3 守卫修 ✅**（build used_in 边加 `_is_spec` 守卫，非规格 subject 不假装规格-工序关联，test_knowledge_graph 12 passed）。**N5 核心达成**：learn-file(doc_id=1) 接 extract → KG 有 proc→spec 边（四五舱对接→T2D30070）→ `_search_knowledge_graph('四五舱对接 装前准备')` KG 部分非空含 `[规格] T2D30070 | 力矩: 1.9N·m`（**KG 真贡献 aux，v1 查不到 v2 查到**）。真生成 G25a 最终确认 + 收尾中。
 
 - **完成（craft-kg-from-learn，PLAN f564472 seal）**：修 g25a-method-aux-bind N1 规划漏洞——craft KG 壳做了（`save_craft_kg` 全库零调用）→ `craft_kg` 永远空 → N3 `_search_knowledge_graph` 被 `node_count>0` 守卫跳过 → `aux_standards` 空 → 装配卡辅料标准关联空跑。本期：learn→triples→`build_from_triples`→合并 `craft_kg`+save + 文件夹批量（后端 SSE）。**N1 ✅ 完成**：`KnowledgeGraph.merge_from`（累加幂等）+ learn/learn-file handler `_feed_craft_kg`（build_from_triples→merge→save_craft_kg 首次接上）；冒烟 0→6 nodes/4 edges + `data/knowledge_graph.json` 生成 + 重复 merge 幂等 + 空 triples fail-soft。**N2 ✅ 完成**：后端 `/{domain}/learn-batch` 端点（SSE 流式 per-file 进度 + fail-soft + 预读 content 不持 DB Session + 复用 `_feed_craft_kg`）；路由注册 + `_read_material_content`/`_html_to_text`/`_sse` helper 验证过。**N3 ✅ 完成**：前端 FolderTree 右键「批量学习为画像」+ MaterialDrawer `handleLearnFolder`（fetch learn-batch SSE stream + 批量 Progress UI，复用 processing 模式）；tsc 0 错。**N4 ✅ 完成**：单测 5/5（`merge_from` 幂等/dedup/参数节点，新建 `tests/test_knowledge_graph.py`）+ pytest 全量 **681 passed 0 failed**（27 skipped/57 xfailed/6 xpassed，0 新 failed）+ 端到端冒烟（learn→triples→`_feed_craft_kg`→craft_kg 10→16 nodes，N3 守卫 `node_count>0` 不再跳过，context text 非空）。**全 4 节点闭环，task_state: done。**
 

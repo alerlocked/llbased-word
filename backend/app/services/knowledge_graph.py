@@ -263,17 +263,19 @@ class KnowledgeGraph:
             elif r in ("温度", "力矩", "压力", "时间", "速度", "公差", "硬度"):
                 spec_id = _safe_id(s)
                 param_id = _safe_id(f"{s}_{r}")
+                is_spec = _is_spec(s)
                 # 规格 subject 建 NODE_SPEC（若非规格退化为 PROCESS_STEP，向后兼容）
-                spec_type = NODE_SPEC if _is_spec(s) else NODE_PROCESS_STEP
+                spec_type = NODE_SPEC if is_spec else NODE_PROCESS_STEP
                 kg.add_node(spec_id, spec_type, s)
                 kg.add_node(param_id, NODE_PARAMETER, o)
                 kg.add_edge(spec_id, param_id, EDGE_DEPENDS_ON, relation=r)
-                # 读 process 字段建工序节点 + proc→spec 边（B 方案 规格-工序关联）
-                proc = t.get("process")
-                if proc:
-                    proc_id = _safe_id(proc)
-                    kg.add_node(proc_id, NODE_PROCESS_STEP, proc)
-                    kg.add_edge(proc_id, spec_id, EDGE_USED_IN, relation=s)
+                # used_in (proc→spec) 只在真规格 subject 时建；非规格 subject(工序动作) 不假装规格-工序关联
+                if is_spec:
+                    proc = t.get("process")
+                    if proc:
+                        proc_id = _safe_id(proc)
+                        kg.add_node(proc_id, NODE_PROCESS_STEP, proc)
+                        kg.add_edge(proc_id, spec_id, EDGE_USED_IN, relation=s)
             elif r == "标准":
                 kg.add_node(_safe_id(s), NODE_PROCESS_STEP, s)
                 kg.add_node(_safe_id(o), NODE_MATERIAL, o)  # Standards treated as material nodes

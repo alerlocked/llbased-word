@@ -155,3 +155,48 @@ def test_search_by_process_reaches_spec_end_to_end():
     expanded_types = {n["id"]: n["type"] for n in expanded}
     assert _safe_id("M5螺柱") in expanded_types
     assert expanded_types[_safe_id("M5螺柱")] == NODE_SPEC
+
+
+# ========================================
+# craft-kg-quality N3 guard: used_in only when subject is a real spec
+# ========================================
+
+def test_build_non_spec_subject_no_used_in_edge():
+    """非规格 subject(工序动作,如开关按钮拧紧) + process → 仍建 process_step + 参数 +
+    depends_on, 但不建 used_in 边(不假装规格-工序关联)。"""
+    # 先确认 subject 确实非规格
+    assert _is_spec("开关按钮拧紧") is False
+
+    kg = KnowledgeGraph.build_from_triples([
+        {"s": "开关按钮拧紧", "r": "力矩", "o": "1.9N·m", "process": "四五舱对接"},
+    ])
+    step_id = _safe_id("开关按钮拧紧")
+    param_id = _safe_id("开关按钮拧紧_力矩")
+    proc_id = _safe_id("四五舱对接")
+
+    # subject 退化为 PROCESS_STEP（不是 SPEC）
+    assert kg.get_node(step_id)["type"] == NODE_PROCESS_STEP
+    # 参数节点仍在
+    assert kg.get_node(param_id)["type"] == NODE_PARAMETER
+    # depends_on 边仍在
+    assert kg._graph.get_edge_data(step_id, param_id)["type"] == EDGE_DEPENDS_ON
+    # 关键：无 used_in 边（proc→step 不建）
+    assert kg._graph.get_edge_data(proc_id, step_id) is None
+    for _, _, data in kg._graph.edges(data=True):
+        assert data.get("type") != EDGE_USED_IN
+
+
+def test_build_spec_subject_still_gets_used_in_edge():
+    """对照:规格 subject(T2D30070) + process → 仍有 used_in 边(守卫不误伤真规格)。"""
+    assert _is_spec("T2D30070") is True
+
+    kg = KnowledgeGraph.build_from_triples([
+        {"s": "T2D30070", "r": "力矩", "o": "1.9N·m", "process": "四五舱对接"},
+    ])
+    spec_id = _safe_id("T2D30070")
+    proc_id = _safe_id("四五舱对接")
+
+    # 规格节点
+    assert kg.get_node(spec_id)["type"] == NODE_SPEC
+    # proc→spec used_in 边仍建
+    assert kg._graph.get_edge_data(proc_id, spec_id)["type"] == EDGE_USED_IN
