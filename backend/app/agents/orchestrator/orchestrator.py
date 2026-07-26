@@ -1233,6 +1233,12 @@ class ProcessOrchestrator:
         src_hits = rmk_hits = 0
         for row in rows:
             part_name = (row.get("part_name") or "").strip()
+            # part_name 纯数字(derive 把 qty 错位当名称, catalog miss 留'1') → 回退 part_code(代号当名称)
+            if part_name.isdigit():
+                code = (row.get("part_code") or "").strip()
+                if code and not code.isdigit():
+                    row["part_name"] = code
+                    part_name = code
             proc = ProcessOrchestrator._g18a_material_process(part_name)
             # source: graph 命中填真工序; derive 填的占位(待补/chapter_code"G18a"/空)清空; 真值(如"配套清单")保留.
             # source 是 ai_filled(derive 产), derive 常填 chapter_code"G18a"占位(非真值) → 必须覆盖;
