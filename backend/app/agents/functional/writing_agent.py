@@ -1640,6 +1640,7 @@ class WritingAgent(BaseAgent):
         Returns (unstructured_slots, llm_row_count).
         """
         import asyncio
+        import re
         from app.services.llm_service import llm_service
 
         n = len(skel)
@@ -1698,13 +1699,14 @@ class WritingAgent(BaseAgent):
                 f"{user_block}"
                 f"{ref_block}"
                 f"{aux_block}"
-                f"## 工序内容(content) 写法：基于「工序{i}（{name}）工步原文」逐工步详实展开，保留 1.1/1.2/1.3 等工步编号与层次结构。\n"
+                f"## 工序内容(content) 写法：基于「工序{i}（{name}）工步原文」逐工步详实展开。\n"
                 f"每个工步写清：操作动作 + 关键参数（力矩/尺寸/规格/数量）+ 使用的辅材/仪器。多个工步用换行分段，结构：「工步号」操作描述；关键参数；辅材/仪器。\n"
                 f"约束（强制）：\n"
                 f"  1. 只用工步原文 + 辅料标准里出现的信息，不得新增原文没有的参数、数值、步骤；原文不足则如实写已有的，不要补全。\n"
-                f"  2. 每个工步开头写工序名前缀「{name}：」，如「{name}：1.1 装配前的产品完整性检查...」（{name} = 该工序真工序名，已由 skeleton 提供）。每个工步（1.1/1.2/...）都要带这个前缀。\n"
-                f"  3. 目标长度：本工序有多少工步就写多少段，每工步 1-3 句（约 30-60 字/工步），整道工序通常 100-200 字；工步多的可更长。宁详勿简，但绝不超过工步原文+辅料标准提供的信息量。\n"
-                f"  4. 若该工序工步原文为「（原文未提供）」，content 留空字符串，不要臆造。\n\n"
+                f"  2. 工步编号必须以本工序号 {i} 为前缀：{i}.1、{i}.2、{i}.3……一律写成 {i}.N，不得照抄工步原文里可能出现的其他编号（如 1.1/5.1）。例：第 1 工步「{i}.1 操作描述…」，第 2 工步「{i}.2 …」。\n"
+                f"  3. 工步正文不要重复工序名前缀；整道工序内容开头可点题一次（如「{name}：」总起一句），其后每个工步（{i}.1/{i}.2/…）直接写操作，不再带「{name}：」前缀。\n"
+                f"  4. 目标长度：本工序有多少工步就写多少段，每工步 1-3 句（约 30-60 字/工步），整道工序通常 100-200 字；工步多的可更长。宁详勿简，但绝不超过工步原文+辅料标准提供的信息量。\n"
+                f"  5. 若该工序工步原文为「（原文未提供）」，content 留空字符串，不要臆造。\n\n"
                 f"## 辅助材料(aux_materials) 写法：列出本工序 content 中**实际使用**的辅料，多个用「、」分隔。"
                 f"必须与 content 提到的辅材完全一致（相辅相成）；基于工步原文辅材 + 辅料标准，不得臆造。若 content 无辅材则留空字符串。\n\n"
                 f"## 检验(inspection) 写法：仅对【关键质检工序】生成检验点——"
@@ -1739,7 +1741,18 @@ class WritingAgent(BaseAgent):
                 s = item.get("slot", "")
                 s = label_to_key.get(s, s)
                 if s in slot_keys:
-                    slots.append({"row": i, "slot": s, "value": item.get("value", "")})
+                    val = item.get("value", "")
+                    if s == "content" and val:
+                        # Force leading N.M step-id first segment = i. The LLM
+                        # sometimes copies the source doc's numbering verbatim
+                        # (e.g. "1.1 ..." under 工序9); rewrite so every line's
+                        # leading id starts with the current step number.
+                        val = re.sub(
+                            r'^(\d+)\.(\d+(?:\.\d+)*)',
+                            lambda m: f"{i}.{m.group(2)}",
+                            val, flags=re.MULTILINE,
+                        )
+                    slots.append({"row": i, "slot": s, "value": val})
             return slots
 
         tasks = [gen_one(i) for i in range(1, n + 1)]
