@@ -65,3 +65,75 @@ class TestProvenanceFilter:
         parsed = [{"row": 1, "slot": "material", "value": "Q235 钢材"}]
         result = _call_filter(parsed, upstream, "single_row_list")
         assert len(result) == 1
+
+
+class TestG14aInjectG25aAuxMaterials:
+    """N4: G14a derive must see ALL G25a aux_materials, not just seq 1.
+
+    The 8000-char upstream-text truncation can drop late G25a rows' aux entries,
+    so _inject_g25a_aux_for_g14a re-appends the full non-empty aux_materials
+    column. Provenance_filter (substring check) then passes every aux material.
+    """
+
+    def _inject(self, upstream_text, upstream, chapter_code="G14a"):
+        return WritingAgent._inject_g25a_aux_for_g14a(
+            upstream_text, upstream, chapter_code
+        )
+
+    def test_all_aux_materials_appended(self):
+        # G25a filled_data carries multiple aux materials across rows
+        upstream = {"G25a": {"filled_data": [
+            {"step_no": 1, "aux_materials": "无水乙醇"},
+            {"step_no": 2, "aux_materials": "7804润滑脂"},
+            {"step_no": 3, "aux_materials": "乐泰222"},
+            {"step_no": 4, "aux_materials": "GD414"},
+        ]}}
+        result = self._inject("工序内容...", upstream)
+        # every aux material must appear (provenance filter will then keep them)
+        for aux in ("无水乙醇", "7804润滑脂", "乐泰222", "GD414"):
+            assert aux in result
+        assert "## G25a 辅助材料列(全)" in result
+
+    def test_empty_aux_rows_skipped(self):
+        # rows with blank/missing aux_materials must not contribute
+        upstream = {"G25a": {"filled_data": [
+            {"aux_materials": "白棉布"},
+            {"aux_materials": ""},
+            {"aux_materials": None},
+            {},  # no key at all
+            {"aux_materials": "无水乙醇"},
+        ]}}
+        result = self._inject("base", upstream)
+        assert "白棉布" in result
+        assert "无水乙醇" in result
+        # only 2 numbered entries (blanks dropped): no "3." item appears
+        assert "\n1. 白棉布" in result
+        assert "\n2. 无水乙醇" in result
+        assert "3." not in result.split("## G25a 辅助材料列(全)")[1]
+
+    def test_non_g14a_untouched(self):
+        # only G14a triggers injection; other chapters get text back as-is
+        upstream = {"G25a": {"filled_data": [{"aux_materials": "无水乙醇"}]}}
+        result = self._inject("base", upstream, chapter_code="G18a")
+        assert result == "base"
+
+    def test_no_g25a_or_empty_returns_as_is(self):
+        # no G25a upstream → nothing to inject → original text returned
+        assert self._inject("base", {}) == "base"
+        assert self._inject("base", {"G25a": {}}) == "base"
+        assert self._inject("base", {"G25a": {"filled_data": []}}) == "base"
+        assert self._inject("base", {"G25a": {"filled_data": [{"aux_materials": ""}]}}) == "base"
+
+    def test_provenance_passes_after_inject(self):
+        # end-to-end-ish: injected text must let provenance_filter keep all aux
+        upstream = {"G25a": {"filled_data": [
+            {"aux_materials": "无水乙醇"},
+            {"aux_materials": "GD414"},
+        ]}}
+        injected = self._inject("base", upstream)
+        parsed = [
+            {"row": 1, "slot": "material_desc", "value": "无水乙醇"},
+            {"row": 2, "slot": "material_desc", "value": "GD414"},
+        ]
+        result = _call_filter(parsed, injected, "single_row_list")
+        assert len(result) == 2  # both survive provenance (no drop)

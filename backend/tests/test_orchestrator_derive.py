@@ -158,3 +158,92 @@ class TestG5aExcludedFromDerive:
         await orch._derive_strong_node(tasks, ["G5a"], results, {})
 
         mock_writing.derive_list_strong.assert_not_called()
+
+
+class TestG14aCoverColumns:
+    """N4: G14a comp_code/comp_name (零部组件代号/名称) are cover-info columns —
+    the product's own code/name, constant on every row, not derivable from
+    process content. _fill_g14a_cover_columns fills them from G1a cover
+    field_values (priority) or G4a doc-catalog rows (fallback).
+    """
+
+    def _fill(self, rows, tasks, results):
+        ProcessOrchestrator._fill_g14a_cover_columns(rows, tasks, results)
+
+    def _completed(self, inner):
+        return {"status": "completed", "result": inner}
+
+    def test_fills_from_g1a_field_values(self):
+        # G1a cover carries component_code/component_name → every G14a row gets them
+        tasks = [
+            {"chapter_code": "G1a"},
+            {"chapter_code": "G14a"},
+        ]
+        results = [
+            self._completed({"chapter_code": "G1a", "field_values": {
+                "component_code": "KA0-0-KZD",
+                "component_name": "小产品",
+            }}),
+            self._completed({"chapter_code": "G14a", "filled_data": []}),
+        ]
+        rows = [
+            {"seq": 1, "comp_code": "待补", "comp_name": "待补", "material_desc": "无水乙醇"},
+            {"seq": 2, "comp_code": "", "comp_name": "", "material_desc": "GD414"},
+        ]
+        self._fill(rows, tasks, results)
+        for r in rows:
+            assert r["comp_code"] == "KA0-0-KZD"
+            assert r["comp_name"] == "小产品"
+
+    def test_falls_back_to_g4a_filled_data(self):
+        # no G1a → use G4a doc-catalog rows (already product-level, not parts)
+        tasks = [{"chapter_code": "G4a"}, {"chapter_code": "G14a"}]
+        results = [
+            self._completed({"chapter_code": "G4a", "filled_data": [
+                {"component_code": "KA0-0-KZD", "component_name": "小产品"},
+                {"component_code": "KA0-0-KZD", "component_name": "小产品"},
+            ]}),
+            self._completed({"chapter_code": "G14a", "filled_data": []}),
+        ]
+        rows = [{"comp_code": "待补", "comp_name": "待补"}]
+        self._fill(rows, tasks, results)
+        assert rows[0]["comp_code"] == "KA0-0-KZD"
+        assert rows[0]["comp_name"] == "小产品"
+
+    def test_no_cover_source_leaves_待补(self):
+        # neither G1a nor G4a present → anti-fabrication: leave 待补 untouched
+        tasks = [{"chapter_code": "G14a"}]
+        results = [self._completed({"chapter_code": "G14a", "filled_data": []})]
+        rows = [{"comp_code": "待补", "comp_name": "待补"}]
+        self._fill(rows, tasks, results)
+        assert rows[0]["comp_code"] == "待补"
+        assert rows[0]["comp_name"] == "待补"
+
+    def test_keeps_existing_real_value(self):
+        # a row already carrying a real comp_code (not 待补/empty) is not overwritten
+        tasks = [{"chapter_code": "G1a"}]
+        results = [self._completed({"chapter_code": "G1a", "field_values": {
+            "component_code": "KA0-0-KZD", "component_name": "小产品",
+        }})]
+        rows = [{"comp_code": "CUSTOM-1", "comp_name": "待补"}]
+        self._fill(rows, tasks, results)
+        assert rows[0]["comp_code"] == "CUSTOM-1"   # pre-existing real value kept
+        assert rows[0]["comp_name"] == "小产品"       # 待补 filled
+
+    def test_empty_rows_noop(self):
+        tasks = [{"chapter_code": "G1a"}]
+        results = [self._completed({"chapter_code": "G1a", "field_values": {
+            "component_code": "KA0-0-KZD", "component_name": "小产品",
+        }})]
+        self._fill([], tasks, results)  # must not raise
+
+    def test_unwraps_writing_agent_result_wrap(self):
+        # writing_agent.process wraps fill result under "result" — must unwrap
+        tasks = [{"chapter_code": "G1a"}]
+        results = [self._completed({"result": {"chapter_code": "G1a", "field_values": {
+            "component_code": "KA0-0-KZD", "component_name": "小产品",
+        }}})]
+        rows = [{"comp_code": "待补", "comp_name": "待补"}]
+        self._fill(rows, tasks, results)
+        assert rows[0]["comp_code"] == "KA0-0-KZD"
+        assert rows[0]["comp_name"] == "小产品"

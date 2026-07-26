@@ -993,10 +993,83 @@ class ProcessOrchestrator:
                     # source/remarks from craft_kg material→process edges
                     # (overwrites 待补 left by _merge_derived_rows)
                     self._fill_g18a_from_kg(merged)
+                elif code == "G14a":
+                    # N4: comp_code/comp_name (零部组件代号/名称) are cover-info
+                    # columns — same value (the product itself) on every row,
+                    # not derivable from process content. Fill from G1a cover
+                    # field_values, falling back to G4a doc-catalog rows
+                    # (extract_doc_catalog already pins component to the
+                    # product, not parts). Overwrites 待补 left by merge.
+                    self._fill_g14a_cover_columns(merged, tasks, results)
                 logger.info(
                     "derive_strong_applied",
                     chapter_code=code, chapter_type=chapter_type, rows=len(merged),
                 )
+
+    @staticmethod
+    def _fill_g14a_cover_columns(
+        rows: List[Dict[str, Any]],
+        tasks: List[Dict[str, Any]],
+        results: List[Any],
+    ) -> None:
+        """Fill G14a comp_code/comp_name (cover info) on every row.
+
+        Source priority:
+          1. G1a field_values.component_code / component_name (the cover page)
+          2. G4a filled_data[*].component_code / component_name (doc-catalog
+             rows already carry the product component, not parts)
+
+        Both columns hold the assembled product's code/name (constant across
+        rows), per the G14a template semantics (零部组件代号/名称 = what the
+        aux-material quota applies to = the product).
+        """
+        if not rows:
+            return
+
+        comp_code = ""
+        comp_name = ""
+
+        # Walk results alongside tasks to find G1a / G4a structured output
+        for idx, res in enumerate(results):
+            if idx >= len(tasks):
+                break
+            if not (isinstance(res, dict) and res.get("status") == "completed"):
+                continue
+            inner = res.get("result", {})
+            if isinstance(inner, dict) and isinstance(inner.get("result"), dict):
+                inner = inner["result"]
+            if not isinstance(inner, dict):
+                continue
+            code = tasks[idx].get("chapter_code", "")
+
+            if code == "G1a" and not (comp_code and comp_name):
+                fv = inner.get("field_values") or {}
+                if isinstance(fv, dict):
+                    comp_code = comp_code or str(fv.get("component_code", "") or "").strip()
+                    comp_name = comp_name or str(fv.get("component_name", "") or "").strip()
+            elif code == "G4a" and not (comp_code and comp_name):
+                for r in inner.get("filled_data", []) or []:
+                    if not isinstance(r, dict):
+                        continue
+                    c_code = str(r.get("component_code", "") or "").strip()
+                    c_name = str(r.get("component_name", "") or "").strip()
+                    if c_code:
+                        comp_code = comp_code or c_code
+                    if c_name:
+                        comp_name = comp_name or c_name
+                    if comp_code and comp_name:
+                        break
+
+        if not (comp_code or comp_name):
+            return  # no cover source — leave 待补 (anti-fabrication)
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if comp_code and (not row.get("comp_code") or row.get("comp_code") == "待补"):
+                row["comp_code"] = comp_code
+            if comp_name and (not row.get("comp_name") or row.get("comp_name") == "待补"):
+                row["comp_name"] = comp_name
 
     @staticmethod
     def _slot_items_to_rows(derived: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -3154,6 +3227,13 @@ class ProcessOrchestrator:
                         generated_chapters[code] = {
                             "title": tasks[idx].get("chapter_title", ""),
                             "text": text[:3000],
+                            # N4: expose structured filled_data so downstream
+                            # list chapters can read specific columns (e.g. G14a
+                            # reads G25a aux_materials to derive all aux quotas,
+                            # not just seq 1). Text-truncation (3000) otherwise
+                            # drops late rows' aux material entries.
+                            "filled_data": inner.get("filled_data") or [],
+                            "field_values": inner.get("field_values") or {},
                         }
         else:
             # No phases defined — execute all in parallel (original behavior)

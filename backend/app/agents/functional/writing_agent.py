@@ -1344,6 +1344,16 @@ class WritingAgent(BaseAgent):
         if not upstream_text:
             return None
 
+        # N4: G14a derives aux-material quotas from G25a's aux_materials column.
+        # The 8000-char text truncation above can drop late G25a rows' aux
+        # entries, so derive only sees seq 1. Inject the full aux_materials
+        # column (all non-empty rows) explicitly so every aux material enters
+        # the LLM view AND survives provenance_filter (which checks substring
+        # presence in upstream_text).
+        upstream_text = self._inject_g25a_aux_for_g14a(
+            upstream_text, upstream, chapter_code
+        )
+
         # Columns to fill (all ai_filled slots)
         fill_cols = [c for c in slot_cols if c.ai_filled]
         # NOTE: G18a source ("来自何处") was previously skipped here (N3, 881bf97)
@@ -1429,6 +1439,36 @@ class WritingAgent(BaseAgent):
                 return parsed
             return _legacy_to_slots(parsed, fill_cols)
         return None
+
+    @staticmethod
+    def _inject_g25a_aux_for_g14a(
+        upstream_text: str, upstream: Dict[str, Any], chapter_code: str,
+    ) -> str:
+        """N4: append G25a's full aux_materials column to upstream_text for G14a.
+
+        G14a derives aux-material quotas from G25a's aux_materials column. The
+        upstream text is built from G25a filled_data joined + truncated to 8000
+        chars, which can drop late rows' aux entries so the derive LLM only
+        sees seq 1. This re-injects every non-empty aux_materials value so all
+        aux materials enter the LLM view AND survive provenance_filter.
+        """
+        if chapter_code != "G14a" or not isinstance(upstream, dict):
+            return upstream_text
+        g25a = upstream.get("G25a") or {}
+        if not isinstance(g25a, dict):
+            return upstream_text
+        aux_rows: List[str] = []
+        for row in g25a.get("filled_data", []) or []:
+            if not isinstance(row, dict):
+                continue
+            aux = str(row.get("aux_materials", "") or "").strip()
+            if aux:
+                aux_rows.append(aux)
+        if not aux_rows:
+            return upstream_text
+        return upstream_text + "\n\n## G25a 辅助材料列(全)\n" + "\n".join(
+            f"{i+1}. {a}" for i, a in enumerate(aux_rows)
+        )
 
     def _provenance_filter(
         self, parsed: Any, upstream_text: str, chapter_type: str,
