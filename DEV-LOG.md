@@ -2,24 +2,25 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T13:27:33+08:00
-last_commit: 9cf13ac
-status: craft-kg-quality done（B方案 v2 落地）：KG 真贡献 aux — learn 接 G25a extract_assembly_steps（process=G19a skeleton 真工序名，非工种非章节标题），proc→spec 边建立（四五舱对接→T2D30070），_search_knowledge_graph 按工序名查到[规格]。全量 701 passed 0 回归。v1 章节标题路径失败已废弃
-task_state: done
+updated_at: 2026-07-26T13:56:01+08:00
+last_commit: faeb175
+status: g25a-g18a-quality lead 开跑（PLAN seal）：修 G25a 工步漏(extract 跨页续页丢 substep)+工序名称填 skeleton 真工序名(非工种钳)+G18a source 列 derive 串源(源表真实"火工库"，方案A 跳 derive 填待补)。N1 extract 续页复位中
+task_state: running
+task_slug: g25a-g18a-quality
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (0 seconds ago)
-- `af8efa9` fix(craft-kg-quality): N3 guard used_in edge on _is_spec (non-spec subject no false link) (8 minutes ago)
-- `7a25451` feat(craft-kg-quality): N2' learn assembly extract (process=G19a skeleton) (12 minutes ago)
-- `5f0033d` plan(craft-kg-quality): v2 redirect to G25a assembly extract (N2 _section_at failed) (17 minutes ago)
-- `4af7222` feat(craft-kg-quality): N3+N4 NODE_SPEC + proc->spec edge + spec rendering (55 minutes ago)
-- `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (58 minutes ago)
-- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (64 minutes ago)
+- `faeb175` fix(writing-agent): str>int in max(llm_row_count) - LLM slot row str crash (0 seconds ago)
+- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (28 minutes ago)
+- `af8efa9` fix(craft-kg-quality): N3 guard used_in edge on _is_spec (non-spec subject no false link) (36 minutes ago)
+- `7a25451` feat(craft-kg-quality): N2' learn assembly extract (process=G19a skeleton) (41 minutes ago)
+- `5f0033d` plan(craft-kg-quality): v2 redirect to G25a assembly extract (N2 _section_at failed) (45 minutes ago)
+- `4af7222` feat(craft-kg-quality): N3+N4 NODE_SPEC + proc->spec edge + spec rendering (84 minutes ago)
+- `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (86 minutes ago)
+- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (2 hours ago)
 - `3c0c2a3` feat(triples): spec-param relation (spec as subject + sentence boundary) (12 hours ago)
-- `19b3c58` chore(diag): filled_data diagnostic logs + frontend-display/backend-filled ALIGN (13 hours ago)
-- `31723e2` fix(llm): generate_with_messages stream + thinking_budget (enable_thinking slow rootcause) (13 hours ago)
+- `19b3c58` chore(diag): filled_data diagnostic logs + frontend-display/backend-filled ALIGN (14 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
