@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T12:23:22+08:00
-last_commit: ef82aa4
+updated_at: 2026-07-26T12:29:32+08:00
+last_commit: 3100c2d
 status: craft-kg-quality lead 开跑（PLAN ef82aa4 seal B方案）：规格-工序关联——triple 带 process→build proc→spec 边→工序 seed expand 命中规格。N1+N2 document_profile_learner（spec_patterns扩+process字段+_section_at）中
 task_state: running
 task_slug: craft-kg-quality
@@ -11,7 +11,8 @@ task_slug: craft-kg-quality
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (0 seconds ago)
+- `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (0 seconds ago)
+- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (6 minutes ago)
 - `3c0c2a3` feat(triples): spec-param relation (spec as subject + sentence boundary) (11 hours ago)
 - `19b3c58` chore(diag): filled_data diagnostic logs + frontend-display/backend-filled ALIGN (12 hours ago)
 - `31723e2` fix(llm): generate_with_messages stream + thinking_budget (enable_thinking slow rootcause) (12 hours ago)
@@ -20,13 +21,12 @@ task_slug: craft-kg-quality
 - `84d2ab8` test(craft-kg-from-learn): N4 KG unit tests + pytest 681 passed 0 failed (20 hours ago)
 - `874f077` feat(craft-kg-from-learn): N3 frontend folder batch-learn button + SSE progress UI (21 hours ago)
 - `216053a` feat(craft-kg-from-learn): N2 learn-batch endpoint + SSE per-file progress (21 hours ago)
-- `0c6ef13` feat(craft-kg-from-learn): N1 merge_from + _feed_craft_kg - learn feeds craft KG (21 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **在做（craft-kg-quality，PLAN ef82aa4 seal）**：B 方案 规格-工序关联（triple 带 process→build proc→spec 边→工序 seed expand 命中规格）。**N1+N2 ✅ 完成**（`document_profile_learner.py`：spec_patterns 12条(加柱+反序+M×x) + `_add` 加 process 字段 + 抽 `_collect_headers` + 新 `_section_at(pos)` 按位置取最近前置工序标题 + Pattern 1 传 process；新建 `test_document_profile_learner.py` 9 passed 0 回归）。N3+N4 待做（`knowledge_graph.py` NODE_SPEC + proc→spec 边 + 渲染）。
+- **在做（craft-kg-quality，PLAN ef82aa4 seal）**：B 方案 规格-工序关联（triple 带 process→build proc→spec 边→工序 seed expand 命中规格）。**N1+N2 ✅**（`document_profile_learner.py`：spec_patterns 12条(加柱+反序+M×x) + `_add` 加 process 字段 + 抽 `_collect_headers` + 新 `_section_at(pos)` + Pattern 1 传 process；9 passed）。**N3+N4 ✅ 完成**（`knowledge_graph.py`：常量 NODE_SPEC/EDGE_USED_IN + `_is_spec` + build 规格 branch 规格建 NODE_SPEC + 读 process 建 proc→spec(USED_IN) 边（向后兼容 process 缺失）+ `to_context_text` 工序 out_edges 加规格渲染 + NODE_SPEC 分支；test_knowledge_graph 10 passed）。**单测累计 19 passed 0 回归**。N5 端到端验证待做（删 json→learn→_search_kg→真生成 G25a）。
 
 - **完成（craft-kg-from-learn，PLAN f564472 seal）**：修 g25a-method-aux-bind N1 规划漏洞——craft KG 壳做了（`save_craft_kg` 全库零调用）→ `craft_kg` 永远空 → N3 `_search_knowledge_graph` 被 `node_count>0` 守卫跳过 → `aux_standards` 空 → 装配卡辅料标准关联空跑。本期：learn→triples→`build_from_triples`→合并 `craft_kg`+save + 文件夹批量（后端 SSE）。**N1 ✅ 完成**：`KnowledgeGraph.merge_from`（累加幂等）+ learn/learn-file handler `_feed_craft_kg`（build_from_triples→merge→save_craft_kg 首次接上）；冒烟 0→6 nodes/4 edges + `data/knowledge_graph.json` 生成 + 重复 merge 幂等 + 空 triples fail-soft。**N2 ✅ 完成**：后端 `/{domain}/learn-batch` 端点（SSE 流式 per-file 进度 + fail-soft + 预读 content 不持 DB Session + 复用 `_feed_craft_kg`）；路由注册 + `_read_material_content`/`_html_to_text`/`_sse` helper 验证过。**N3 ✅ 完成**：前端 FolderTree 右键「批量学习为画像」+ MaterialDrawer `handleLearnFolder`（fetch learn-batch SSE stream + 批量 Progress UI，复用 processing 模式）；tsc 0 错。**N4 ✅ 完成**：单测 5/5（`merge_from` 幂等/dedup/参数节点，新建 `tests/test_knowledge_graph.py`）+ pytest 全量 **681 passed 0 failed**（27 skipped/57 xfailed/6 xpassed，0 新 failed）+ 端到端冒烟（learn→triples→`_feed_craft_kg`→craft_kg 10→16 nodes，N3 守卫 `node_count>0` 不再跳过，context text 非空）。**全 4 节点闭环，task_state: done。**
 

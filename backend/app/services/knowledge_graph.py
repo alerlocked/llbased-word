@@ -8,6 +8,8 @@ Storage: serialized as JSON dict in Profile.graph field.
 Runtime: loaded into NetworkX DiGraph for traversal.
 """
 from typing import Any, Dict, List, Optional, Set, Tuple
+import re
+
 import networkx as nx
 
 from app.shared.logging import get_logger
@@ -19,12 +21,14 @@ NODE_PROCESS_STEP = "process_step"
 NODE_MATERIAL = "material"
 NODE_TOOL = "tool"
 NODE_PARAMETER = "parameter"
+NODE_SPEC = "spec"  # 规格(螺柱/螺栓/标准号等,作参数 triple 的 subject)
 
 # Edge types
 EDGE_SEQUENTIAL = "sequential"
 EDGE_REQUIRES = "requires"
 EDGE_DEPENDS_ON = "depends_on"
 EDGE_REFERENCES = "references"
+EDGE_USED_IN = "used_in"  # 工序 uses 规格 (proc→spec)
 
 
 class KnowledgeGraph:
@@ -257,9 +261,19 @@ class KnowledgeGraph:
                 kg.add_node(_safe_id(o), ntype, o)
                 kg.add_edge(_safe_id(s), _safe_id(o), EDGE_REQUIRES)
             elif r in ("温度", "力矩", "压力", "时间", "速度", "公差", "硬度"):
-                kg.add_node(_safe_id(s), NODE_PROCESS_STEP, s)
-                kg.add_node(_safe_id(f"{s}_{r}"), NODE_PARAMETER, o)
-                kg.add_edge(_safe_id(s), _safe_id(f"{s}_{r}"), EDGE_DEPENDS_ON, relation=r)
+                spec_id = _safe_id(s)
+                param_id = _safe_id(f"{s}_{r}")
+                # 规格 subject 建 NODE_SPEC（若非规格退化为 PROCESS_STEP，向后兼容）
+                spec_type = NODE_SPEC if _is_spec(s) else NODE_PROCESS_STEP
+                kg.add_node(spec_id, spec_type, s)
+                kg.add_node(param_id, NODE_PARAMETER, o)
+                kg.add_edge(spec_id, param_id, EDGE_DEPENDS_ON, relation=r)
+                # 读 process 字段建工序节点 + proc→spec 边（B 方案 规格-工序关联）
+                proc = t.get("process")
+                if proc:
+                    proc_id = _safe_id(proc)
+                    kg.add_node(proc_id, NODE_PROCESS_STEP, proc)
+                    kg.add_edge(proc_id, spec_id, EDGE_USED_IN, relation=s)
             elif r == "标准":
                 kg.add_node(_safe_id(s), NODE_PROCESS_STEP, s)
                 kg.add_node(_safe_id(o), NODE_MATERIAL, o)  # Standards treated as material nodes
@@ -381,9 +395,19 @@ class KnowledgeGraph:
                         line += f" | {rel}: {target_label}"
                     elif etype == EDGE_REFERENCES:
                         line += f" | 参考: {target_label}"
+                    elif etype == EDGE_USED_IN:
+                        line += f" | 规格: {target_label}"
                 # Prohibitions
                 if node.get("prohibitions"):
                     line += f" | 禁止: {node['prohibitions']}"
+                parts.append(line)
+            elif ntype == NODE_SPEC:
+                line = f"[规格] {label}"
+                # 展开 spec→param 显示参数值
+                for _, tgt, edata in self._graph.out_edges(nid, data=True):
+                    if edata.get("type") == EDGE_DEPENDS_ON:
+                        tgt_label = self._graph.nodes[tgt].get("label", tgt)
+                        line += f" | {edata.get('relation', '参数')}: {tgt_label}"
                 parts.append(line)
             elif ntype == NODE_PARAMETER:
                 line = f"[参数] {label}"
@@ -405,9 +429,24 @@ class KnowledgeGraph:
         return text
 
 
+SPEC_KEYWORDS = (
+    "M", "GB/T", "GB-T", "GB/", "\u87ba\u67f1", "\u87ba\u6813", "\u87ba\u9489",
+    "\u5bc6\u5c01\u5708", "O\u578b", "O\u5708", "\u710a\u6761", "\u710a\u4e1d", "\u6d82\u6599", "\u6d82\u6f06",
+    "\u6954\u73af", "T2D", "\u7535\u7f06",
+)
+
+
+def _is_spec(text: str) -> bool:
+    """\u5224\u5b9a subject \u662f\u5426\u89c4\u683c(\u800c\u975e\u5de5\u5e8f\u540d)\u2014\u2014\u542b\u89c4\u683c\u5173\u952e\u8bcd\u6216 M\\d+ \u87ba\u7eb9\u4ee3\u53f7\u3002"""
+    if not text:
+        return False
+    if re.search(r"M\d+", text):
+        return True
+    return any(k in text for k in SPEC_KEYWORDS)
+
+
 def _safe_id(text: str) -> str:
     """Convert text to a safe node ID."""
-    import re
     return re.sub(r"[^a-zA-Z0-9_\u4e00-\u9fff]", "_", text.strip())[:64]
 
 

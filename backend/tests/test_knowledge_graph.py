@@ -4,7 +4,16 @@ Covers the core of the learn→craft KG feed: triples→KG build + additive
 idempotent merge. _feed_craft_kg (thin wrapper over these + save_craft_kg) is
 verified end-to-end via the learn endpoint smoke.
 """
-from app.services.knowledge_graph import KnowledgeGraph
+from app.services.knowledge_graph import (
+    KnowledgeGraph,
+    NODE_SPEC,
+    NODE_PROCESS_STEP,
+    NODE_PARAMETER,
+    EDGE_USED_IN,
+    EDGE_DEPENDS_ON,
+    _is_spec,
+    _safe_id,
+)
 
 
 def test_build_from_triples_nodes_and_edges():
@@ -63,3 +72,86 @@ def test_merge_from_empty_noop():
     before = kg.node_count
     kg.merge_from(KnowledgeGraph())  # empty
     assert kg.node_count == before
+
+
+# ========================================
+# craft-kg-quality N3+N4: spec nodes + proc→spec edges
+# ========================================
+
+def test_is_spec_keywords_and_thread_code():
+    """_is_spec flags spec subjects (螺纹代号 / 规格关键词), not process names."""
+    assert _is_spec("M5螺柱") is True            # M\d+ 螺纹代号
+    assert _is_spec("GB/T68-2000") is True       # 标准号关键词
+    assert _is_spec("密封圈2") is True            # 规格关键词
+    assert _is_spec("装配") is False              # 纯工序名
+    assert _is_spec("焊接") is False              # 纯工序名
+    assert _is_spec("") is False
+
+
+def test_build_spec_branch_with_process():
+    """规格 triple 携带 process → spec 节点 + proc 节点 + proc→spec 边 + spec→param 边。"""
+    kg = KnowledgeGraph.build_from_triples([
+        {"s": "M5螺柱", "r": "力矩", "o": "3.6N·m", "process": "装配"},
+    ])
+    spec_id = _safe_id("M5螺柱")
+    proc_id = _safe_id("装配")
+    param_id = _safe_id("M5螺柱_力矩")
+
+    # 规格节点建为 NODE_SPEC
+    assert kg.get_node(spec_id)["type"] == NODE_SPEC
+    # 工序节点建为 NODE_PROCESS_STEP
+    assert kg.get_node(proc_id)["type"] == NODE_PROCESS_STEP
+    # 参数节点
+    assert kg.get_node(param_id)["type"] == NODE_PARAMETER
+
+    # proc→spec (used_in) 边 + spec→param (depends_on) 边
+    assert kg._graph.get_edge_data(proc_id, spec_id)["type"] == EDGE_USED_IN
+    assert kg._graph.get_edge_data(spec_id, param_id)["type"] == EDGE_DEPENDS_ON
+
+
+def test_build_spec_branch_process_missing_backcompat():
+    """无 process 字段 → 建规格节点但不建工序节点、无 used_in 边（向后兼容）。"""
+    kg = KnowledgeGraph.build_from_triples([
+        {"s": "M5螺柱", "r": "力矩", "o": "3.6N·m"},
+    ])
+    spec_id = _safe_id("M5螺柱")
+    proc_id = _safe_id("装配")
+
+    # 规格节点仍建（subject 命中 _is_spec）
+    assert kg.get_node(spec_id)["type"] == NODE_SPEC
+    # 无工序节点
+    assert kg.has_node(proc_id) is False
+    # 无 used_in 边
+    for _, _, data in kg._graph.edges(data=True):
+        assert data.get("type") != EDGE_USED_IN
+
+
+def test_to_context_text_renders_spec_with_param():
+    """to_context_text 从工序 seed 展开 → 输出 [规格] 行 + 参数值。"""
+    kg = KnowledgeGraph.build_from_triples([
+        {"s": "M5螺柱", "r": "力矩", "o": "3.6N·m", "process": "装配"},
+    ])
+    proc_id = _safe_id("装配")
+    text = kg.to_context_text(seed_node_ids=[proc_id])
+    assert "[规格] M5螺柱" in text
+    assert "力矩: 3.6N·m" in text
+
+
+def test_search_by_process_reaches_spec_end_to_end():
+    """模拟 _search_knowledge_graph 的 seed 逻辑:label 含工序名 → expand 含规格节点。"""
+    kg = KnowledgeGraph.build_from_triples([
+        {"s": "M5螺柱", "r": "力矩", "o": "3.6N·m", "process": "装配"},
+    ])
+    query = "装配"
+    # Seed:工序节点 label 含 query（模拟 hierarchical_context seed 命中）
+    seeds = [
+        nid for nid in kg._graph.nodes
+        if kg._graph.nodes[nid].get("type") == NODE_PROCESS_STEP
+        and query in kg._graph.nodes[nid].get("label", "")
+    ]
+    assert seeds, "工序 seed 应命中"
+
+    expanded = kg.expand_context(seeds, max_hops=2)
+    expanded_types = {n["id"]: n["type"] for n in expanded}
+    assert _safe_id("M5螺柱") in expanded_types
+    assert expanded_types[_safe_id("M5螺柱")] == NODE_SPEC
