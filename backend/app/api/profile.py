@@ -305,7 +305,20 @@ async def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
 
     doc_id = req.document_id or file_path.stem
     learner = DocumentProfileLearner()
-    features = await learner.learn_from_content(content=content, domain=req.domain, document_id=doc_id)
+    # G25a 装配文档：接 extract，process 用 G19a skeleton 真工序名（N2'）
+    learn_kwargs: Dict[str, Any] = {}
+    try:
+        _mid = int(doc_id)
+        from app.services.hierarchical_context import hierarchical_context as hc
+        asm = hc.extract_assembly_steps(str(_mid))
+        skel = hc.extract_process_steps(str(_mid))
+        if asm:
+            learn_kwargs = {"assembly_steps": asm, "skeleton_steps": skel}
+    except Exception:
+        pass
+    features = await learner.learn_from_content(
+        content=content, domain=req.domain, document_id=doc_id, **learn_kwargs
+    )
 
     profile = _load_profile(domain)
     profile_dict = profile.to_dict()
@@ -371,7 +384,8 @@ async def learn_from_batch(
     no DB session; the slow LLM learn runs inside the stream, one progress
     event per file. Fail-soft per file: one bad file doesn't abort the batch.
     """
-    items: List[tuple] = []  # (fid, name, domain, text)
+    items: List[tuple] = []  # (fid, name, domain, text, learn_kwargs)
+    from app.services.hierarchical_context import hierarchical_context as hc
     for fid in req.file_ids:
         try:
             mid = int(fid)
@@ -383,18 +397,27 @@ async def learn_from_batch(
         text = _html_to_text(_read_material_content(mid))
         if len(text) < 10:
             continue
-        items.append((str(mid), m.name or fid, m.specialty or domain, text))
+        # G25a 装配文档：接 extract，process 用 G19a skeleton 真工序名（N2'）
+        learn_kwargs: Dict[str, Any] = {}
+        try:
+            asm = hc.extract_assembly_steps(str(mid))
+            skel = hc.extract_process_steps(str(mid))
+            if asm:
+                learn_kwargs = {"assembly_steps": asm, "skeleton_steps": skel}
+        except Exception:
+            pass
+        items.append((str(mid), m.name or fid, m.specialty or domain, text, learn_kwargs))
 
     total = len(items)
 
     async def generate():
         yield _sse({"type": "start", "total": total})
         ok = 0
-        for idx, (fid, name, fdomain, text) in enumerate(items, 1):
+        for idx, (fid, name, fdomain, text, learn_kwargs) in enumerate(items, 1):
             try:
                 learner = DocumentProfileLearner()
                 features = await learner.learn_from_content(
-                    content=text, domain=fdomain, document_id=fid,
+                    content=text, domain=fdomain, document_id=fid, **learn_kwargs,
                 )
                 profile = _load_profile(fdomain)
                 merged = learner.merge_features_to_profile(profile.to_dict(), features)

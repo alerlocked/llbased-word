@@ -113,3 +113,63 @@ def test_m_number_without_connector_or_bolt_not_matched():
     assert spec_subjects == [], f"bare M-number wrongly matched as spec: {spec_subjects}"
     # temperature triple should still be present
     assert any(t["r"] == "温度" for t in triples), f"temperature triple missing: {triples}"
+
+
+# ---------------------------------------------------------------------------
+# N2' — _extract_triples_from_substeps (process = G19a skeleton 真工序名)
+# ---------------------------------------------------------------------------
+
+def test_substeps_process_uses_skeleton_name():
+    """step1 process==装配前准备、step2 process==密封圈安装；绝不用 asm[k]['name'](钳)。"""
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [{"content": "用 M5×8 螺栓拧紧,拧紧力矩为3.6±0.4N·m"}]},
+        2: {"name": "钳", "substeps": [{"content": "安装密封圈2,力矩1.9N·m"}]},
+    }
+    skeleton = ["装配前准备", "密封圈安装"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+
+    step1 = [t for t in triples if t["process"] == "装配前准备"]
+    step2 = [t for t in triples if t["process"] == "密封圈安装"]
+    assert step1, f"step1 triples missing: {triples}"
+    assert step2, f"step2 triples missing: {triples}"
+    # subject 含规格
+    assert any(("螺栓" in t["s"]) or ("M5" in t["s"]) for t in step1), step1
+    assert any("密封圈2" in t["s"] for t in step2), step2
+    # 绝不出现 process == 钳（工种）
+    assert all(t["process"] != "钳" for t in triples), f"工种 leaked into process: {triples}"
+
+
+def test_substeps_out_of_range_step_no_process_none():
+    """step_no=5 超 skeleton 长度 2 → step5 triples 的 process=None。"""
+    learner = _learner()
+    asm = {
+        5: {"name": "钳", "substeps": [{"content": "用 M5×8 螺栓,力矩3.6N·m"}]},
+    }
+    skeleton = ["装配前准备", "密封圈安装"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    assert triples, f"expected triples for step5: {triples}"
+    for t in triples:
+        assert t["process"] is None, f"expected None, got {t['process']}"
+
+
+def test_substeps_spec_fallback_to_material():
+    """content 无规格但 material 含规格 → subject 含规格。"""
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [
+            {"content": "拧紧,力矩3.6N·m", "material": "M5×8 螺栓"},
+        ]},
+    }
+    skeleton = ["装配前准备"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    # 至少一个力矩 triple，subject 含规格（M5/螺栓）
+    torque = [t for t in triples if t["r"] == "力矩"]
+    assert torque, f"no 力矩 triple: {triples}"
+    assert any(("M5" in t["s"]) or ("螺栓" in t["s"]) for t in torque), torque
+
+
+def test_substeps_empty_asm_returns_empty():
+    """asm 空 → 返回 []，不报错。"""
+    learner = _learner()
+    assert learner._extract_triples_from_substeps({}, []) == []
