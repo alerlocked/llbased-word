@@ -127,13 +127,13 @@ class DocumentProfileLearner:
         triples: List[Dict[str, str]] = []
         seen: set = set()
 
-        def _add(s: str, r: str, o: str) -> None:
+        def _add(s: str, r: str, o: str, process: str = None) -> None:
             if not s or not o:
                 return  # current_section may be None (no generic fallback)
             key = f"{s}|{r}|{o}"
             if key not in seen and len(s) >= 2 and len(o) >= 2:
                 seen.add(key)
-                triples.append({"s": s, "r": r, "o": o})
+                triples.append({"s": s, "r": r, "o": o, "process": process})
 
         # Pattern 1: quantity specs — "温度控制在800-850°C" / "力矩为45±5 N·m"
         qty_patterns = [
@@ -145,11 +145,15 @@ class DocumentProfileLearner:
             (r"([\u4e00-\u9fff]{0,6})(?:间隙|公差|精度)(?:为|是|应[为在])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*mm)", "公差"),
             (r"([\u4e00-\u9fff]{0,6})(?:硬度)(?:为|应[为在达到])?((?:\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?(?:±\d+(?:\.\d+)?)?)\s*(?:HRC|HB|HV|HRB))", "硬度"),
         ]
+        self._content_cached = content
+        headers = self._collect_headers(content)
         current_section = self._guess_current_section(content)
         # spec patterns: 元素规格（螺栓/螺钉/密封圈/焊条/电缆/楔环/工装代号），
         # 作参数 triple 的 subject（比参数值提前一层），按工艺绑不同规格-参数。
         spec_patterns = [
-            r"M\d+\S*螺[栓钉]",       # M5×8 螺栓 / M6螺钉
+            r"M\d+\S*螺[栓钉柱]",      # M5×8 螺栓 / M6螺钉 / M4螺柱 (加"柱")
+            r"螺[栓钉柱]\s*M\d+",       # 反序: "螺柱 M5 8" 表述
+            r"M\d+[-×xX]\d+",           # M5×8 螺纹规格(不带螺字也认)
             r"GB/T\s*\d+[—-]\d+",     # GB/T68-2000 标准件
             r"密封圈\s*\d",            # 密封圈2
             r"O[型]?圈",               # O型圈
@@ -175,7 +179,7 @@ class DocumentProfileLearner:
             for match in re.finditer(pattern, content):
                 # subject 优先同句规格，其次 qty 主体，最后 current_section
                 subject = _find_spec(match.start()) or (match.group(1) or current_section)
-                _add(subject, relation, match.group(2))
+                _add(subject, relation, match.group(2), process=self._section_at(match.start(), headers))
 
         # Pattern 2: standards references — "按XX标准执行" / "符合XX"
         std_matches = re.findall(
@@ -244,6 +248,29 @@ class DocumentProfileLearner:
         scored.sort(key=lambda x: -x[0])
         return [t for _, t in scored]
 
+    def _collect_headers(self, content: str) -> List[Tuple[int, str]]:
+        """Collect all (pos, title) section headers — 数字+中文 标题，按位置升序。"""
+        headers: List[Tuple[int, str]] = []
+        for m in re.finditer(r"(?:^|\n)\s*(\d+(?:\.\d+)*)\s+([\u4e00-\u9fff]{2,10})", content):
+            headers.append((m.start(), m.group(2).strip()))
+        return headers
+
+    def _section_at(self, pos: int, headers: List[Tuple[int, str]] = None) -> str:
+        """按位置取最近前置工序标题（数字+中文），比 _guess_current_section 整篇取一个更精确。
+
+        用于规格 triple 绑定所在工序：不同位置的规格绑不同工序。
+        headers 按 pos 升序，线性扫取 hpos <= pos 的最后一个。
+        """
+        if headers is None:
+            headers = self._collect_headers(self._content_cached) if getattr(self, "_content_cached", None) else []
+        candidate = None
+        for hpos, title in headers:
+            if hpos <= pos:
+                candidate = title
+            else:
+                break
+        return candidate  # 可能 None（pos 在第一个标题前）
+
     def _guess_current_section(self, content: str) -> str:
         """Guess the current process section from context.
 
@@ -251,9 +278,7 @@ class DocumentProfileLearner:
         Falls back to generic "工艺" only if nothing better is available.
         """
         # Collect all section headers with their positions
-        headers: List[Tuple[int, str]] = []
-        for m in re.finditer(r"(?:^|\n)\s*(\d+(?:\.\d+)*)\s+([\u4e00-\u9fff]{2,10})", content):
-            headers.append((m.start(), m.group(2).strip()))
+        headers = self._collect_headers(content)
 
         if not headers:
             return None  # 不返回泛词「工艺」（避免 subject=工艺 串行错位）
