@@ -2,31 +2,30 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T14:45:53+08:00
-last_commit: 881bf97
+updated_at: 2026-07-26T15:04:59+08:00
+last_commit: 10e5c6c
 status: g25a-g18a-quality done：3 bug 修复 + playwright 前端确认场景目标达成（G25a 工序名称列=真工序名 装前准备/安装密封圈2/四五舱对接，不再全钳；G18a source 列不含工艺流程图=待补）。N1 工步漏 documents/1 不回归(工序7 全)，用户原素材预防性修复待用户验。全量 717 passed 0 回归
 task_state: done
-task_slug: g25a-g18a-quality
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `881bf97` fix(g25a-g18a): N2 step_name=skeleton + N3 G18a source skip derive (0 seconds ago)
-- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (2 minutes ago)
-- `85b131d` plan(g25a-g18a-quality): seal - G25a substep跨页+工序名+G18a source derive串源 (7 minutes ago)
-- `faeb175` fix(writing-agent): str>int in max(llm_row_count) - LLM slot row str crash (50 minutes ago)
-- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (78 minutes ago)
-- `af8efa9` fix(craft-kg-quality): N3 guard used_in edge on _is_spec (non-spec subject no false link) (86 minutes ago)
+- `10e5c6c` docs(g25a-g18a-quality): done - 3bug修复+playwright确认场景目标达成 (0 seconds ago)
+- `881bf97` fix(g25a-g18a): N2 step_name=skeleton + N3 G18a source skip derive (19 minutes ago)
+- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (21 minutes ago)
+- `85b131d` plan(g25a-g18a-quality): seal - G25a substep跨页+工序名+G18a source derive串源 (26 minutes ago)
+- `faeb175` fix(writing-agent): str>int in max(llm_row_count) - LLM slot row str crash (69 minutes ago)
+- `9cf13ac` docs(craft-kg-quality): done - B方案v2落地 KG真贡献aux (N5端到端闭环) (2 hours ago)
+- `af8efa9` fix(craft-kg-quality): N3 guard used_in edge on _is_spec (non-spec subject no false link) (2 hours ago)
 - `7a25451` feat(craft-kg-quality): N2' learn assembly extract (process=G19a skeleton) (2 hours ago)
 - `5f0033d` plan(craft-kg-quality): v2 redirect to G25a assembly extract (N2 _section_at failed) (2 hours ago)
-- `4af7222` feat(craft-kg-quality): N3+N4 NODE_SPEC + proc->spec edge + spec rendering (2 hours ago)
-- `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (2 hours ago)
+- `4af7222` feat(craft-kg-quality): N3+N4 NODE_SPEC + proc->spec edge + spec rendering (3 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **在做（g25a-g18a-quality，PLAN `85b131d` seal）**：3 bug 修复（G25a 工步漏/工序名 + G18a source 串源）。**N1 ✅**（`hierarchical_context.py` extract 续页 `in_parts_list=False` 复位 + markers 收紧 ≥2；documents/1 全工序 0 回归 工序7=45；57 passed）。**N2+N3 ✅ 完成**（`writing_agent.py` :851 `step_name=skel[k-1]` 真工序名（越界回退 asm.name）+ :1349 G18a `fill_cols` 排除 source 列（跳 derive 不串"工艺流程图"，走 derive strong node merge 待补兜底）；test_writing_agent 7 用例；46 passed）。N4 全量回归 + 端到端中。
+- **完成（g25a-g18a-quality，PLAN `85b131d` seal）3 bug 修复**：用户测试发现 3 个生成质量问题。**N1 ✅**（`hierarchical_context.py` extract 续页表头 `in_parts_list=False` 复位 + `_PARTS_LIST_MARKERS` 收紧 ≥2 marker；G25a 工步漏根因 candidate C = 续页 parts-list 区跨页未复位吞 substep；documents/1 全工序 0 回归 工序7=45 含 7.1-7.5；57 passed）。**N2 ✅**（`writing_agent.py:851 step_name=skel[k-1]` G19a 真工序名，越界回退 asm.name 工种；不再全"钳"）。**N3 ✅**（`:1349` G18a `fill_cols` 排除 source 列，跳 derive 不串"工艺流程图"，走 derive strong node merge 待补兜底；源表真实 source"火工库"，方案 B extractor 留 TODO）。**N4 ✅ playwright 前端确认场景目标达成**（project=4）：G25a 工序名称列=真工序名（装前准备/安装密封圈2/四五舱对接/五舱装配/...），"钳"在工种列（正常）；G18a source 列不含"工艺流程图"（待补）；全量 **717 passed 0 回归**（基线 701+16 新增）。**留**：N1 用户原素材（M12螺栓）预防性修复效果待用户验（documents/1 不漏）；G18a 方案 B extractor 留 TODO。**task_state: done。**
 
 - **完成（craft-kg-quality，PLAN v2 `5f0033d` seal）B 方案 规格-工序关联**：让 craft_kg 真贡献 aux_standards（不只靠 DB）。**v1 纠错**：N2 靠 `_section_at` 章节标题取工序名失败（装配文件 3.1/3.2 是规程条款 + G25a「工序名称」列填工种钳非工序名）→ v2 改 N2' 接 G25a source-driven extract。**N1 ✅**（spec_patterns 12条：加柱+反序+M×x）+ **N3+N4 ✅**（`knowledge_graph.py` NODE_SPEC/EDGE_USED_IN + `_is_spec` + build 规格 branch 规格建 NODE_SPEC + 读 process 建 proc→spec(USED_IN) 边 + `to_context_text` 规格/工序渲染）+ **N2' ✅**（v2：`document_profile_learner.py` 抽 QTY/SPEC_PATTERNS 模块级 + `_extract_triples_from_substeps`（process=skeleton G19a 真工序名，越界保护，规格 fallback material）+ `learn_from_content` 加 assembly_steps/skeleton_steps 参；`profile.py` learn-file/learn-batch 接 `extract_assembly_steps`+`extract_process_steps`）+ **N3 守卫修 ✅**（build used_in 边加 `_is_spec` 守卫，非规格 subject 不建假关联）。**N5 ✅ 端到端闭环**：learn-file(doc_id=1) 接 extract → KG 有 proc→spec 边（四五舱对接→T2D30070）→ `_search_knowledge_graph('四五舱对接 装前准备')` KG 部分非空含 `[规格] T2D30070 | 力矩: 1.9N·m`（**KG 真贡献 aux，v1 查不到 v2 查到**）→ 真生成 G25a（generation_mode=generate）filled_data 20 行 + `g25a_aux_injected` + `g25a_aux_overridden`。全量 **701 passed 0 回归**（基线 695+6 新增）。**task_state: done。**
 
