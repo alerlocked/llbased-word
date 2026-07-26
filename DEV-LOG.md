@@ -2,17 +2,18 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T12:29:32+08:00
-last_commit: 3100c2d
-status: craft-kg-quality lead 开跑（PLAN ef82aa4 seal B方案）：规格-工序关联——triple 带 process→build proc→spec 边→工序 seed expand 命中规格。N1+N2 document_profile_learner（spec_patterns扩+process字段+_section_at）中
+updated_at: 2026-07-26T12:32:07+08:00
+last_commit: 4af7222
+status: craft-kg-quality v2 resume（N2' 接 G25a extract）：v1 的 N2 靠章节标题取工序名失败（装配文件无清晰工序标题 + G25a"工序名称"列填工种钳非工序名）→ v2 改 learn 接 extract_assembly_steps，process=G19a skeleton 真工序名，规格从 substep.content 提。N1/N3/N4 已 commit，做 N2'
 task_state: running
 task_slug: craft-kg-quality
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (0 seconds ago)
-- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (6 minutes ago)
+- `4af7222` feat(craft-kg-quality): N3+N4 NODE_SPEC + proc->spec edge + spec rendering (0 seconds ago)
+- `3100c2d` feat(craft-kg-quality): N1+N2 spec_patterns extend + triple process field + _section_at (3 minutes ago)
+- `ef82aa4` plan(craft-kg-quality): seal - spec-process linkage for KG aux contribution (9 minutes ago)
 - `3c0c2a3` feat(triples): spec-param relation (spec as subject + sentence boundary) (11 hours ago)
 - `19b3c58` chore(diag): filled_data diagnostic logs + frontend-display/backend-filled ALIGN (12 hours ago)
 - `31723e2` fix(llm): generate_with_messages stream + thinking_budget (enable_thinking slow rootcause) (12 hours ago)
@@ -20,7 +21,6 @@ task_slug: craft-kg-quality
 - `bbdee22` docs(arch): record craft KG feed-data lineage (learn->triples->craft_kg) (20 hours ago)
 - `84d2ab8` test(craft-kg-from-learn): N4 KG unit tests + pytest 681 passed 0 failed (20 hours ago)
 - `874f077` feat(craft-kg-from-learn): N3 frontend folder batch-learn button + SSE progress UI (21 hours ago)
-- `216053a` feat(craft-kg-from-learn): N2 learn-batch endpoint + SSE per-file progress (21 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

@@ -1,36 +1,46 @@
-# PLAN: craft KG 规格-工序关联改造（B 方案）
+# PLAN: craft KG 规格-工序关联改造（B 方案 v2 — 纠错：接 G25a 表格 extract）
 
-> slug: `craft-kg-quality` | ALIGN: `ALIGN-craft-kg-quality.md`（模糊点清零）| seal 后不可变
+> slug: `craft-kg-quality` | **v2（2026-07-26 纠错）**：v1 的 N2 靠章节标题取工序名失败（装配文件无清晰工序标题 + G25a「工序名称」列填工种非工序名），改 N2' 接 G25a source-driven extract，process=G19a skeleton 真工序名 | seal 后不可变
 
-## Context（为什么改）
-2026-07-26 端到端验证（云端 qwen3）发现 craft_kg 灌了数据但检索时 KG 节点查不到——`_search_knowledge_graph` query 是 G25a 工序名，KG 节点 label 是规格/参数，两维度不通，seed_ids 命中 0。根因：`build_from_triples` 把规格当 `NODE_PROCESS_STEP`（knowledge_graph.py:260）+ triple 无工序上下文（规格节点与工序节点孤立）。目标：建"规格-工序"关联，让工序名查到关联规格，KG 真贡献 aux_standards。
+## Context（为什么改 + 为什么 v2）
+craft_kg 灌了规格数据但检索时查不到（query 工序名 vs KG 规格名两维度不通），aux 全靠 DB。B 方案建规格-工序关联。
+
+**v1 纠错根因**：N2 的 `_section_at` 靠章节标题（`3.1/3.2`）取工序名 —— 实测装配文件这些是规程条款非工序标题（`_collect_headers` 0 headers）；且 G25a 表格「工序名称」列填的是**工种（钳/机）**非真工序名。真工序名在 **G19a 工艺流程图**（`extract_process_steps` 的 skeleton）+ substep.content 编号开头。
+
+**v2**：废弃 N2 的 `_section_at` 路径，改 **N2'：learn 接 `extract_assembly_steps`**（生成时用的一套，已处理 colspan），`process = skeleton[step_no-1]`（G19a 真工序名），规格/参数从 substep.content 提。N1 + N3+N4 保留（已 commit + 设计正确）。
 
 ## 改动清单
 
 | 文件 | 改什么 |
 |---|---|
-| `backend/app/services/document_profile_learner.py` | **N1** `spec_patterns`（:151-161）扩展：`螺[栓钉]`→`螺[栓钉柱]`（加柱）+ 反序 `螺[栓钉柱]\s*M\d+`（"螺柱 M5"）+ `M\d+[-×xX]\d+`（M5×8）。**N2** `_add`（:130）加 `process: str=None` + triple 加 `"process"`（:136）；抽 `_collect_headers(content)`（复用 :254-256 正则）+ `_guess_current_section` 改调它；新增 `_section_at(pos)` 按位置取最近前置工序标题（放宽：任何数字标题都算候选，去 :262-270 工艺关键词过滤）；Pattern 1（:177-178）改传 `process=self._section_at(match.start())`。 |
-| `backend/app/services/knowledge_graph.py` | **N3** 常量（:17-27）加 `NODE_SPEC="spec"` + `EDGE_USED_IN="used_in"`；规格参数 branch（:259-262）改：`_is_spec(s)`（照搬 :255-256 tool_keywords 范式：M\d+/GB-T/螺[栓钉柱]/密封圈/T2D/楔环）→ 建 `NODE_SPEC`（非 PROCESS_STEP）+ spec→param(EDGE_DEPENDS_ON)；读 `t.get("process")` 非空 → 建工序节点 NODE_PROCESS_STEP + **边 proc→spec(EDGE_USED_IN, relation=规格名)**；process 空退化现状（向后兼容）。**N4** `to_context_text`（:367-396）：NODE_PROCESS_STEP 分支 out_edges 加 `elif etype==EDGE_USED_IN: line+=" \| 规格: {target_label}"`；新增 NODE_SPEC 渲染分支 `[规格] {label}` + 展开 spec→param。 |
-| `backend/tests/test_knowledge_graph.py` | **N5** 追加：`_is_spec` 判定 + build NODE_SPEC + proc→spec(USED_IN) 边 + to_context_text 规格渲染 + **按工序查到规格**（build 带 process KG → query 工序名 → seed 工序 → expand 规格）。 |
-| `backend/tests/test_document_profile_learner.py` | **N5** 规格 pattern（柱/反序/M×，含负例 M58 个零件不抽）+ `_section_at(pos)` 按位置取 + triple 带 process。 |
+| `backend/app/services/document_profile_learner.py` | **N1 ✅ 已 commit（3100c2d）** spec_patterns 12 条保留。**N2 的 `_section_at` 路径废弃**（装配文件无效；`_collect_headers`/`_section_at` 保留给 Pattern 3/5 整篇兜底，不删）。**N2' 新增**：`_extract_triples_from_substeps(asm, skeleton)` —— 对每个 step_no，`process = skeleton[step_no-1]`（越界/数量不一致→None，比绑错好），该 step 下每个 substep 的 `content` 跑现有 `qty_patterns`/`spec_patterns`（复用，不重写）+ 规格 fallback 查 `substep.material`，`_add(s, r, o, process=skeleton真工序名)`。`learn_from_content` 加可选参 `assembly_steps`/`skeleton_steps`：有则 `_extract_triples_from_substeps` merge 进 `features["triples"]`，无则现路径（兼容非 G25a 文档）。 |
+| `backend/app/services/knowledge_graph.py` | **N3+N4 ✅ 已 commit（4af7222）** 常量 NODE_SPEC/EDGE_USED_IN + `_is_spec` + build 规格 branch（规格建 NODE_SPEC + 读 process 建 proc→spec 边）+ `to_context_text` 规格/工序渲染。**无需再改**。 |
+| `backend/app/api/profile.py` | **N2' learn 端点接 extract**：`learn-batch`(:364)/`learn-file`(:274) 对 doc_dir 调 `hierarchical_context.extract_assembly_steps(str(mid))` + `extract_process_steps(str(mid))`，asm 非空则传 `learn_from_content(..., assembly_steps=asm, skeleton_steps=skel)`；asm 空（非装配文档）则 fallback 现平文本路径。`learn`(:242 纯文本入参) 不改。 |
 
 ## 禁区
-- 不改 `_search_knowledge_graph`（hierarchical_context.py:968，建 proc→spec 边后工序 seed `kw in label` 自动命中）
-- 不碰 DB knowledge_search（MaterialCatalog/StandardClause，aux 现有来源）/ 不改前端 / 不动其他章节 / 不上向量
-- 不重写 `_extract_triples`/`build_from_triples`（加规则加字段，最小改）/ 不改 `_safe_id`
+- 不改 `_search_knowledge_graph`（建 proc→spec 边后自动生效）
+- 不碰 DB knowledge_search / 不改前端 / 不上向量
+- **不重写 `extract_assembly_steps`**（复用，它已处理 colspan + 按列名读）
+- **process 不用 `asm[k]["name"]`**（那是工种"钳"），用 `skeleton`（G19a 真工序名）
+- 不改 `_safe_id` / 不重写 `_extract_triples`（加方法 + 可选参，最小改）
 
-## 节点顺序（每节点 1 commit，顺序依赖）
-N1（spec_patterns）→ N2（process 字段 + _section_at）→ N3（build + 节点类型 + proc→spec 边）→ N4（渲染）→ N5（测试 + 端到端）。
+## 节点顺序
+N1 ✅ → N3+N4 ✅ → **N2'（新，本次重点）** → N5。N2' 一个 commit：document_profile_learner `_extract_triples_from_substeps` + `learn_from_content` 加参 + profile.py learn 端点接 extract。
 
 ## 验证
-- 单测：`cd backend && pytest tests/test_knowledge_graph.py tests/test_document_profile_learner.py -v`
-- 全量回归：`pytest tests/` 0 新 fail（基线 681 passed）
-- 端到端（云端 qwen3）：删 `data/knowledge_graph.json`（旧脏 schema）→ learn documents/1 → `python -c "..._search_knowledge_graph('螺钉安装 插头安装',600)"` 输出含 `## 知识图谱`+`[规格]` → generation_mode=generate 触发 G25a → 日志 `g25a_aux_injected has_aux=True` 且 aux 含规格（不只 DB）。
+- 单测：`test_document_profile_learner.py` 加 `_extract_triples_from_substeps`（mock asm+skeleton → triple 的 process=skeleton[i]，规格从 content 提）+ 越界保护（step_no 超 skeleton 长度 → process=None）
+- 全量回归：`pytest tests/` 0 新 fail（基线 695）
+- 端到端（云端 qwen3）：删 `data/knowledge_graph.json` → learn-batch/learn-file documents/1（接 extract）→ 验 KG 有 proc→spec 边（proc=G19a 真工序名 + spec=规格节点）→ `_search_knowledge_graph(真工序名)` 输出含 `[规格]`（KG 部分非空，不只 DB）→ 真生成 G25a `g25a_aux_injected has_aux=True` aux 含规格
 
-## 风险注
-- HTML 规格粘连（M58/M410）：去 tag 后多已分开（task2 实证），N1 单测用真实 content 兜底；粘连严重则 spec_patterns 用 `螺[栓钉柱]?\s*M\d+(?:\s*\d+)?` 容错。
-- `_section_at` 标题识别：learn content 多已纯文本，N2 单测验证；漏抽则正则放宽。
-- 旧 `knowledge_graph.json` schema 脏：N5 显式删文件重 learn（一次性，非代码）。
+## 风险
+1. **G19a skeleton 与 G25a step_no 对齐**：生成链路隐含 `skeleton[i]=G25a step i+1`。learn 加越界保护 + 数量校验（不一致→process=None，比绑错好）。
+2. **规格在 substep.material 列**：实测 step5 material="螺纹HG/T3596"。content 找不到规格时 fallback 查 material。
+3. **非装配文档无 asm**：fallback 现平文本路径（不影响，兼容）。
+4. **G19a chapter 不存在**（某文档无工艺流程图）：skeleton 空 → _extract_triples_from_substeps 退化为不绑 process（build 不建 proc→spec 边，向后兼容）。
 
 ## 复用现有实现
-`_guess_current_section` headers 正则 → `_collect_headers`；"使用"分支 tool_keywords 判类型 → `_is_spec` 范式；`merge_from`（:288）幂等 + `_safe_id` 跨文件去重 → proc→spec 边汇聚；`expand_context`（:146）BFS 2 跳 → 工序 seed 第一跳到规格；KG 已有真工序节点（螺钉安装/插头安装）→ query 天然命中。
+- `extract_assembly_steps`（hierarchical_context.py:1784）：G25a 表格→asm（已处理 colspan）
+- `extract_process_steps`：G19a→skeleton 真工序名
+- `qty_patterns`/`spec_patterns`（document_profile_learner.py）：substep.content 上复用
+- `merge_from`/`_safe_id`（knowledge_graph.py）：proc→spec 边跨文件汇聚
+- `expand_context` BFS 2 跳：工序 seed 第一跳到规格

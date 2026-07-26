@@ -35,3 +35,12 @@
 
 ## 下游
 - → PLAN（同 slug `craft-kg-quality`）
+
+## 纠错（2026-07-26 v1→v2，N5 端到端发现）
+**v1 的 N2 靠 `_section_at` 取章节标题作 process，实测失败**：
+- 装配文件 `3.1/3.2` 是工艺规程条款（非工序标题），`_collect_headers` 在去 tag content 抽 0 headers → process 全空 → proc→spec 边 0 个
+- 进一步发现：G25a 表格「工序名称」列填的是**工种（钳/机）**，**不是真工序名**
+- 真工序名在两处：**G19a 工艺流程图**（`extract_process_steps` 的 skeleton）+ substep.content 的 `1.1 装配前的产品完整性检查` 编号开头
+- `extract_assembly_steps`（生成时用）已处理 colspan（按 header 列名读列），产出 `asm[step_no]={name(工种), substeps:[{content,material,instruments}]}`
+
+**v2 方向**：废弃 N2 的 `_section_at` 路径（_collect_headers 保留给 Pattern 3/5 兜底），改 **N2'：learn 接 `extract_assembly_steps`**，按 G25a 表格行解析，`process = skeleton[step_no-1]`（G19a 真工序名，**不用 asm.name 工种**），规格/参数从 substep.content 提。N1（spec_patterns）+ N3+N4（build NODE_SPEC + proc→spec 边 + 渲染）保留已 commit。
