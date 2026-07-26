@@ -1832,13 +1832,18 @@ class HierarchicalContext:
             if "|" not in line:
                 continue
             cells = [c.strip() for c in line.split("|")]
-            # Header row: contains 车间 + 工序号 + 工序内容 → fix column map
+            # Header row: contains 车间 + 工序号 + 工序内容 → fix column map.
+            # A continuation page re-emits the full column header; reset the
+            # parts-list flag too so substeps on the new page are not swallowed
+            # by a parts-list region that was left open at the previous page tail
+            # (G25a 装配卡: 零件清单跨续页 → 7.1-7.4 lost, 7.5+ only on next page).
             if "车间" in cells and "工序号" in cells and "工序内容" in cells:
                 header = {}
                 for i, c in enumerate(cells):
                     for k, v in col_keys.items():
                         if k in c:
                             header[v] = i
+                in_parts_list = False  # continuation header → leave parts-list region
                 continue
             if not header:
                 continue
@@ -1856,7 +1861,16 @@ class HierarchicalContext:
             # 配套零件清单区: skip every row until the next step header —
             # those rows are part codes/names/qty, not process content.
             joined = " ".join(c for c in cells if c)
-            if any(m in joined for m in _PARTS_LIST_MARKERS):
+            # Narrow trigger: a single parts-list marker (e.g. "交往何处") can
+            # appear in a continuation-page meta row; require TWO exclusive
+            # parts-list phrases on the same row before opening the parts-list
+            # region. The 代号/名称 column pair is NOT enough on its own — every
+            # 装配卡 main header carries those as standard columns, so matching
+            # them would wrongly flag the main header and drop the part-code row
+            # beneath it (doc 1 step 4 lost "KA0-0-KZD" this way). Two exclusive
+            # phrases only co-occur on the real parts sub-table header.
+            _marker_hits = sum(1 for m in _PARTS_LIST_MARKERS if m in joined)
+            if _marker_hits >= 2:
                 in_parts_list = True
                 continue
             if in_parts_list:

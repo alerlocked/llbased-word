@@ -460,6 +460,89 @@ class TestBuildContextWithL3:
         assert isinstance(tokens["layer3"], int)
 
 
+class TestAssemblyStepsCrossPage:
+    """G25a extract_assembly_steps: parts-list region must not swallow
+    substeps across a continuation page.
+
+    Regression for the G25a 装配卡 bug where a 配套零件清单 region opened at a
+    page tail was never closed when the continuation page re-emitted its
+    column header (车间/工序号/工序内容). Because in_parts_list stayed True,
+    every substep on the new page was `continue`-skipped — the user's card
+    showed step 7 starting at 7.5 instead of 7.1.
+    """
+
+    @staticmethod
+    def _ctx_with(md_text):
+        """Build a HierarchicalContext whose G25a chapter reads a synthetic
+        markdown, bypassing disk I/O. Tests the real extract_assembly_steps
+        parse loop end-to-end."""
+        from app.services.hierarchical_context import HierarchicalContext
+        ctx = HierarchicalContext.__new__(HierarchicalContext)
+        ctx.load_chapter_index = lambda doc: {
+            "chapters": [{"title": "装配工艺卡片", "pages": [15, 16]}]
+        }
+        ctx.get_pages_content = lambda doc, a, b, max_tokens=60000: md_text
+        return ctx
+
+    @staticmethod
+    def _card_with_cross_page_parts_list():
+        """A minimal G25a card where the parts-list header opens on page A's
+        tail and the next substeps live after the continuation-page header."""
+        return chr(10).join([
+            "| 车间 | 工序号 | 工序名称 | 工序内容 | 辅助材料 | 专用仪器 |",
+            "| 1 | 7 | 装配 | 装配总工序 | | |",
+            "| | | | 7.1 第一步工序内容 | | |",
+            "| | | | 7.2 第二步工序内容 | | |",
+            # parts-list header at page A tail (2 exclusive markers)
+            "| | | | 交往何处 | 单套产品中装配件数量 | 本批装配件生产总数 |",
+            "| | | | KA0-0-KZD | 小件产品 | 100 |",
+            # --- continuation page B: full column header re-emitted ---
+            "| 车间 | 工序号 | 工序名称 | 工序内容 | 辅助材料 | 专用仪器 |",
+            "| | | | 7.3 续页第一步工序内容 | | |",
+            "| | | | 7.4 续页第二步工序内容 | | |",
+        ])
+
+    def test_cross_page_parts_list_does_not_drop_substeps(self):
+        """Fix (1): continuation-page header must reset in_parts_list, so
+        7.3/7.4 on page B are captured instead of swallowed."""
+        ctx = self._ctx_with(self._card_with_cross_page_parts_list())
+        asm = ctx.extract_assembly_steps("dummy")
+        contents = [s["content"] for s in asm[7]["substeps"]]
+        assert "7.3 续页第一步工序内容" in contents, (
+            f"7.3 dropped by unclosed parts-list region across page: {contents}"
+        )
+        assert "7.4 续页第二步工序内容" in contents, (
+            f"7.4 dropped by unclosed parts-list region across page: {contents}"
+        )
+        # 7.1/7.2 before the parts list are still captured
+        assert "7.1 第一步工序内容" in contents
+        assert "7.2 第二步工序内容" in contents
+        # the part code row must NOT leak into substeps
+        assert not any("KA0-0-KZD" in c for c in contents), (
+            f"part code leaked into substeps: {contents}"
+        )
+
+    def test_single_marker_does_not_open_parts_list(self):
+        """Fix (2): a single parts-list marker on a continuation meta row
+        must NOT open the parts-list region — only a dense (>=2) marker row
+        does. Prevents one stray marker from swallowing a page's substeps."""
+        md = chr(10).join([
+            "| 车间 | 工序号 | 工序名称 | 工序内容 | 辅助材料 | 专用仪器 |",
+            "| 1 | 7 | 装配 | 装配总工序 | | |",
+            # meta row with ONE stray marker (real substep content follows)
+            "| | | | 交往何处是关键工序位 | | |",
+            "| | | | 7.1 第一步工序内容 | | |",
+            "| | | | 7.2 第二步工序内容 | | |",
+        ])
+        ctx = self._ctx_with(md)
+        asm = ctx.extract_assembly_steps("dummy")
+        contents = [s["content"] for s in asm[7]["substeps"]]
+        assert "7.1 第一步工序内容" in contents, (
+            f"single marker wrongly opened parts-list: {contents}"
+        )
+        assert "7.2 第二步工序内容" in contents
+
+
 # 运行测试的入口
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
