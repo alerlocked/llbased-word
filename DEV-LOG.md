@@ -2,29 +2,30 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T21:14:21+08:00
-last_commit: c7ffbba
-status: g25a-g18a-g14a-v2 done：N1-N4 + source 全 ✅ curl 验（G25a 工种钳/机/检验回退+工序内容工序名打头/G18a source 物料→工序graph+备注主物料写工序/G14a 8行+封面）。part_name='1' G18a 物料名一列 result 传递断留下轮。全量 763 passed。ALIGN 截图标注（南天门升级）
+updated_at: 2026-07-26T23:53:39+08:00
+last_commit: d6b2aa3
+status: g25a-step-numbering done（d6b2aa3）：v2 后审验修复 G25a 两 content 回归——①每工步前缀重复（v2 N1 prompt 强制带前缀，撤）②工序9 工步号 1.1（应 9.1，LLM 照抄原文编号）→ prompt 要求 i.N + 后处理 regex 强制行首编号第一段=i 兜底。上游 v2 done（N1-N4+source 全 ✅，part_name='1' result 传递断留下轮）。全量 763 passed。ALIGN 截图标注（南天门升级）
 task_state: done
-task_slug: g25a-g18a-g14a-v2
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (0 seconds ago)
-- `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (7 minutes ago)
-- `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (20 minutes ago)
-- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (26 minutes ago)
-- `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (34 minutes ago)
-- `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (37 minutes ago)
-- `2a55324` docs(g25a-g18a-quality): 当前状态段 N4完成+经验回流 exp-g25a-g18a-quality (6 hours ago)
-- `10e5c6c` docs(g25a-g18a-quality): done - 3bug修复+playwright确认场景目标达成 (6 hours ago)
-- `881bf97` fix(g25a-g18a): N2 step_name=skeleton + N3 G18a source skip derive (6 hours ago)
-- `2747b91` fix(g25a): N1 extract cross-page substep - reset in_parts_list on continuation header + tighten markers (7 hours ago)
+- `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (0 seconds ago)
+- `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (34 minutes ago)
+- `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (3 hours ago)
+- `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (3 hours ago)
+- `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (3 hours ago)
+- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (3 hours ago)
+- `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (3 hours ago)
+- `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (3 hours ago)
+- `2a55324` docs(g25a-g18a-quality): 当前状态段 N4完成+经验回流 exp-g25a-g18a-quality (9 hours ago)
+- `10e5c6c` docs(g25a-g18a-quality): done - 3bug修复+playwright确认场景目标达成 (9 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（g25a-step-numbering，v2 后审验修复，commit `d6b2aa3`）**：用户晚审验 v2 结果发现两 G25a content 回归。**① 每工步前缀重复**（v2 N1 prompt 强制「每工步开头写工序名前缀」→ 1.1/1.2 都带「装前准备：」，本次撤，改工序开头点题一次即可）。**② 工序9 工步号显 1.1**（应 9.1；根因：substeps content 是 extract 从「工序内容」列直抽的原文，工步号 LLM 自己生成/照抄，prompt 只说「保留 1.1/1.2」**没绑工序号 i** → LLM 照抄原文里的「1.1」；工序6 同病因）。**修**：prompt 要求工步号 `{i}.N` + 去前缀约束 + **后处理 regex 兜底**（gen_one 返回 content slot 前 `re.sub` 行首 `N.M` 编号第一段强制 = i；嵌套编号如 1.2.1 / 无编号续行不动）。**验证**（云端 qwen3-30b-a3b project=4 全量重生解析 result）：工序9 content=`9.1 2人利用全弹翻转架车...`（旧 `1.1 2` 消失）+ 工序1 content 无「装前准备：」前缀 + 工序6=6.1/6.2/6.3。**架构**：ARCHITECTURE.md 加「G25a per-row 并行 + content 编号后处理」bullet。**经验**：exp-g25a-step-numbering（LLM 结构化生成的编号/格式约束光靠 prompt 拉不住照抄，要 programmatic 后处理兜底——通则）。**task_state: done。**
 
 - **完成（g25a-g18a-g14a-v2，PLAN `41c2943` seal）回退下午 N2+N3 方向 + G14a 写齐**：用户晚审验判下午 N2+N3 方向反。**N1 ✅**（G25a `step_name` 回退工种钳/机/检验 + content 每工步工序名打头 `{name}`；curl 验 `['钳','钳','检验',...]` + `"装前准备：1.1..."`）。**N2+N3 ✅**（`_extract_triples_from_substeps` 产物料 triple（物料名清洗保 CJK 名）→ build proc→material REQUIRES 边 24 条；`orchestrator` `_g18a_material_process`（craft_kg 反查）+ `_fill_g18a_from_kg`（source 撤 G18a 占位 + 填物料用于工序）+ `_g18a_is_std_or_consumable`（标准件/耗材备注空，主物料写工序）；curl 验 source 不"G18a" + remarks"安装行程延时开关组合"）。**N4 ✅**（G14a derive 注入 G25a aux_materials 全文 + generated_chapters 加 filled_data + comp_code/comp_name 填 G1a/G4a；curl 验 G14a 8 行 + 封面 KA0-0-KZD/小产品）。**N5 ✅ curl 端到端**：4 改动 + source 全 ✅。全量 **763 passed 0 回归**。**留 part_name='1'**（G18a 物料名一列 result 传递断：derive LLM qty 错位填'1' + _fill 回退逻辑对（python 验）但没反映 result template_data，derive_strong inner→structured_results→ChapterData 某层断，DEBUG log 诡异不写没追到；不挡主链，下轮 lead 修 derive 根因 + result 传递）。
 
