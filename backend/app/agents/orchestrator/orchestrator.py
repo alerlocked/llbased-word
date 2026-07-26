@@ -990,6 +990,9 @@ class ProcessOrchestrator:
                         merged, code_key="part_code",
                         name_key="part_name", chapter_code=code,
                     )
+                    # source/remarks from craft_kg material→process edges
+                    # (overwrites 待补 left by _merge_derived_rows)
+                    self._fill_g18a_from_kg(merged)
                 logger.info(
                     "derive_strong_applied",
                     chapter_code=code, chapter_type=chapter_type, rows=len(merged),
@@ -1085,6 +1088,99 @@ class ProcessOrchestrator:
             logger.warning(
                 "catalog_enrich_failed", chapter_code=chapter_code, error=str(e),
             )
+
+    # Standard parts / consumables — these get no remarks (user rule: only main
+    # material + key fittings write their process; standard parts/consumables
+    # stay blank). Standard = fasteners + GB/QJ-coded parts; consumable =
+    # cloth/solvent/grease/paint etc.
+    _G18A_STD_PART_WORDS = ("螺钉", "螺栓", "螺母", "垫圈", "销", "弹簧垫圈")
+    _G18A_STD_CODE_WORDS = ("GB/T", "GB-T", "GB", "QJB", "HB", "QJ")
+    _G18A_CONSUMABLE_WORDS = ("布", "乙醇", "胶", "润滑脂", "漆", "油", "棉", "纸")
+
+    @classmethod
+    def _g18a_is_std_or_consumable(cls, part_name: str) -> bool:
+        """True if part_name is a standard fastener / coded part / consumable —
+        these never write a remarks process."""
+        n = part_name or ""
+        return (
+            any(w in n for w in cls._G18A_STD_PART_WORDS)
+            or any(w in n for w in cls._G18A_STD_CODE_WORDS)
+            or any(w in n for w in cls._G18A_CONSUMABLE_WORDS)
+        )
+
+    @staticmethod
+    def _g18a_material_process(mat_label: str) -> str:
+        """material/tool node label → the process that requires it.
+
+        Reverse-lookups craft_kg: find a material/tool node whose label contains
+        mat_label, then walk its incoming REQUIRES edge back to the source
+        process step. Returns the process label, or "" if no edge (never
+        fabricates). craft_kg is the global singleton (hierarchical_context
+        already imports it the same way).
+        """
+        if not mat_label:
+            return ""
+        try:
+            from app.services.knowledge_graph import craft_kg, EDGE_REQUIRES
+        except Exception:
+            return ""
+        g = craft_kg._graph
+        if g.number_of_nodes() == 0:
+            return ""
+        needle = mat_label.strip()
+        if not needle:
+            return ""
+        for nid, data in g.nodes(data=True):
+            if data.get("type") not in ("material", "tool"):
+                continue
+            label = data.get("label") or ""
+            if needle in label or label in needle:
+                for pred in g.predecessors(nid):
+                    edge = g.edges[pred, nid]
+                    if edge.get("type") == EDGE_REQUIRES:
+                        return g.nodes[pred].get("label", "")
+        return ""
+
+    @staticmethod
+    def _fill_g18a_from_kg(rows: List[Dict[str, Any]]) -> None:
+        """Post-merge G18a source + remarks fill from craft_kg.
+
+        source  = the process that requires this part's material (graph reverse
+                  lookup of REQUIRES edge). Blank if no edge.
+        remarks = same process as source, but ONLY for main material / key
+                  fittings. Standard parts (fasteners / GB-QJ coded) and
+                  consumables (cloth/solvent/grease) write nothing. Blank on
+                  graph miss (no fabrication).
+
+        Overwrites the "待补" placeholder left by _merge_derived_rows; never
+        overwrites a real non-placeholder value. Mutates rows in place.
+        """
+        if not rows:
+            return
+        src_hits = rmk_hits = 0
+        for row in rows:
+            part_name = (row.get("part_name") or "").strip()
+            proc = ProcessOrchestrator._g18a_material_process(part_name)
+            # source: graph process or blank (clear 待补)
+            if proc and (not row.get("source") or row["source"] == "待补"):
+                row["source"] = proc
+                src_hits += 1
+            elif not row.get("source") or row["source"] == "待补":
+                row["source"] = ""
+            # remarks: std/consumable → always blank; main material → proc or blank
+            if ProcessOrchestrator._g18a_is_std_or_consumable(part_name):
+                if not row.get("remarks") or row["remarks"] == "待补":
+                    row["remarks"] = ""
+            else:
+                if proc and (not row.get("remarks") or row["remarks"] == "待补"):
+                    row["remarks"] = proc
+                    rmk_hits += 1
+                elif not row.get("remarks") or row["remarks"] == "待补":
+                    row["remarks"] = ""
+        logger.info(
+            "g18a_kg_fill_applied",
+            rows=len(rows), source_hits=src_hits, remarks_hits=rmk_hits,
+        )
 
     async def _aggregate_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """

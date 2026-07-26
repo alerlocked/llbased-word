@@ -173,3 +173,61 @@ def test_substeps_empty_asm_returns_empty():
     """asm 空 → 返回 []，不报错。"""
     learner = _learner()
     assert learner._extract_triples_from_substeps({}, []) == []
+
+
+# ---------------------------------------------------------------------------
+# N2+N3 — material triple (proc→material REQUIRES edge for G18a source graph)
+# ---------------------------------------------------------------------------
+
+def test_substeps_material_triple_uses_relation():
+    """substep 有 material → 产物料 triple {s:process, r:"使用", o:material}。"""
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [
+            {"content": "安装密封圈", "material": "密封圈"},
+        ]},
+    }
+    skeleton = ["密封圈安装"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    mat = [t for t in triples if t["r"] == "使用"]
+    assert mat, f"expected material triple, got {triples}"
+    assert any(t["s"] == "密封圈安装" and t["o"] == "密封圈" for t in mat), mat
+
+
+def test_substeps_material_triple_cleaned_spec_suffix():
+    """material 含规格混 (e.g. 螺纹HG/T3596) → 取前段干净名。"""
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [
+            {"content": "缠绕", "material": "螺纹HG/T3596"},
+        ]},
+    }
+    skeleton = ["缠绕工序"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    mat = [t for t in triples if t["r"] == "使用"]
+    assert mat, f"expected material triple: {triples}"
+    # 清洗掉规格后缀，object 不含 HG/T
+    assert any("HG/T" not in t["o"] for t in mat), mat
+
+
+def test_substeps_material_triple_skipped_when_no_process():
+    """step_no 越界 process=None → 不产物料 triple (不绑错工序)。"""
+    learner = _learner()
+    asm = {
+        5: {"name": "钳", "substeps": [{"content": "x", "material": "密封圈"}]},
+    }
+    skeleton = ["装配前准备"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    assert not any(t["r"] == "使用" for t in triples), triples
+
+
+def test_substeps_material_triple_skipped_when_empty():
+    """material 空 → 不产物料 triple。"""
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [{"content": "操作", "material": ""}]},
+    }
+    skeleton = ["装配前准备"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    assert not any(t["r"] == "使用" for t in triples), triples
+

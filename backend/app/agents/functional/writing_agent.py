@@ -1346,13 +1346,12 @@ class WritingAgent(BaseAgent):
 
         # Columns to fill (all ai_filled slots)
         fill_cols = [c for c in slot_cols if c.ai_filled]
-        # G18a (配套零件表) source 列 ("来自何处") = 真实零件来源, 不在上游工序
-        # 内容里; derive 反推必串源 (e.g. "工艺流程图"). Skip it here so derive
-        # emits no source slot — the orchestrator's merge/待补 stage then leaves
-        # source blank (待补) rather than fabricated. Other G18a columns
-        # (part_code/part_name) still derive; catalog_enrich fixes names later.
-        if chapter_code == "G18a":
-            fill_cols = [c for c in fill_cols if c.key != "source"]
+        # NOTE: G18a source ("来自何处") was previously skipped here (N3, 881bf97)
+        # to stop derive from fabricating it. Reverted — source/remarks are now
+        # filled post-merge from craft_kg material→process edges in the
+        # orchestrator (_fill_g18a_from_kg). derive still runs on part_code/
+        # part_name/qty so the row skeleton exists; source/remarks get the real
+        # graph value (or stay blank if no edge) afterward.
         if not fill_cols:
             return None
         slot_desc = ", ".join(f'"{c.key}"({c.label})' for c in fill_cols)
