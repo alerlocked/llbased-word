@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from app.api import process, creation, web_image, export, annotation, node_documents, materials
 from app.api import task_router, document_router
 from app.api import pdf_status, agent, assistant, process_documents, deepseek
@@ -29,6 +29,25 @@ from app.services.document_processor import DocumentProcessor
 from app.database import SessionLocal
 import urllib.request
 import urllib.error
+
+
+# Static MIME mapping — decoupled from system `mimetypes` registry.
+# Windows registry may map extensions (e.g. .html) to a wrong Content-Type
+# (e.g. "text/utf-8"), breaking browser rendering. We declare types explicitly.
+_MEDIA_TYPES = {
+    ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8", ".mjs": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".gif": "image/gif", ".ico": "image/x-icon", ".webp": "image/webp",
+    ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf",
+    ".map": "application/json", ".wasm": "application/wasm", ".txt": "text/plain; charset=utf-8",
+}
+
+
+def _media_type(path) -> str:
+    """Explicit Content-Type for a static file, ignoring system mimetypes."""
+    return _MEDIA_TYPES.get(Path(path).suffix.lower(), "application/octet-stream")
 
 
 def _check_model_server():
@@ -308,9 +327,18 @@ app.include_router(profile.router, prefix="/api/profile", tags=["用户画像"])
 # API routes match first; previously it sat here, intercepting /health -> 404.
 
 
+# ============ 生产模式：后端直接 serve 前端构建产物（单端口）============
+# Only active when frontend/dist exists. Dev mode has no dist -> vite:3000.
+# Content-Type is declared explicitly via _media_type() to decouple from the
+# Windows registry (which may map .html to a polluted value like "text/utf-8").
+FRONTEND_DIST = settings.PROJECT_ROOT / "frontend" / "dist"
+
+
 @app.get("/")
 async def root():
-    """根路径返回API信息"""
+    """根路径：生产模式(dist 存在)返回前端首页，开发模式返回API信息"""
+    if FRONTEND_DIST.is_dir():
+        return FileResponse(FRONTEND_DIST / "index.html", media_type="text/html; charset=utf-8")
     return {
         "name": "智能工艺文件辅助编辑系统",
         "version": "0.1.0",
@@ -323,13 +351,17 @@ async def health_check():
     return {"status": "healthy"}
 
 
-# --- Portable/production: serve prebuilt frontend as SPA fallback (mounted LAST) ---
-# Must register AFTER all @app routes: API routes + /health match first, only
-# unmatched paths fall through to the SPA. (was above @app.get("/health") -> 404)
-_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-if _FRONTEND_DIST.is_dir():
-    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
-    logger.info(f"📦 前端静态托管已启用: {_FRONTEND_DIST}")
+if FRONTEND_DIST.is_dir():
+    logger.info(f"📦 前端静态托管已启用: {FRONTEND_DIST}")
+
+    # SPA catch-all (registered LAST, after all /api routers + @app routes):
+    # serve the file if it exists (explicit media_type), else index.html.
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        candidate = FRONTEND_DIST / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate, media_type=_media_type(candidate))
+        return FileResponse(FRONTEND_DIST / "index.html", media_type="text/html; charset=utf-8")
 else:
     logger.info("📦 前端 dist 不存在，开发模式（前端走 vite dev server）")
 
