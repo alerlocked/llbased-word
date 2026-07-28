@@ -2,16 +2,17 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-26T23:53:39+08:00
-last_commit: d6b2aa3
+updated_at: 2026-07-27T00:00:43+08:00
+last_commit: d646f84
 status: g25a-step-numbering done（d6b2aa3）：v2 后审验修复 G25a 两 content 回归——①每工步前缀重复（v2 N1 prompt 强制带前缀，撤）②工序9 工步号 1.1（应 9.1，LLM 照抄原文编号）→ prompt 要求 i.N + 后处理 regex 强制行首编号第一段=i 兜底。上游 v2 done（N1-N4+source 全 ✅，part_name='1' result 传递断留下轮）。全量 763 passed。ALIGN 截图标注（南天门升级）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (0 seconds ago)
-- `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (34 minutes ago)
+- `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (0 seconds ago)
+- `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (7 minutes ago)
+- `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (41 minutes ago)
 - `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (3 hours ago)
 - `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (3 hours ago)
 - `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (3 hours ago)
@@ -19,7 +20,6 @@ task_state: done
 - `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (3 hours ago)
 - `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (3 hours ago)
 - `2a55324` docs(g25a-g18a-quality): 当前状态段 N4完成+经验回流 exp-g25a-g18a-quality (9 hours ago)
-- `10e5c6c` docs(g25a-g18a-quality): done - 3bug修复+playwright确认场景目标达成 (9 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
