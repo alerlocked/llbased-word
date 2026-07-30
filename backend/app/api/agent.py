@@ -1384,8 +1384,20 @@ def _build_orchestrator_context(
     ctx["graph_context"] = graph_context
 
     # ── Material status instruction ──
+    # Retrieval-empty: library has docs but L3 keyword search hit nothing for this query.
+    retrieval_empty = bool(
+        material_status.get("has_documents")
+        and not getattr(hierarchical_context, "_last_l3_hit", True)
+    )
     material_instruction = ""
-    if not material_status.get("has_documents"):
+    if retrieval_empty:
+        material_instruction = (
+            "【检索结果】本地知识库有文档，但本次提问未检索到相关内容。"
+            "回答规则：必须明确告知「本地知识库未检索到相关内容」；"
+            "如需补充可基于通识知识简短回答并标注「以下基于通识知识，非文档内容」；"
+            "禁止编造文档中不存在的内容。"
+        )
+    elif not material_status.get("has_documents"):
         material_instruction = (
             "【系统提示】当前素材库为空。"
             "回答规则：优先从本地知识库检索，如未找到相关信息，可基于自身通识知识简短回答。"

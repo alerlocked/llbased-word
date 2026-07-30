@@ -20,6 +20,51 @@ except ImportError:
     logger.warning("[上下文] jieba 未安装，将使用简单分词")
 
 
+# Craft-term synonym map (alias -> standard term) loaded from standard_terms.json.
+# Used to expand user keywords so synonyms hit (e.g. 车床加工 -> 车削). fail-soft.
+_SYN_MAP: Dict[str, str] = {}
+
+
+def _load_craft_term_resources() -> None:
+    """Load standard_terms.json into jieba custom dict + synonym map. fail-soft."""
+    try:
+        from app.config import settings
+        terms_path = Path(settings.DATA_DIR) / "terminology" / "standard_terms.json"
+        if not terms_path.exists():
+            return
+        data = json.loads(terms_path.read_text(encoding="utf-8"))
+        for categories in (data or {}).values():
+            for terms in (categories or {}).values():
+                for term, info in (terms or {}).items():
+                    _SYN_MAP[term.lower()] = term
+                    if JIEBA_AVAILABLE:
+                        jieba.add_word(term)
+                    for alias in (info or {}).get("alias", []) or []:
+                        _SYN_MAP[alias.lower()] = term
+                        if JIEBA_AVAILABLE:
+                            jieba.add_word(alias)
+        logger.info(f"[上下文] 工艺术语资源加载: synonym_map={len(_SYN_MAP)} 词")
+    except Exception as e:
+        logger.warning(f"[上下文] 工艺术语资源加载失败(fail-soft): {e}")
+
+
+_load_craft_term_resources()
+
+
+def _expand_synonyms(keywords: List[str]) -> List[str]:
+    """Expand keywords with their standard-term synonyms (alias -> term)."""
+    if not _SYN_MAP:
+        return keywords
+    expanded = list(keywords)
+    lowered = {k.lower() for k in keywords}
+    for kw in keywords:
+        term = _SYN_MAP.get(kw.lower())
+        if term and term.lower() not in lowered:
+            expanded.append(term)
+            lowered.add(term.lower())
+    return expanded
+
+
 def extract_keywords(text: str) -> List[str]:
     """提取关键词（支持中文）
     
@@ -698,9 +743,12 @@ class HierarchicalContext:
         layer3_tokens = 0
         remaining_tokens = effective_max_tokens - used_tokens
         l3_budget = int(remaining_tokens * 0.5)  # L3 使用剩余 token 的 50%
+        # Reset L3 hit flag (read by upstream retrieval-empty hard constraint).
+        self._last_l3_hit = False
 
         if l3_budget > 200:  # 至少要有 200 token 的预算
             search_results = self.global_keyword_search(query, top_k=10)
+            self._last_l3_hit = bool(search_results)
 
             if search_results:
                 l3_lines = ["\n## 全局关键词搜索结果\n"]
@@ -788,7 +836,7 @@ class HierarchicalContext:
             匹配片段列表，格式：
             [{"doc_name": ..., "snippet": ..., "score": ..., "page": ...}, ...]
         """
-        keywords = extract_keywords(query)
+        keywords = _expand_synonyms(extract_keywords(query))
         if not keywords:
             logger.info("[上下文] L3 搜索: 无有效关键词，跳过")
             return []

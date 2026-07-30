@@ -2,28 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-30T21:33:13+08:00
-last_commit: 4929587
-status: dialog-review-proofread done（总纲 dialog-task-pipeline 第二步）：对话式审/校链路——前端 AIChatPanel 加审查/校对按钮(取编辑器内容序列化→fetch /api/tasks/review|proofread→issues 渲染)+ 修后端 proofread 端点 500(target_standard 参数不匹配)+ corrections→issues 映射。审查完全可用(curl 验 sensitive_word/vague/missing_field)，校对端点修通(issues 留 proofread 内部检查强度不确定性)。tsc 0 错，generate-stream 主链零改动。下一步：回总纲对齐第三步。上轮 cleanup-dead-workflow done（edeb97f）。
+updated_at: 2026-07-30T22:00:51+08:00
+last_commit: 6abd5c9
+status: qa-retrieval-quality done（总纲 dialog-task-pipeline 第三步）：QA 检索提质——同义词扩展(standard_terms.json alias→term，HAS_CHEXUE 验证车床加工→车削)+ 检索失败强约束(retrieval_empty：库有文档但 L3 无命中→prompt 拒答禁编造)+ jieba 工艺术语词典(SYN_MAP 88 词)。直接调验证 SEAL_HIT True/EMPTY_HIT False，pytest 检索 64 passed 0 回归，generate-stream 主链零改动。诚实边界：工艺同义词对装配文档(当前主用)命中有限，物料同义词(密封脂/胶)本期不覆盖。下一步：回总纲对齐第四步。上轮 dialog-review-proofread done（4929587）。
 task_state: done
+task_slug: qa-retrieval-quality
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (0 seconds ago)
-- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (11 minutes ago)
-- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (11 hours ago)
+- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (1 second ago)
+- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (28 minutes ago)
+- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (39 minutes ago)
+- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
 - `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
 - `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
 - `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (2 days ago)
 - `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (4 days ago)
 - `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (4 days ago)
 - `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (4 days ago)
-- `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（qa-retrieval-quality，总纲 `dialog-task-pipeline` 第三步，PLAN `6abd5c9` seal）**：QA 问答检索提质(用户定范围 A:现有功能提质,不向量)。`hierarchical_context.py`:① 模块初始化 `_load_craft_term_resources` 加载 `standard_terms.json` 进 jieba 自定义词典(提分词)+ 建 `_SYN_MAP`(alias→标准术语,88 词)② `_expand_synonyms` 扩展关键词(车床加工→车削)③ `global_keyword_search` 用扩展后关键词检索 ④ `build_context` 记 `self._last_l3_hit`(L3 命中状态)。`agent.py`:`reply_question` material_instruction 加 `retrieval_empty` 分支(库有文档但 L3 无命中→prompt 强约束"未检索到,通识简答标注,禁编造")。**验证**:py_compile 过 + SYN_MAP 88 词 + `_expand_synonyms(['车床加工'])` 含车削(True)+ 直接调 `build_context`(密封装配→`_last_l3_hit True`/量子力学→`False`)+ pytest 检索 **64 passed 0 回归**。**诚实边界**:工艺同义词(车削/铣削)对机加工文档有效,装配文档(当前主用)命中有限;物料同义词(密封脂↔密封胶,核心痛点)本期不覆盖(无现成数据,留观察);curl 端到端 + LLM 回答留用户部署环境验。**禁区守住**:generate-stream/draft_complete/source-driven 主链零改动,review/proofread 不动,不向量。**task_state: done。**
 
 - **完成（dialog-review-proofread，总纲 `dialog-task-pipeline` 第二步，PLAN `ed8b1db` seal）**：对话式审/校——前端 `AIChatPanel.tsx` 加「审查」「校对」按钮(第二行操作按钮,直接触发不 toggle)+ `handleReviewProofread`(取 `editorTemplateData` 经新增 `sectionsToReviewText` 序列化→fetch `/api/tasks/review`|`/proofread` 同步带 domain→解析顶层 `issues`→消息区渲染 severity 分级卡片)+ `reviewIssues` 渲染(动态字段挂 message,照 `improvementSolutions` 模式)。**后端微调**:`task.py` proofread 端点 500 修复(`proofread_only()` 不接 `target_standard`,去掉)+ `corrections→issues` 映射(ProofreadAgent 返回 corrections 非 issues,结构兼容直接复用)。**冒烟发现并修**:① 响应顶层无 `passed` → 前端基于 error 数量判通过 ② proofread 用 critical → 前端 errors 过滤含 critical。**验证**:tsc 0 错 + curl `/api/tasks/review`(200,issue_types=[vague_description,sensitive_word,missing_field×2],specialty-rules 生效)+ curl `/api/tasks/proofread`(500→200)。**留不确定性**:proofread 测试 content issues=[](可能真通过或内部检查弱,校对实效 + UI 端到端留用户部署环境验)。**禁区守住**:generate-stream/draft_complete/source-driven 主链零改动,intent_recognizer 不动(第三步)。**task_state: done。**
 
