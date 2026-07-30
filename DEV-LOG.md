@@ -2,28 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-28T22:23:43+08:00
-last_commit: 1ce51da
-status: g25a-step-numbering done（d6b2aa3）：v2 后审验修复 G25a 两 content 回归——①每工步前缀重复（v2 N1 prompt 强制带前缀，撤）②工序9 工步号 1.1（应 9.1，LLM 照抄原文编号）→ prompt 要求 i.N + 后处理 regex 强制行首编号第一段=i 兜底。上游 v2 done（N1-N4+source 全 ✅，part_name='1' result 传递断留下轮）。全量 763 passed。ALIGN 截图标注（南天门升级）
+updated_at: 2026-07-30T10:02:21+08:00
+last_commit: c58f45d
+status: cleanup-dead-workflow done（总纲 dialog-task-pipeline 第一步）：删 orchestrator 死 workflow 链路（_select_workflow/execute_workflow/workflows 字典，全 backend 0 调用）+ 修 ARCHITECTURE §2 文档腐烂。pytest 762 passed 0 回归（1 预存失败 test_prompt_requires_step_name_prefix=g25a-step-numbering 撤前缀约束遗留，stash 实证与本次无关，留 writing lead）。下一步：回总纲对齐第二步。上轮 g25a-step-numbering done（d6b2aa3）。
 task_state: done
+task_slug: cleanup-dead-workflow
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (0 seconds ago)
-- `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (7 minutes ago)
-- `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (2 days ago)
-- `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (2 days ago)
-- `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (2 days ago)
-- `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (2 days ago)
-- `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (2 days ago)
-- `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (2 days ago)
-- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (2 days ago)
-- `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (2 days ago)
+- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (1 second ago)
+- `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
+- `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (2 days ago)
+- `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (3 days ago)
+- `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (3 days ago)
+- `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (3 days ago)
+- `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (4 days ago)
+- `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (4 days ago)
+- `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (4 days ago)
+- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（cleanup-dead-workflow，总纲 `dialog-task-pipeline` 第一步，PLAN `c58f45d` seal）**：对话任务分配链路调研发现 orchestrator 的 workflow 编排是死代码（`_select_workflow`/`execute_workflow`/`workflows` 字典全 backend 0 调用，实际走 `_dispatch_to_sub_agent`），但 ARCHITECTURE §2 仍当活的写（文档腐烂）。**改**：删 `orchestrator.py` 三段死代码（workflows 字典 :297 + `_select_workflow` :779 + `execute_workflow` :808）+ ARCHITECTURE Workflows 行 → 真实任务调度描述。**禁区守住**：`review_only()`/`proofread_only()` 活方法（task.py 调用，与死 workflow key 同名）未误删。**验证**：py_compile 过 + pytest **762 passed 0 回归**（唯一 failed `test_prompt_requires_step_name_prefix` 经 git stash 实证为预存——g25a-step-numbering 撤了前缀约束但测试没更新，与本次无关，留 writing lead）+ grep app/ 零残留。**ALIGN 总纲**：`ALIGN-dialog-task-pipeline`（4 块：意图识别改 LLM / 对话式局部修改 / 对话式审·校 / QA 检索提质，一步步走，下一步待对齐）。**task_state: done。**
 
 - **完成（g25a-step-numbering，v2 后审验修复，commit `d6b2aa3`）**：用户晚审验 v2 结果发现两 G25a content 回归。**① 每工步前缀重复**（v2 N1 prompt 强制「每工步开头写工序名前缀」→ 1.1/1.2 都带「装前准备：」，本次撤，改工序开头点题一次即可）。**② 工序9 工步号显 1.1**（应 9.1；根因：substeps content 是 extract 从「工序内容」列直抽的原文，工步号 LLM 自己生成/照抄，prompt 只说「保留 1.1/1.2」**没绑工序号 i** → LLM 照抄原文里的「1.1」；工序6 同病因）。**修**：prompt 要求工步号 `{i}.N` + 去前缀约束 + **后处理 regex 兜底**（gen_one 返回 content slot 前 `re.sub` 行首 `N.M` 编号第一段强制 = i；嵌套编号如 1.2.1 / 无编号续行不动）。**验证**（云端 qwen3-30b-a3b project=4 全量重生解析 result）：工序9 content=`9.1 2人利用全弹翻转架车...`（旧 `1.1 2` 消失）+ 工序1 content 无「装前准备：」前缀 + 工序6=6.1/6.2/6.3。**架构**：ARCHITECTURE.md 加「G25a per-row 并行 + content 编号后处理」bullet。**经验**：exp-g25a-step-numbering（LLM 结构化生成的编号/格式约束光靠 prompt 拉不住照抄，要 programmatic 后处理兜底——通则）。**task_state: done。**
 

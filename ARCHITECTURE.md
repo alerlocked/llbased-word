@@ -21,7 +21,7 @@
 - **功能 Agent**(`agents/core/registry.py` 注册):`writing`(撰写)/ `review`(审查)/ `proofread`(校对)。
   - ⚠️ **Search Agent 已删**(2026-07-05 cleanup);Compliance 是 review 的 tool(`compliance_checker`),非独立 Agent。
 - **Tool**:`compliance_checker`(合规)/ `terminology_mapper`(术语)。
-- **Workflows**:full_edit[writing,proofread,review] / quick_edit[writing,proofread] / review_only[review] / proofread_only[proofread]。
+- **任务调度**:`_dispatch_to_sub_agent`(orchestrator.py)按 task_type 映射到单 agent(writing/review/proofread);无 workflow 编排链路(`_select_workflow`/`execute_workflow` 为死代码,2026-07-30 清理)。
 - **Orchestrator 状态机**(`agents/orchestrator/state_machine.py`):IDLE → INTENT_RECOGNITION → INFO_ASSESSMENT / INFO_COLLECTION → ... → TASK_DECOMPOSITION → TASK_EXECUTION → RESULT_AGGREGATION → COMPLETION;特殊:DRAFT_ANALYSIS(初稿分析)/ PAUSED(等输入)/ ERROR(自恢复 IDLE)。
 
 ## 3. 生成流程(端到端)
