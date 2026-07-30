@@ -2,6 +2,7 @@
 工艺文件辅助编辑系统 - 意图识别器
 识别用户输入的工艺意图，将其分类为具体的工艺操作类型
 """
+import json
 import re
 from typing import Dict, Any, Optional, List
 from enum import Enum
@@ -125,42 +126,45 @@ class IntentRecognizer:
             识别结果，包含意图类型、置信度和提取的实体
         """
         try:
-            # 1. 预处理输入
+            # 1. 预处理输入 + draft_complete 复合检测（优先级最高，短路）
             processed_input = self._preprocess_input(user_input)
-
-            # 1.5 draft_complete 复合检测（优先级高于普通关键词）
             draft_complete_boost = self._detect_draft_complete(processed_input, context)
+            extracted_entities = self._extract_entities(processed_input)
 
-            # 2. 识别意图类型
-            intent_results = self._match_intent_types(processed_input)
+            # 2. LLM 意图分类（fail-soft → 关键词正则兜底，绝不阻塞主流程）
+            llm_intent = await self._classify_with_llm(user_input)
+            intent_results: Dict[IntentType, float] = {}
+            if llm_intent is not None:
+                primary_intent = llm_intent
+                confidence = 0.85
+                source = "llm"
+            else:
+                # 关键词兜底（原 _match_intent_types 路径）
+                intent_results = self._match_intent_types(processed_input)
+                confidence = self._calculate_confidence(intent_results, extracted_entities)
+                primary_intent = self._determine_primary_intent(intent_results, confidence, context)
+                source = "keyword"
 
-            # 如果检测到 draft_complete 复合模式，提升其分数
+            # draft_complete 复合检测覆盖（优先于 LLM/关键词结果）
             if draft_complete_boost > 0:
                 intent_results[IntentType.DRAFT_COMPLETE] = max(
                     intent_results.get(IntentType.DRAFT_COMPLETE, 0.0),
                     draft_complete_boost,
                 )
+                primary_intent = IntentType.DRAFT_COMPLETE
+                confidence = max(confidence, draft_complete_boost)
 
-            # 3. 提取工艺实体
-            extracted_entities = self._extract_entities(processed_input)
-
-            # 4. 计算置信度
-            confidence = self._calculate_confidence(intent_results, extracted_entities)
-
-            # 5. 确定主要意图
-            primary_intent = self._determine_primary_intent(intent_results, confidence, context)
-
-            # 6. 构建意图结果
+            # 3. 构建意图结果
             intent_result = {
                 "type": primary_intent.value,
-                "confidence": confidence,
+                "confidence": round(confidence, 2),
                 "original_input": user_input,
                 "processed_input": processed_input,
                 "entities": extracted_entities,
                 "alternative_intents": [
-                    {"type": intent_type.value, "score": score}
-                    for intent_type, score in intent_results.items()
-                    if intent_type != primary_intent and score > 0.1
+                    {"type": it.value, "score": score}
+                    for it, score in intent_results.items()
+                    if it != primary_intent and score > 0.1
                 ],
                 "context_used": bool(context)
             }
@@ -168,7 +172,8 @@ class IntentRecognizer:
             logger.info(
                 "intent_recognized",
                 intent_type=primary_intent.value,
-                confidence=confidence,
+                confidence=round(confidence, 2),
+                source=source,
                 entity_count=len(extracted_entities)
             )
 
@@ -182,6 +187,66 @@ class IntentRecognizer:
                 "error": str(e),
                 "entities": {}
             }
+
+    async def _classify_with_llm(self, user_input: str) -> Optional[IntentType]:
+        """LLM 意图分类。返回 IntentType 或 None（fail-soft，绝不抛）。"""
+        # Local import avoids a module-load circular dependency
+        from app.services.llm_service import llm_service
+
+        valid_intents = [it.value for it in IntentType if it != IntentType.UNKNOWN]
+        prompt = (
+            "你是工艺文件辅助编辑系统的意图分类器。判断用户输入属于哪种意图。\n"
+            f"可选意图类型: {', '.join(valid_intents)}\n"
+            "类型说明: create_document=创建新工艺文件, edit_document=编辑/修改现有文件, "
+            "review_document=审核文件, generate_document=生成/导出文件, "
+            "draft_complete=基于初稿补全文件, parse_pdf=解析PDF, "
+            "search_knowledge=搜索知识, align_terminology=对齐术语, "
+            "check_compliance=检查合规, export_to_pdm=导出PDM。\n"
+            f"用户输入: {user_input[:500]}\n"
+            '只输出JSON,示例: {"intent": "create_document"}\n'
+            "不要输出多余文字。"
+        )
+        try:
+            result = await llm_service.generate_with_messages(
+                messages=[{"role": "user", "content": prompt}],
+                tier="simple", temperature=0.1, max_tokens=80,
+            )
+            if result.get("status") != "success":
+                logger.warning("intent_llm_non_success", status=result.get("status"))
+                return None
+            raw = result.get("content", "").strip()
+            intent_str = self._parse_intent_json(raw)
+            if not intent_str:
+                logger.warning("intent_llm_parse_failed", raw=raw[:200])
+                return None
+            try:
+                return IntentType(intent_str)
+            except ValueError:
+                logger.warning("intent_llm_invalid_type", intent=intent_str)
+                return None
+        except Exception as e:
+            logger.warning("intent_llm_classify_failed", error=str(e))
+            return None
+
+    @staticmethod
+    def _parse_intent_json(raw: str) -> Optional[str]:
+        """Tolerate fenced code blocks / surrounding prose; return intent or None."""
+        if not raw:
+            return None
+        candidate = raw
+        fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+        if fence:
+            candidate = fence.group(1)
+        else:
+            obj = re.search(r"\{.*\}", raw, re.DOTALL)
+            if obj:
+                candidate = obj.group(0)
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            return None
+        intent = data.get("intent") if isinstance(data, dict) else None
+        return str(intent).strip() if intent else None
 
     def _preprocess_input(self, user_input: str) -> str:
         """

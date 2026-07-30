@@ -495,14 +495,12 @@ class ProcessOrchestrator:
                 trigger="process_intent",
             )
 
-            # 4. 识别意图
-            intent = await self.intent_recognizer.recognize(user_input, full_context)
-            logger.info("intent_recognized", intent_type=intent.get("type"), confidence=intent.get("confidence"))
-
-            # 4.1 generation_mode shortcut: skip intent recognition, go directly to draft_complete
+            # 4.1 generation_mode shortcut: skip LLM intent recognition, go directly
+            # to draft_complete. (hard constraint — generate/fill 主链不走 LLM recognize)
             gen_mode = (context or {}).get("generation_mode") or (full_context or {}).get("generation_mode")
             if gen_mode in ("generate", "fill"):
                 logger.info("generation_mode_shortcut", mode=gen_mode)
+                intent = {"type": "draft_complete", "confidence": 1.0, "generation_mode": gen_mode}
                 if self.repository and self.current_task_id:
                     self.repository.add_message(
                         task_id=self.current_task_id,
@@ -515,6 +513,10 @@ class ProcessOrchestrator:
                 if gen_mode == "generate":
                     merged_context["force_all_chapters"] = True
                 return await self._handle_draft_complete(user_input, intent, merged_context)
+
+            # 4. LLM 识别意图（非 shortcut 分支）
+            intent = await self.intent_recognizer.recognize(user_input, full_context)
+            logger.info("intent_recognized", intent_type=intent.get("type"), confidence=intent.get("confidence"))
 
             # 4.5 Route DRAFT_COMPLETE to dedicated handler
             # This includes temp uploaded file scenarios (no draft_id)
@@ -682,6 +684,7 @@ class ProcessOrchestrator:
             "fill": "writing",
             "format": "writing",
             "generate": "writing",
+            "document_generation": "writing",
             "proofread": "proofread",
             "terminology_alignment": "proofread",
             "data_validation": "proofread",
@@ -761,6 +764,7 @@ class ProcessOrchestrator:
         legacy_mapping = {
             "pdf_parsing": {"status": "pending", "message": "PDF解析已移至后台服务"},
             "rag_retrieval": {"status": "pending", "message": "RAG检索通过Tool调用"},
+            "user_confirmation": {"status": "skipped", "message": "自动模式跳过用户确认"},
         }
 
         if task_type in legacy_mapping:

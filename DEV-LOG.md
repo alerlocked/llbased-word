@@ -2,28 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-30T22:05:44+08:00
-last_commit: bb58cb3
-status: qa-retrieval-quality done（总纲 dialog-task-pipeline 第三步）：QA 检索提质——同义词扩展(standard_terms.json alias→term，HAS_CHEXUE 验证车床加工→车削)+ 检索失败强约束(retrieval_empty：库有文档但 L3 无命中→prompt 拒答禁编造)+ jieba 工艺术语词典(SYN_MAP 88 词)。直接调验证 SEAL_HIT True/EMPTY_HIT False，pytest 检索 64 passed 0 回归，generate-stream 主链零改动。诚实边界：工艺同义词对装配文档(当前主用)命中有限，物料同义词(密封脂/胶)本期不覆盖。下一步：回总纲对齐第四步。上轮 dialog-review-proofread done（4929587）。
+updated_at: 2026-07-30T22:19:05+08:00
+last_commit: 9593d0a
+status: intent-llm-dispatch-fix done（总纲 dialog-task-pipeline 第四步）：意图识别改 LLM(_classify_with_llm tier=simple temp=0.1 + JSON 容错 + fail-soft 关键词兜底)+ 修下游断链(_dispatch 补 document_generation→writing + user_confirmation→skipped)+ shortcut 保护(process_intent shortcut 移到 recognize 前,generate/fill 不走 LLM)。多加测试:intent_recognizer 18 用例(0%→覆盖)+ dispatch 9 用例。pytest 788 passed(762+26新)0 新回归(1 预存 failed=test_prompt_requires_step_name_prefix 与本次无关)。总纲 done 3/4(剩局部修改)。上轮 qa-retrieval-quality done（bb58cb3）。
 task_state: done
+task_slug: intent-llm-dispatch-fix
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `bb58cb3` feat(qa-retrieval-quality): QA 检索提质-同义词扩展+失败强约束+jieba词典 (1 second ago)
-- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (5 minutes ago)
-- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (33 minutes ago)
-- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (44 minutes ago)
+- `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (0 seconds ago)
+- `bb58cb3` feat(qa-retrieval-quality): QA 检索提质-同义词扩展+失败强约束+jieba词典 (13 minutes ago)
+- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (18 minutes ago)
+- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (46 minutes ago)
+- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (57 minutes ago)
 - `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
 - `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
 - `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
 - `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (2 days ago)
 - `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (4 days ago)
-- `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（intent-llm-dispatch-fix，总纲 `dialog-task-pipeline` 第四步，PLAN `9593d0a` seal）**：意图识别改 LLM + 修下游断链 + 多加测试。**intent_recognizer.py**:`recognize()` 加 `_classify_with_llm`(`generate_with_messages` tier=simple temp=0.1,prompt 照 review_service 范式 + `_parse_intent_json` 容错 ```json fence/杂文);fail-soft——LLM 失败/超时/JSON 不可解析→退关键词正则;draft_complete 复合检测优先覆盖。**orchestrator.py**:① process_intent **shortcut 移到 recognize 前**(`generation_mode in (generate,fill)`→构造 draft_complete intent,不调 LLM recognize,generate/fill 主链零延迟——硬约束守住)② `_dispatch` agent_mapping 补 `document_generation→writing` ③ `_dispatch` legacy_mapping 加 `user_confirmation→skipped`。**INTENT_TO_TASKS 核对**:7 个 TaskType 全接住。**多加测试**:`test_intent_recognizer.py`(新,18 用例:LLM 分类/fail-soft/draft_complete 优先/JSON 容错/@skip 真实,intent_recognizer 从 0% 覆盖)+ `test_orchestrator_dispatch.py`(新,9 用例:断链修复/shortcut 保护)。**验证**:新测试 **26 passed 1 skipped** + 全量 **788 passed(762+26)0 新回归**(1 预存 failed `test_prompt_requires_step_name_prefix`=g25a-step-numbering 遗留,与本次无关)。**禁区守住**:generate-stream/draft_complete/source-driven 主链零改动,detect_mode 不动,不收敛意图集。**task_state: done。**
 
 - **完成（qa-retrieval-quality，总纲 `dialog-task-pipeline` 第三步，PLAN `6abd5c9` seal）**：QA 问答检索提质(用户定范围 A:现有功能提质,不向量)。`hierarchical_context.py`:① 模块初始化 `_load_craft_term_resources` 加载 `standard_terms.json` 进 jieba 自定义词典(提分词)+ 建 `_SYN_MAP`(alias→标准术语,88 词)② `_expand_synonyms` 扩展关键词(车床加工→车削)③ `global_keyword_search` 用扩展后关键词检索 ④ `build_context` 记 `self._last_l3_hit`(L3 命中状态)。`agent.py`:`reply_question` material_instruction 加 `retrieval_empty` 分支(库有文档但 L3 无命中→prompt 强约束"未检索到,通识简答标注,禁编造")。**验证**:py_compile 过 + SYN_MAP 88 词 + `_expand_synonyms(['车床加工'])` 含车削(True)+ 直接调 `build_context`(密封装配→`_last_l3_hit True`/量子力学→`False`)+ pytest 检索 **64 passed 0 回归**。**诚实边界**:工艺同义词(车削/铣削)对机加工文档有效,装配文档(当前主用)命中有限;物料同义词(密封脂↔密封胶,核心痛点)本期不覆盖(无现成数据,留观察);curl 端到端 + LLM 回答留用户部署环境验。**禁区守住**:generate-stream/draft_complete/source-driven 主链零改动,review/proofread 不动,不向量。**task_state: done。**
 
