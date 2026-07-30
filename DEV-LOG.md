@@ -2,25 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-30T21:22:05+08:00
-last_commit: ed8b1db
+updated_at: 2026-07-30T21:33:13+08:00
+last_commit: 4929587
 status: dialog-review-proofread done（总纲 dialog-task-pipeline 第二步）：对话式审/校链路——前端 AIChatPanel 加审查/校对按钮(取编辑器内容序列化→fetch /api/tasks/review|proofread→issues 渲染)+ 修后端 proofread 端点 500(target_standard 参数不匹配)+ corrections→issues 映射。审查完全可用(curl 验 sensitive_word/vague/missing_field)，校对端点修通(issues 留 proofread 内部检查强度不确定性)。tsc 0 错，generate-stream 主链零改动。下一步：回总纲对齐第三步。上轮 cleanup-dead-workflow done（edeb97f）。
 task_state: done
-task_slug: dialog-review-proofread
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (0 seconds ago)
+- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (0 seconds ago)
+- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (11 minutes ago)
 - `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (11 hours ago)
-- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (11 hours ago)
+- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
 - `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
 - `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (2 days ago)
 - `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (4 days ago)
 - `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (4 days ago)
 - `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (4 days ago)
 - `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (4 days ago)
-- `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
