@@ -2,15 +2,16 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-28T22:16:54+08:00
-last_commit: be7a4c2
+updated_at: 2026-07-28T22:23:43+08:00
+last_commit: 1ce51da
 status: g25a-step-numbering done（d6b2aa3）：v2 后审验修复 G25a 两 content 回归——①每工步前缀重复（v2 N1 prompt 强制带前缀，撤）②工序9 工步号 1.1（应 9.1，LLM 照抄原文编号）→ prompt 要求 i.N + 后处理 regex 强制行首编号第一段=i 兜底。上游 v2 done（N1-N4+source 全 ✅，part_name='1' result 传递断留下轮）。全量 763 passed。ALIGN 截图标注（南天门升级）
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (0 seconds ago)
+- `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (0 seconds ago)
+- `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (7 minutes ago)
 - `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (2 days ago)
 - `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (2 days ago)
 - `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (2 days ago)
@@ -19,7 +20,6 @@ task_state: done
 - `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (2 days ago)
 - `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (2 days ago)
 - `ec005ed` fix(g25a): N1 revert step_name to work-type + content prompt step-name prefix (2 days ago)
-- `41c2943` plan(g25a-g18a-g14a-v2): seal - 回退N2工种+工序名打头/G18a source graph/G14a写齐 (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
