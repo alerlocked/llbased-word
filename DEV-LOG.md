@@ -2,28 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-30T10:12:11+08:00
-last_commit: edeb97f
-status: cleanup-dead-workflow done（总纲 dialog-task-pipeline 第一步）：删 orchestrator 死 workflow 链路（_select_workflow/execute_workflow/workflows 字典，全 backend 0 调用）+ 修 ARCHITECTURE §2 文档腐烂。pytest 762 passed 0 回归（1 预存失败 test_prompt_requires_step_name_prefix=g25a-step-numbering 撤前缀约束遗留，stash 实证与本次无关，留 writing lead）。下一步：回总纲对齐第二步。上轮 g25a-step-numbering done（d6b2aa3）。
+updated_at: 2026-07-30T21:22:05+08:00
+last_commit: ed8b1db
+status: dialog-review-proofread done（总纲 dialog-task-pipeline 第二步）：对话式审/校链路——前端 AIChatPanel 加审查/校对按钮(取编辑器内容序列化→fetch /api/tasks/review|proofread→issues 渲染)+ 修后端 proofread 端点 500(target_standard 参数不匹配)+ corrections→issues 映射。审查完全可用(curl 验 sensitive_word/vague/missing_field)，校对端点修通(issues 留 proofread 内部检查强度不确定性)。tsc 0 错，generate-stream 主链零改动。下一步：回总纲对齐第三步。上轮 cleanup-dead-workflow done（edeb97f）。
 task_state: done
+task_slug: dialog-review-proofread
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (1 second ago)
-- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (10 minutes ago)
+- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (0 seconds ago)
+- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (11 hours ago)
+- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (11 hours ago)
 - `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
 - `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (2 days ago)
-- `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (3 days ago)
-- `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (3 days ago)
-- `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (3 days ago)
+- `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (4 days ago)
+- `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (4 days ago)
+- `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (4 days ago)
 - `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (4 days ago)
 - `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (4 days ago)
-- `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（dialog-review-proofread，总纲 `dialog-task-pipeline` 第二步，PLAN `ed8b1db` seal）**：对话式审/校——前端 `AIChatPanel.tsx` 加「审查」「校对」按钮(第二行操作按钮,直接触发不 toggle)+ `handleReviewProofread`(取 `editorTemplateData` 经新增 `sectionsToReviewText` 序列化→fetch `/api/tasks/review`|`/proofread` 同步带 domain→解析顶层 `issues`→消息区渲染 severity 分级卡片)+ `reviewIssues` 渲染(动态字段挂 message,照 `improvementSolutions` 模式)。**后端微调**:`task.py` proofread 端点 500 修复(`proofread_only()` 不接 `target_standard`,去掉)+ `corrections→issues` 映射(ProofreadAgent 返回 corrections 非 issues,结构兼容直接复用)。**冒烟发现并修**:① 响应顶层无 `passed` → 前端基于 error 数量判通过 ② proofread 用 critical → 前端 errors 过滤含 critical。**验证**:tsc 0 错 + curl `/api/tasks/review`(200,issue_types=[vague_description,sensitive_word,missing_field×2],specialty-rules 生效)+ curl `/api/tasks/proofread`(500→200)。**留不确定性**:proofread 测试 content issues=[](可能真通过或内部检查弱,校对实效 + UI 端到端留用户部署环境验)。**禁区守住**:generate-stream/draft_complete/source-driven 主链零改动,intent_recognizer 不动(第三步)。**task_state: done。**
 
 - **完成（cleanup-dead-workflow，总纲 `dialog-task-pipeline` 第一步，PLAN `c58f45d` seal）**：对话任务分配链路调研发现 orchestrator 的 workflow 编排是死代码（`_select_workflow`/`execute_workflow`/`workflows` 字典全 backend 0 调用，实际走 `_dispatch_to_sub_agent`），但 ARCHITECTURE §2 仍当活的写（文档腐烂）。**改**：删 `orchestrator.py` 三段死代码（workflows 字典 :297 + `_select_workflow` :779 + `execute_workflow` :808）+ ARCHITECTURE Workflows 行 → 真实任务调度描述。**禁区守住**：`review_only()`/`proofread_only()` 活方法（task.py 调用，与死 workflow key 同名）未误删。**验证**：py_compile 过 + pytest **762 passed 0 回归**（唯一 failed `test_prompt_requires_step_name_prefix` 经 git stash 实证为预存——g25a-step-numbering 撤了前缀约束但测试没更新，与本次无关，留 writing lead）+ grep app/ 零残留。**ALIGN 总纲**：`ALIGN-dialog-task-pipeline`（4 块：意图识别改 LLM / 对话式局部修改 / 对话式审·校 / QA 检索提质，一步步走，下一步待对齐）。**task_state: done。**
 

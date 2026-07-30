@@ -540,10 +540,12 @@ async def proofread_content(
     - **target_standard**: 目标标准
     """
     try:
+        # NOTE: proofread_only() signature is (content, check_type, context) — it does not
+        # accept target_standard. Passing it caused 500; dropped, ProofreadAgent uses its
+        # own default standard.
         result = await orchestrator.proofread_only(
             content=request.content,
             check_type=request.check_type,
-            target_standard=request.target_standard,
         )
 
         logger.info(
@@ -552,10 +554,12 @@ async def proofread_content(
             success=result.get("success", False),
         )
 
+        # ProofreadAgent returns corrections (not issues); corrections carry
+        # type/severity/message so reuse them as issues for unified frontend rendering.
         return AgentResultResponse(
             success=result.get("success", False),
             result=result.get("result"),
-            issues=result.get("issues", []),
+            issues=result.get("corrections", []),
             suggestions=result.get("suggestions", []),
         )
 
