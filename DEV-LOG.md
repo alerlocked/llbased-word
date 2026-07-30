@@ -2,16 +2,16 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-30T10:02:21+08:00
-last_commit: c58f45d
+updated_at: 2026-07-30T10:12:11+08:00
+last_commit: edeb97f
 status: cleanup-dead-workflow done（总纲 dialog-task-pipeline 第一步）：删 orchestrator 死 workflow 链路（_select_workflow/execute_workflow/workflows 字典，全 backend 0 调用）+ 修 ARCHITECTURE §2 文档腐烂。pytest 762 passed 0 回归（1 预存失败 test_prompt_requires_step_name_prefix=g25a-step-numbering 撤前缀约束遗留，stash 实证与本次无关，留 writing lead）。下一步：回总纲对齐第二步。上轮 g25a-step-numbering done（d6b2aa3）。
 task_state: done
-task_slug: cleanup-dead-workflow
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (1 second ago)
+- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (1 second ago)
+- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (10 minutes ago)
 - `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
 - `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (2 days ago)
 - `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (3 days ago)
@@ -20,7 +20,6 @@ task_slug: cleanup-dead-workflow
 - `c7ffbba` fix(g18a): part_name 纯数字(derive qty错位) 回退 part_code 代号 (4 days ago)
 - `a0d8098` fix(g18a): source 覆盖认 chapter_code G18a 占位(derive填非真值) (4 days ago)
 - `e6816c1` feat(g14a): N4 derive inject G25a aux_materials + cover columns from G1a/G4a (4 days ago)
-- `23eb9e0` feat(g18a): N2+N3 material triple + source/remarks from craft_kg graph (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
