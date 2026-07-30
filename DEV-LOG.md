@@ -2,25 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-30T22:00:51+08:00
-last_commit: 6abd5c9
+updated_at: 2026-07-30T22:05:44+08:00
+last_commit: bb58cb3
 status: qa-retrieval-quality done（总纲 dialog-task-pipeline 第三步）：QA 检索提质——同义词扩展(standard_terms.json alias→term，HAS_CHEXUE 验证车床加工→车削)+ 检索失败强约束(retrieval_empty：库有文档但 L3 无命中→prompt 拒答禁编造)+ jieba 工艺术语词典(SYN_MAP 88 词)。直接调验证 SEAL_HIT True/EMPTY_HIT False，pytest 检索 64 passed 0 回归，generate-stream 主链零改动。诚实边界：工艺同义词对装配文档(当前主用)命中有限，物料同义词(密封脂/胶)本期不覆盖。下一步：回总纲对齐第四步。上轮 dialog-review-proofread done（4929587）。
 task_state: done
-task_slug: qa-retrieval-quality
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (1 second ago)
-- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (28 minutes ago)
-- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (39 minutes ago)
+- `bb58cb3` feat(qa-retrieval-quality): QA 检索提质-同义词扩展+失败强约束+jieba词典 (1 second ago)
+- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (5 minutes ago)
+- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (33 minutes ago)
+- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (44 minutes ago)
 - `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
 - `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
 - `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
 - `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (2 days ago)
 - `d646f84` docs: ARCHITECTURE + DEV-LOG for g25a-step-numbering fix (4 days ago)
 - `d6b2aa3` fix(g25a): force i.N step ids + drop per-substep name prefix (4 days ago)
-- `e5f6ee4` docs(g25a-g18a-g14a-v2): done + 删 DEBUG log + 经验回流 exp-v2 (4 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
