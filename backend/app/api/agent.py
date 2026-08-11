@@ -903,6 +903,7 @@ async def generate_stream(request: GenerateStreamRequest):
             logger.info(f"[AI助手] 模式检测: mode={mode}, input={user_input[:30]}...")
 
             yield f"data: {json.dumps({'type': 'mode', 'mode': mode})}\n\n"
+
             yield f"data: {json.dumps({'type': 'progress', 'message': '正在加载知识库...'})}\n\n"
 
             # ── Build context for orchestrator ──

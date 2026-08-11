@@ -9,7 +9,6 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
 import { markdownToHtml, htmlToMarkdown } from '../../utils/markdownConverter'
-import AIContextMenu from '../editor/AIContextMenu'
 import AISuggestionBar from '../editor/AISuggestionBar'
 import { useSelection } from '../../hooks/useSelection'
 import { useAIStream } from '../../hooks/useAIStream'
@@ -26,12 +25,13 @@ interface MarkdownTiptapEditorProps {
   editorRef?: React.RefObject<any>
   enableAI?: boolean // 是否启用 AI 功能，默认 true
   onOpenImageDialog?: () => void // 打开图片对话框的回调
+  onPasteToChat?: (text: string) => void // 选区"贴入"到对话框的回调
 }
 
 const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
   value,
   onChange,
-  placeholder = '开始写作...',
+  placeholder = '选中文字后点贴入送给 AI 助手',
   disabled = false,
   style,
   onFocus,
@@ -39,6 +39,7 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
   editorRef: externalRef,
   enableAI = true,
   onOpenImageDialog,
+  onPasteToChat,
 }, ref) => {
   const internalEditorRef = useRef<any>(null)
   const editorRefForSelection = useRef<any>(null)
@@ -242,11 +243,6 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
     }
   }, [editor])
 
-  // AI 选区菜单关闭
-  const handleMenuClose = useCallback(() => {
-    // 选区菜单关闭时不需要额外操作
-  }, [])
-
   // AI 建议栏操作
   const handleSuggestionAction = useCallback((action: string) => {
     if (!editor) return
@@ -282,16 +278,35 @@ const MarkdownTiptapEditor = React.forwardRef<any, MarkdownTiptapEditorProps>(({
     <div style={{ position: 'relative', width: '100%', ...style }}>
       <EditorContent editor={editor} />
       
-      {/* AI 选区快捷菜单 */}
-      {enableAI && (
-        <AIContextMenu
-          editor={editor}
-          selection={selection}
-          position={position}
-          visible={isMenuVisible}
-          onClose={handleMenuClose}
-          onOpenImageDialog={onOpenImageDialog}
-        />
+      {/* AI 选区"贴入"浮按钮 — 选中文字后浮出，点击把选区送给对话框（Cursor 式并入对话） */}
+      {enableAI && isMenuVisible && selection?.text && onPasteToChat && position && (
+        <button
+          type="button"
+          onClick={() => {
+            onPasteToChat(selection.text)
+          }}
+          style={{
+            position: 'fixed',
+            top: Math.max(8, position.top - 44),
+            left: position.left,
+            zIndex: 1000,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '6px 12px',
+            fontSize: 13,
+            color: '#fff',
+            background: '#1890ff',
+            border: 'none',
+            borderRadius: 6,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+          title="把选中的文字作为引用送给 AI 助手"
+        >
+          📎 贴入送给 AI
+        </button>
       )}
       
       {/* AI 底部建议栏 */}

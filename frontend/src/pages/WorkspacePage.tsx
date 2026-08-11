@@ -879,12 +879,13 @@ const WorkspacePage: React.FC = () => {
                       ref={editorRef}
                       value={editorContent}
                       onChange={handleEditorChange}
-                      placeholder="开始写作...\n\n💡 选中文字后会出现 AI 工具栏"
+                      placeholder="开始写作...\n\n💡 选中文字后点「贴入」送给 AI 助手"
                       disabled={!currentProjectId}
                       style={{
                         color: colors.textPrimary
                       }}
                       onOpenImageDialog={() => setImageModalVisible(true)}
+                      onPasteToChat={(text) => _setSelectedText(text)}
                     />
                   )}
                 </div>
@@ -935,6 +936,7 @@ const WorkspacePage: React.FC = () => {
               onInsertToEditor={handleInsertToEditor}
               onDirectInsert={handleDirectInsert}
               onPreviewContent={handlePreviewContent}
+              onClearSelectedText={() => _setSelectedText('')}
             />
           </div>
         </div>

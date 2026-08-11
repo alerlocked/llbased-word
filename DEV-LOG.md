@@ -2,28 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-31T08:01:07+08:00
-last_commit: 6141ac2
-status: intent-llm-dispatch-fix done（总纲 dialog-task-pipeline 第四步）：意图识别改 LLM(_classify_with_llm tier=simple temp=0.1 + JSON 容错 + fail-soft 关键词兜底)+ 修下游断链(_dispatch 补 document_generation→writing + user_confirmation→skipped)+ shortcut 保护(process_intent shortcut 移到 recognize 前,generate/fill 不走 LLM)。多加测试:intent_recognizer 18 用例(0%→覆盖)+ dispatch 9 用例。pytest 788 passed(762+26新)0 新回归(1 预存 failed=test_prompt_requires_step_name_prefix 与本次无关)。总纲 done 3/4(剩局部修改)。上轮 qa-retrieval-quality done（bb58cb3）。
-task_state: done
+updated_at: 2026-08-11T22:10:42+08:00
+last_commit: fd76964
+status: unify-selection-into-dialog 执行中（总纲 dialog-task-pipeline 第二轮）: PLAN fd76964 重 seal - 框选改 Cursor 式引用标签+删 quick_action。ALIGN 更新意图集 10→5 决策(D1-D4)。开始执行改动(后端删 quick_action 分支/字段 + 前端删 AIContextMenu 浮菜单/贴入浮按钮/引用标签/user_input 拼装/选区连接)。
+task_state: running
+task_slug: unify-selection-into-dialog
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `6141ac2` plan(unify-selection-into-dialog): seal - 框选修改并入对话,UI/端点/SSE 统一 (1 second ago)
-- `4393422` feat(intent-llm-dispatch-fix): 意图识别改LLM+修下游断链+多加测试 (10 hours ago)
-- `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (10 hours ago)
-- `bb58cb3` feat(qa-retrieval-quality): QA 检索提质-同义词扩展+失败强约束+jieba词典 (10 hours ago)
-- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (10 hours ago)
-- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (10 hours ago)
-- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (11 hours ago)
-- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (22 hours ago)
-- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (22 hours ago)
-- `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
+- `fd76964` plan(unify-selection-into-dialog): 重 seal - 框选改 Cursor 式引用标签+删 quick_action (7 seconds ago)
+- `6141ac2` plan(unify-selection-into-dialog): seal - 框选修改并入对话,UI/端点/SSE 统一 (12 days ago)
+- `4393422` feat(intent-llm-dispatch-fix): 意图识别改LLM+修下游断链+多加测试 (12 days ago)
+- `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (12 days ago)
+- `bb58cb3` feat(qa-retrieval-quality): QA 检索提质-同义词扩展+失败强约束+jieba词典 (12 days ago)
+- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (12 days ago)
+- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (12 days ago)
+- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (12 days ago)
+- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (13 days ago)
+- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (13 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **在做（unify-selection-into-dialog，PLAN `fd76964` 重 seal）**: 框选修改改 Cursor 式并入对话。ALIGN 第二轮固化意图集 10→5(生成补齐/改动/审查/校对/问答)+两类入口(🟢生成补齐独立按钮工作流+素材检查防臆造;🔵其余对话意图→计划→用户确认→链路;审校留快捷入口)。**本块**=unify: 删 AIContextMenu 浮菜单+quick_action 分支/字段,选区→贴入浮按钮→引用标签(预览+×)→user_input 拼引用块并入对话上下文(后端零改动,Plan agent 核实 _dispatch 无 context 形参独立字段送不到 agent)。**在做**: spawn Writer 改代码。**下一步**: tsc+pytest+端到端冒烟→commit→经验回流。**待拆后续块**: 意图收敛(10→5)/edit_local 执行单元/计划确认交互/素材检查追问。
 
 - **完成（intent-llm-dispatch-fix，总纲 `dialog-task-pipeline` 第四步，PLAN `9593d0a` seal）**：意图识别改 LLM + 修下游断链 + 多加测试。**intent_recognizer.py**:`recognize()` 加 `_classify_with_llm`(`generate_with_messages` tier=simple temp=0.1,prompt 照 review_service 范式 + `_parse_intent_json` 容错 ```json fence/杂文);fail-soft——LLM 失败/超时/JSON 不可解析→退关键词正则;draft_complete 复合检测优先覆盖。**orchestrator.py**:① process_intent **shortcut 移到 recognize 前**(`generation_mode in (generate,fill)`→构造 draft_complete intent,不调 LLM recognize,generate/fill 主链零延迟——硬约束守住)② `_dispatch` agent_mapping 补 `document_generation→writing` ③ `_dispatch` legacy_mapping 加 `user_confirmation→skipped`。**INTENT_TO_TASKS 核对**:7 个 TaskType 全接住。**多加测试**:`test_intent_recognizer.py`(新,18 用例:LLM 分类/fail-soft/draft_complete 优先/JSON 容错/@skip 真实,intent_recognizer 从 0% 覆盖)+ `test_orchestrator_dispatch.py`(新,9 用例:断链修复/shortcut 保护)。**验证**:新测试 **26 passed 1 skipped** + 全量 **788 passed(762+26)0 新回归**(1 预存 failed `test_prompt_requires_step_name_prefix`=g25a-step-numbering 遗留,与本次无关)。**禁区守住**:generate-stream/draft_complete/source-driven 主链零改动,detect_mode 不动,不收敛意图集。**task_state: done。**
 

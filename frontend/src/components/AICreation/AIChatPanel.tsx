@@ -4,7 +4,7 @@
  * 温暖黄色系视觉风格
  */
 import { useState, useEffect, useRef } from 'react'
-import { Input, Button, Space, message, Spin, Drawer, List, Typography, Popconfirm, Collapse, Upload } from 'antd'
+import { Input, Button, Space, message, Spin, Drawer, List, Typography, Popconfirm, Collapse, Upload, Tag } from 'antd'
 import { CopyOutlined, PlusOutlined, RocketOutlined, HistoryOutlined, DeleteOutlined, MenuFoldOutlined, MessageOutlined, StopOutlined, PaperClipOutlined, CloseOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useCreationStore, Message } from '../../stores/creationStore'
 import { colors } from '../../styles/design-tokens'
@@ -35,6 +35,8 @@ interface AIChatPanelProps {
     content: string
     type: string
   }>
+  /** 清除选区引用（点引用标签 × 时调用） */
+  onClearSelectedText?: () => void
 }
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({
@@ -44,7 +46,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   onDirectInsert,
   onPreviewContent,
   onClose,
-  selectedMaterials = []
+  selectedMaterials = [],
+  onClearSelectedText,
 }) => {
   const { 
     getProjectState, 
@@ -134,13 +137,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   }, [messages])
 
   // 待办事项现在直接显示在消息气泡内，不需要单独的状态管理
-
-  // 当选中文本变化时，可以作为写作参考
-  useEffect(() => {
-    if (selectedText && !inputText) {
-      // 可以将选中文本作为写作主题参考
-    }
-  }, [selectedText])
 
   // 处理选择计划
   const handleSelectPlan = async (planId: string, sessionId: string | null) => {
@@ -451,9 +447,24 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
 
     if ((!inputText.trim() && !generationMode) || !projectId) return
 
-    // 保存用户原始输入
-    const userInput = inputText.trim()
-    setOriginalInput(userInput)
+    // 选区引用拼装：非 generate/fill 模式时，把选区作为引用块并入 user_input（Cursor 式）
+    // generate/fill 模式语义是全量生成/补齐，选区无意义，不拼（守卫）
+    const isSelectionMode = generationMode !== 'generate' && generationMode !== 'fill'
+    const rawInput = inputText.trim()
+    let userInput = rawInput
+    if (selectedText && isSelectionMode) {
+      const quoted = selectedText.slice(0, 2000)
+      const quoteBlock = `\n\n【用户引用的原文】\n<引用块开始>\n${quoted}\n<引用块结束>`
+      if (userInput) {
+        userInput = userInput + quoteBlock
+      } else {
+        // 选区有但没输需求 → 补默认指令，避免空请求
+        userInput = '请针对我引用的原文进行处理' + quoteBlock
+      }
+    }
+
+    // 保存用户原始输入（纯输入框文本，停止时恢复用，不含引用块）
+    setOriginalInput(rawInput)
 
     const userMsg: Message = {
       role: 'user',
@@ -528,6 +539,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       })
 
       if (!response.ok) throw new Error('生成请求失败')
+
+      // 贴入是一次性的：请求成功发出后清掉选区引用标签
+      onClearSelectedText?.()
 
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
@@ -1401,6 +1415,30 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             </Button>
           )}
         </div>
+        {/* 选区引用标签（Cursor 式）— selectedText 非空时显示，× 可清除 */}
+        {selectedText && (
+          <div style={{ marginBottom: 8 }}>
+            <Tag
+              closable
+              onClose={(e) => {
+                e?.preventDefault?.()
+                onClearSelectedText?.()
+              }}
+              style={{
+                maxWidth: '100%',
+                padding: '4px 8px',
+                fontSize: 12,
+                lineHeight: 1.5,
+                whiteSpace: 'normal',
+                background: '#e6f7ff',
+                borderColor: '#91d5ff',
+                color: '#1890ff',
+              }}
+            >
+              📎 引用原文({selectedText.length}字): {selectedText.slice(0, 40)}{selectedText.length > 40 ? '...' : ''}
+            </Tag>
+          </div>
+        )}
         {/* Review/Proofread actions — operate on current editor content, no input needed */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <Button
