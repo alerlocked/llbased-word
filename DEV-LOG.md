@@ -2,16 +2,17 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-11T22:32:39+08:00
-last_commit: c2e8dbe
+updated_at: 2026-08-11T22:34:48+08:00
+last_commit: a694702
 status: unify-selection-into-dialog done（总纲 dialog-task-pipeline 延伸,PLAN fd76964 seal,feat c2e8dbe）: 框选改 Cursor 式并入对话——删 AIContextMenu 浮菜单+agent.py quick_action 分支/字段,选区→贴入浮按钮→引用标签(📎预览+×)→user_input 拼引用块并入对话上下文(后端零改动)。审校按钮留快捷入口,AISuggestionBar+旧端点保留。验证 tsc 0 错+pytest 718 passed(1预存failed无关)+import OK+quick_action 残留清零。端到端 UI+LLM 响应留部署环境验。
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `c2e8dbe` feat(unify-selection-into-dialog): 框选改 Cursor 式并入对话 + 删 quick_action (0 seconds ago)
-- `fd76964` plan(unify-selection-into-dialog): 重 seal - 框选改 Cursor 式引用标签+删 quick_action (22 minutes ago)
+- `a694702` docs(devlog): unify-selection-into-dialog done + 端到端留部署验 (1 second ago)
+- `c2e8dbe` feat(unify-selection-into-dialog): 框选改 Cursor 式并入对话 + 删 quick_action (2 minutes ago)
+- `fd76964` plan(unify-selection-into-dialog): 重 seal - 框选改 Cursor 式引用标签+删 quick_action (24 minutes ago)
 - `6141ac2` plan(unify-selection-into-dialog): seal - 框选修改并入对话,UI/端点/SSE 统一 (12 days ago)
 - `4393422` feat(intent-llm-dispatch-fix): 意图识别改LLM+修下游断链+多加测试 (12 days ago)
 - `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (12 days ago)
@@ -19,7 +20,6 @@ task_state: done
 - `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (12 days ago)
 - `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (12 days ago)
 - `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (12 days ago)
-- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (13 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

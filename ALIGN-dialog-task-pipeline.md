@@ -28,8 +28,12 @@
 ### D3. unify 选区(Cursor 式)
 删浮菜单 `AIContextMenu` + 删 `quick_action` 分支(`agent.py:909`);选区 → 贴入按钮 → 对话框上方引用标签(小括号标注内容 + ×)→ 选区并入对话上下文让模型读。
 
-### D4. edit_local(改动,高频)
-生成完就要改,高频。先 **B1 cell/值级**(定位 章节+行+列 → 改单值 → 回传前端表格),B2 整段改视效果再议。⚠ 进 PLAN 前确认改的对象(已生成表格 cell vs free-form 文本)。
+### D4. edit_local(改动,高频)——方向已定,2026-08-12 再开
+生成完就要改,高频。**2026-08-11 PlanMode 探索 + 用户方向决策**:
+- **定位方式:框选 + 自然语言,两个都要**。框选=拖拽选一段/一堆就改(文本段用 `MarkdownTiptapEditor` 选区 unify 已有;表格 cell 要**新建选区机制**,现只有 hover);自然语言=对话描述改哪(后端 LLM 定位,要**新建 NER+映射层**)。
+- **改的对象:表格 cell + 段落**(上传工艺文件改某一段,不止 cell)。⚠ 比"B1 cell/值级"范围大,段落修改是新对象。
+- **后端现状(待建)**:`_do_edit` 整段重生成(不能改单值)/edit_document 链路错配(跑成 proofread+review)/无反向 cell 定位/SSE 只全量更新。明天建:cell/段落定位 + edit 执行单元 + cell_update SSE 局部回传。
+- **明天(2026-08-12)拆小块 lead 循环**,建议从"框选 cell 改"起步(定位准、复用 unify 选区思路)。
 
 ## 边界
 **硬约束**:① 不动 generate/fill 主链(generation_mode shortcut → draft_complete → source-driven) ② 增量改,不重写活链路 ③ 防臆造(生成必须基于素材,素材不全追问补全)

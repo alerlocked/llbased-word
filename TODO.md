@@ -28,6 +28,12 @@
 
 ## P1 · 系统完善（场景驱动 / 上线前）
 
+### 3b. edit_local 对话式局部修改（dialog-task-pipeline 第5块，2026-08-12 开）
+- **方向已定**（2026-08-11 PlanMode 探索 + 用户拍）：定位=**框选 + 自然语言都要**；改的对象=**表格 cell + 段落**（上传工艺文件改某段，不止 cell）；明天拆小块 lead 循环，从"框选 cell 改"起步（定位准、复用 unify 选区思路）
+- 现状：前端 `editorTemplateData` 有 cell 坐标(chapter_code,rowIndex,columnKey)+更新路径现成，但**表格无 cell/段落选区机制**(只 hover，文本段选区 unify 已有)；后端 **`_do_edit` 整段重生成**(不能改单值)/edit_document 链路错配(跑成 proofread+review)/**无反向 cell 定位**/SSE 只全量更新
+- 明天要建：表格 cell/段落框选选区 + 自然语言定位(NER+映射) + edit 执行单元(改单值/改段) + cell_update SSE 局部回传
+- 关联：ALIGN-dialog-task-pipeline D4 / [[exp-dialog-task-pipeline]] 待办
+
 ### 4. catalog enrich 同步 DB ~1s 残留阻塞
 - 现状：`_enrich_names_from_catalog` 在 async 路径循环 33 次 sync `db.query().first()`，llm 改 async 后残留 1.05s 毛刺
 - 建议：多端/上线准备期 offload（`asyncio.to_thread` 或 DB 改 async）。PMF 单用户可接受
@@ -47,6 +53,11 @@
 - 现状：G25a colspan-heavy content 导致关联提取空
 - 建议：低优先，等检索/知识图谱需求驱动
 - 关联：DEV-LOG profile-expand-and-relations
+
+### 7a. triples-spec-param 后续（N2 单测 / 节点类型 / 规格扩展 / KG匹配度）
+- 现状：triples-spec-param N1+N3 完成（commit 3c0c2a3，规格作 subject + 同句边界，规格-参数关联进 graph）。**2026-07-26 端到端实证**：M4 螺柱/T2D30070→力矩1.9 抽到 ✅，但 **M5 螺柱3.6N·m 漏抽**（content.html "螺柱 M5 8 A2-70" 拆散表述 pattern 覆盖不到）+ **M4 节点 type=process_step**（build_from_triples 全标 process_step，该按 subject 判规格/材料）+ **craft_kg 节点 label vs G25a 工序名 keyword 匹配弱**（_search_knowledge_graph seed_ids 模拟=[]，has_aux=true 主要靠 DB knowledge_search，KG 贡献小）。留：① N2 正式单测；② build_from_triples 节点类型（规格标 [规格]/[材料] 非 [工序]）；③ 规格识别扩展（M\d+×\d+ 拆散/GB-T 标准号作 subject）+ LLM 抽；④ craft_kg 匹配改进（label 加规格别名 / keyword 扩同义词）让 KG 真贡献 aux。
+- 建议：② 顺手（type 标错误导下游）+ ③④ 按需（KG 检索效果）
+- 关联：ALIGN-triples-spec-param / commit 3c0c2a3 / [[exp-craft-kg-feed-from-learn]] / DEV-LOG 端到端验证 2026-07-26
 
 ---
 
