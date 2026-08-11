@@ -2,16 +2,16 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-11T22:10:42+08:00
-last_commit: fd76964
-status: unify-selection-into-dialog 执行中（总纲 dialog-task-pipeline 第二轮）: PLAN fd76964 重 seal - 框选改 Cursor 式引用标签+删 quick_action。ALIGN 更新意图集 10→5 决策(D1-D4)。开始执行改动(后端删 quick_action 分支/字段 + 前端删 AIContextMenu 浮菜单/贴入浮按钮/引用标签/user_input 拼装/选区连接)。
-task_state: running
-task_slug: unify-selection-into-dialog
+updated_at: 2026-08-11T22:32:39+08:00
+last_commit: c2e8dbe
+status: unify-selection-into-dialog done（总纲 dialog-task-pipeline 延伸,PLAN fd76964 seal,feat c2e8dbe）: 框选改 Cursor 式并入对话——删 AIContextMenu 浮菜单+agent.py quick_action 分支/字段,选区→贴入浮按钮→引用标签(📎预览+×)→user_input 拼引用块并入对话上下文(后端零改动)。审校按钮留快捷入口,AISuggestionBar+旧端点保留。验证 tsc 0 错+pytest 718 passed(1预存failed无关)+import OK+quick_action 残留清零。端到端 UI+LLM 响应留部署环境验。
+task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `fd76964` plan(unify-selection-into-dialog): 重 seal - 框选改 Cursor 式引用标签+删 quick_action (7 seconds ago)
+- `c2e8dbe` feat(unify-selection-into-dialog): 框选改 Cursor 式并入对话 + 删 quick_action (0 seconds ago)
+- `fd76964` plan(unify-selection-into-dialog): 重 seal - 框选改 Cursor 式引用标签+删 quick_action (22 minutes ago)
 - `6141ac2` plan(unify-selection-into-dialog): seal - 框选修改并入对话,UI/端点/SSE 统一 (12 days ago)
 - `4393422` feat(intent-llm-dispatch-fix): 意图识别改LLM+修下游断链+多加测试 (12 days ago)
 - `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (12 days ago)
@@ -20,13 +20,12 @@ task_slug: unify-selection-into-dialog
 - `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (12 days ago)
 - `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (12 days ago)
 - `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (13 days ago)
-- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (13 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **在做（unify-selection-into-dialog，PLAN `fd76964` 重 seal）**: 框选修改改 Cursor 式并入对话。ALIGN 第二轮固化意图集 10→5(生成补齐/改动/审查/校对/问答)+两类入口(🟢生成补齐独立按钮工作流+素材检查防臆造;🔵其余对话意图→计划→用户确认→链路;审校留快捷入口)。**本块**=unify: 删 AIContextMenu 浮菜单+quick_action 分支/字段,选区→贴入浮按钮→引用标签(预览+×)→user_input 拼引用块并入对话上下文(后端零改动,Plan agent 核实 _dispatch 无 context 形参独立字段送不到 agent)。**在做**: spawn Writer 改代码。**下一步**: tsc+pytest+端到端冒烟→commit→经验回流。**待拆后续块**: 意图收敛(10→5)/edit_local 执行单元/计划确认交互/素材检查追问。
+- **完成（unify-selection-into-dialog，PLAN `fd76964` 重 seal，feat `c2e8dbe`）**: 框选改 Cursor 式并入对话。删 AIContextMenu 浮菜单(7动作)+agent.py quick_action 分支/字段(注:上 session quick_action 实现未 commit 进 agent.py,只 seal 了 PLAN,本块连同删除首次提交,故 diff HEAD agent.py 仅 +1 空行)。选区→MarkdownTiptapEditor 贴入浮按钮(position:fixed,核实原 AIContextMenu 未用 portal 故不需)→AIChatPanel 引用标签(📎 N字+前40字预览,Tag closable)→user_input 拼引用块(`【用户引用的原文】<引用块开始>...<引用块结束>`)并入对话上下文。**后端零改动**(Plan agent 核实:_dispatch_to_sub_agent 签名无 context 形参,独立字段送不到 agent;意图识别只读 user_input;generate shortcut 在 recognize 前短路不经 dispatch——独立字段方案要改主链签名违反增量改,前端拼装是唯一最小路径,且引用块标记引导判 edit_document 正合 unify 语义)。**守卫**: generate/fill 模式不拼选区(全量生成语义),空需求+有选区补默认指令"请针对我引用的原文进行处理",fetch 成功后 onClearSelectedText 一次性清空。**禁区守住**: AISuggestionBar+useAIStream+旧端点 /quick-actions-stream+ACTION_PROMPTS 全保留(AISuggestionBar 依赖),审校按钮留快捷入口,generate/fill 主链零改动,intent_recognizer/dispatch/orchestrator 不动。**验证**: tsc 0 错 + pytest 718 passed(1 预存 failed test_prompt_requires_step_name_prefix 与本次无关) + import OK + grep quick_action app/ 仅 assistant.py。**留部署环境验**: 端到端 UI 5 场景(贴入发送/空需求默认指令/×关闭/generate 守卫不拼/二次贴入覆盖)+ LLM 针对 选区回复。**待拆后续块**: 意图收敛(10→5)/edit_local 执行单元/计划确认交互/素材检查追问。**task_state: done。**
 
 - **完成（intent-llm-dispatch-fix，总纲 `dialog-task-pipeline` 第四步，PLAN `9593d0a` seal）**：意图识别改 LLM + 修下游断链 + 多加测试。**intent_recognizer.py**:`recognize()` 加 `_classify_with_llm`(`generate_with_messages` tier=simple temp=0.1,prompt 照 review_service 范式 + `_parse_intent_json` 容错 ```json fence/杂文);fail-soft——LLM 失败/超时/JSON 不可解析→退关键词正则;draft_complete 复合检测优先覆盖。**orchestrator.py**:① process_intent **shortcut 移到 recognize 前**(`generation_mode in (generate,fill)`→构造 draft_complete intent,不调 LLM recognize,generate/fill 主链零延迟——硬约束守住)② `_dispatch` agent_mapping 补 `document_generation→writing` ③ `_dispatch` legacy_mapping 加 `user_confirmation→skipped`。**INTENT_TO_TASKS 核对**:7 个 TaskType 全接住。**多加测试**:`test_intent_recognizer.py`(新,18 用例:LLM 分类/fail-soft/draft_complete 优先/JSON 容错/@skip 真实,intent_recognizer 从 0% 覆盖)+ `test_orchestrator_dispatch.py`(新,9 用例:断链修复/shortcut 保护)。**验证**:新测试 **26 passed 1 skipped** + 全量 **788 passed(762+26)0 新回归**(1 预存 failed `test_prompt_requires_step_name_prefix`=g25a-step-numbering 遗留,与本次无关)。**禁区守住**:generate-stream/draft_complete/source-driven 主链零改动,detect_mode 不动,不收敛意图集。**task_state: done。**
 
