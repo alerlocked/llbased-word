@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-07-30T22:31:18+08:00
-last_commit: 4393422
+updated_at: 2026-07-31T08:01:07+08:00
+last_commit: 6141ac2
 status: intent-llm-dispatch-fix done（总纲 dialog-task-pipeline 第四步）：意图识别改 LLM(_classify_with_llm tier=simple temp=0.1 + JSON 容错 + fail-soft 关键词兜底)+ 修下游断链(_dispatch 补 document_generation→writing + user_confirmation→skipped)+ shortcut 保护(process_intent shortcut 移到 recognize 前,generate/fill 不走 LLM)。多加测试:intent_recognizer 18 用例(0%→覆盖)+ dispatch 9 用例。pytest 788 passed(762+26新)0 新回归(1 预存 failed=test_prompt_requires_step_name_prefix 与本次无关)。总纲 done 3/4(剩局部修改)。上轮 qa-retrieval-quality done（bb58cb3）。
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `4393422` feat(intent-llm-dispatch-fix): 意图识别改LLM+修下游断链+多加测试 (0 seconds ago)
-- `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (12 minutes ago)
-- `bb58cb3` feat(qa-retrieval-quality): QA 检索提质-同义词扩展+失败强约束+jieba词典 (26 minutes ago)
-- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (30 minutes ago)
-- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (58 minutes ago)
-- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (69 minutes ago)
-- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
-- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (12 hours ago)
+- `6141ac2` plan(unify-selection-into-dialog): seal - 框选修改并入对话,UI/端点/SSE 统一 (1 second ago)
+- `4393422` feat(intent-llm-dispatch-fix): 意图识别改LLM+修下游断链+多加测试 (10 hours ago)
+- `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (10 hours ago)
+- `bb58cb3` feat(qa-retrieval-quality): QA 检索提质-同义词扩展+失败强约束+jieba词典 (10 hours ago)
+- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (10 hours ago)
+- `4929587` feat(dialog-review-proofread): 对话式审/校链路 + 修 proofread 端点 (10 hours ago)
+- `ed8b1db` plan(dialog-review-proofread): seal - 复用 review/proofread 端点 + 前端按钮接线 (11 hours ago)
+- `edeb97f` refactor(orchestrator): 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (22 hours ago)
+- `c58f45d` plan(cleanup-dead-workflow): seal - 删死 workflow 链路 + 修 ARCHITECTURE 文档腐烂 (22 hours ago)
 - `1ce51da` feat(content-type): explicit media_type for SPA, decouple system mimetypes (2 days ago)
-- `be7a4c2` plan(content-type): seal - frontend media_type takeover, decouple mimetypes (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
