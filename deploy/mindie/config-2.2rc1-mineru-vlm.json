@@ -1,0 +1,63 @@
+{
+  "Version": "1.0.0",
+  "LogConfig": {
+    "logLevel": "Info",
+    "logFileSize": 20,
+    "logFileNum": 20,
+    "logPath": "logs/mindie-server.log",
+    "dynamicLogLevel": "Info",
+    "dynamicLogLevelValidHours": 2,
+    "dynamicLogLevelValidTime": ""
+  },
+  "ServerConfig": {
+    "ipAddress": "0.0.0.0",
+    "port": 1040,
+    "managementPort": 1041,
+    "metricsPort": 1042,
+    "maxLinkNum": 1000,
+    "httpsEnabled": false,
+    "allowAllZeroIpListening": true,
+    "openAiSupport": "vllm",
+    "inferMode": "standard",
+    "tokenTimeout": 600,
+    "e2eTimeout": 600
+  },
+  "BackendConfig": {
+    "backendName": "mindieservice_llm_engine",
+    "modelInstanceNumber": 1,
+    "npuDeviceIds": [[0,1]],
+    "tokenizerProcessNumber": 8,
+    "ModelDeployConfig": {
+      "maxSeqLen": 4096,
+      "maxInputTokenLen": 3072,
+      "truncation": false,
+      "ModelConfig": [
+        {
+          "modelInstanceType": "Standard",
+          "modelName": "MinerU2.5-Pro-2604-1.2B",
+          "modelWeightPath": "/models/MinerU2.5-Pro-2604-1.2B",
+          "worldSize": 2,
+          "cpuMemSize": 5,
+          "npuMemSize": -1,
+          "backendType": "atb",
+          "trustRemoteCode": false
+        }
+      ]
+    },
+    "ScheduleConfig": {
+      "templateType": "Standard",
+      "templateName": "Standard_LLM",
+      "cacheBlockSize": 128,
+      "maxPrefillBatchSize": 4,
+      "maxPrefillTokens": 3072,
+      "prefillTimeMsPerReq": 150,
+      "prefillPolicyType": 0,
+      "decodeTimeMsPerReq": 50,
+      "decodePolicyType": 0,
+      "maxBatchSize": 32,
+      "maxIterTimes": 2048,
+      "maxPreemptCount": 0,
+      "maxQueueDelayMicroseconds": 5000
+    }
+  }
+}
