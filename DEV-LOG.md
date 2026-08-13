@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-13T23:47:13+08:00
-last_commit: b8eb17c
+updated_at: 2026-08-14T00:43:15+08:00
+last_commit: dd78b57
 status: unify-selection-into-dialog done（总纲 dialog-task-pipeline 延伸,PLAN fd76964 seal,feat c2e8dbe）: 框选改 Cursor 式并入对话——删 AIContextMenu 浮菜单+agent.py quick_action 分支/字段,选区→贴入浮按钮→引用标签(📎预览+×)→user_input 拼引用块并入对话上下文(后端零改动)。审校按钮留快捷入口,AISuggestionBar+旧端点保留。验证 tsc 0 错+pytest 718 passed(1预存failed无关)+import OK+quick_action 残留清零。端到端 UI+LLM 响应留部署环境验。
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `b8eb17c` chore(governance): add PR template + review process doc (0 seconds ago)
-- `7fc642f` chore(governance): enforce admin-only PR review via CODEOWNERS (17 minutes ago)
-- `a30550e` test(fixtures): add csv export test fixtures (2 hours ago)
-- `f25162f` chore(governance): multi-dev collaboration setup (2 hours ago)
-- `f18e861` feat(profile): expand assembly profile and refine VISION acceptance (25 hours ago)
-- `85820d8` feat(deploy): add MindIE configs, scripts and package for Kylin (25 hours ago)
+- `dd78b57` docs: add ONBOARDING quickstart for collaborators (1 second ago)
+- `b8eb17c` chore(governance): add PR template + review process doc (56 minutes ago)
+- `7fc642f` chore(governance): enforce admin-only PR review via CODEOWNERS (73 minutes ago)
+- `a30550e` test(fixtures): add csv export test fixtures (3 hours ago)
+- `f25162f` chore(governance): multi-dev collaboration setup (3 hours ago)
+- `f18e861` feat(profile): expand assembly profile and refine VISION acceptance (26 hours ago)
+- `85820d8` feat(deploy): add MindIE configs, scripts and package for Kylin (26 hours ago)
 - `a1dfa18` docs(edit-local): 方向落盘 - 框选+自然语言都要,cell+段落对象,下轮开 (2 days ago)
 - `a694702` docs(devlog): unify-selection-into-dialog done + 端到端留部署验 (2 days ago)
 - `c2e8dbe` feat(unify-selection-into-dialog): 框选改 Cursor 式并入对话 + 删 quick_action (2 days ago)
-- `fd76964` plan(unify-selection-into-dialog): 重 seal - 框选改 Cursor 式引用标签+删 quick_action (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
