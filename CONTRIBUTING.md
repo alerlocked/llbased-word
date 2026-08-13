@@ -100,3 +100,12 @@ git push -u origin feature/<your-feature>
 - 不提交 `.env` / 密钥 / 内网真实 IP（脱敏用占位符 `SERVER_IP`）
 - 不提交业务数据（`data/*.docx`、`backend/data/process_docs/`、`*.db` 等，`.gitignore` 已排除）
 - 不擅自 pull/merge/rebase 解决分叉，分叉在 PR 里讨论
+
+## 9. PR 审查流程
+
+1. **开 PR**：填 PR 模板（`.github/pull_request_template.md`），声明改动类型 + **是否触碰架构层** + 自测结果。
+2. **南天门审查**：admin 在本地 session（或 cc-connect）跑 `/code-review`，南天门审 diff（bug / 架构层越界 / 品味 / 安全）给意见。
+3. **admin 把关**：`@alerlocked` 看 review 意见 + 自查 → **approve**（架构层 PR CODEOWNERS 强制 admin approve）。
+4. **merge**：review 通过后 merge，删分支。
+
+> 当前南天门审查（`/code-review`）偏基础。**深度 PR 审查能力强化（多维审查 / GitHub 自动集成）属南天门核心层，需开 NTM_MAINT session 搭建。**
