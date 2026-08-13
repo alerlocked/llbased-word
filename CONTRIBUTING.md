@@ -65,6 +65,8 @@ git push -u origin feature/<your-feature>
 4. 纯功能改动（前端组件、单个 agent 的 prompt 微调、新端点等）走普通 feature 分支即可，但 PR 描述里若意外触碰了上表文件，请主动说明。
 
 > 判定标准：改了上表文件 = 架构层改动，无论改动大小。拿不准就当架构层处理（开 `[architecture]` PR）。
+>
+> `/pr-review` 会**自动检测 §4 越界**（功能 PR 混入架构层文件 / 架构层 PR 未更新 `ARCHITECTURE.md` / 架构层未走独立 `[architecture]` 分支）→ 直接判 🔴 blocker。靠机器兜底，不纯靠人眼。
 
 ## 5. commit 规范
 
@@ -104,8 +106,13 @@ git push -u origin feature/<your-feature>
 ## 9. PR 审查流程
 
 1. **开 PR**：填 PR 模板（`.github/pull_request_template.md`），声明改动类型 + **是否触碰架构层** + 自测结果。
-2. **南天门审查**：admin 在本地 session（或 cc-connect）跑 `/code-review`，南天门审 diff（bug / 架构层越界 / 品味 / 安全）给意见。
-3. **admin 把关**：`@alerlocked` 看 review 意见 + 自查 → **approve**（架构层 PR CODEOWNERS 强制 admin approve）。
+2. **南天门多维审查**：admin 在本地 NTM session 跑 `/pr-review localknowledgebase-word <pr号>`（无 PR 号则审当前分支）。它**复用 Claude Code 底座**（`/code-review` 查 bug/简化 + `/security-review` 查安全）+ **补三处南天门增量**：
+   - **架构层越界**（§4 清单 diff 比对 + 是否同步更新 `ARCHITECTURE.md`）
+   - **项目经验**（wiki 经验库 `exp-*.md` + `pitfalls.md` 踩坑匹配）
+   - **品味**（`guard-taste` 规则）
+
+   输出**分级报告**：🔴 blocker（必修）/ 🟡 warn（应修）/ ⚪ nit（可选），每条引来源（§4 规则号 / exp 文件 / taste T0x / CC 输出）。
+3. **admin 把关**：`@alerlocked` 看报告 + 自查 → **approve**（架构层 PR CODEOWNERS 强制 admin approve；blocker 必修后才能 merge，warn 评估）。
 4. **merge**：review 通过后 merge，删分支。
 
-> 当前南天门审查（`/code-review`）偏基础。**深度 PR 审查能力强化（多维审查 / GitHub 自动集成）属南天门核心层，需开 NTM_MAINT session 搭建。**
+> 南天门多维审查（`/pr-review`）已于 2026-08-14 落地：通用 bug/安全走 CC 底座不重造，南天门只补 CC 不知道的「架构层边界 / 项目经验 / 品味」三处增量。命令在 NTM 核心层 `.claude/commands/pr-review.md`，**项目无关**——审查时自动读本项目的 §4 清单 / 经验 / pitfalls。

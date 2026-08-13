@@ -25,3 +25,6 @@
 
 ## 备注
 <!-- breaking change / 待办 / 需部署环境验证的留这里 -->
+
+---
+<!-- admin 审查：将跑 `/pr-review localknowledgebase-word <本PR号>`（多维：架构层越界 §4 / 项目经验 / 品味 / bug / 安全）→ 🔴blocker/🟡warn/⚪nit 分级报告 -->
