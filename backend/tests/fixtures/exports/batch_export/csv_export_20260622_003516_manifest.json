@@ -1,0 +1,31 @@
+{
+  "export_id": "csv_export_20260622_003516",
+  "exported_at": "2026-06-22T00:35:16.326274",
+  "total_tables": 2,
+  "total_rows": 4,
+  "encoding": "utf-8-sig",
+  "files": [
+    {
+      "table_id": "test_table_1",
+      "filename": "csv_export_20260622_003516_table_1.csv",
+      "filepath": "backend\\tests\\fixtures\\exports\\batch_export\\csv_export_20260622_003516_table_1.csv",
+      "rows": 2,
+      "columns": 3,
+      "file_size_bytes": 61,
+      "encoding": "utf-8-sig",
+      "exported_at": "2026-06-22T00:35:16.322529",
+      "metadata_file": "backend\\tests\\fixtures\\exports\\batch_export\\csv_export_20260622_003516_table_1.metadata.json"
+    },
+    {
+      "table_id": "test_table_2",
+      "filename": "csv_export_20260622_003516_table_2.csv",
+      "filepath": "backend\\tests\\fixtures\\exports\\batch_export\\csv_export_20260622_003516_table_2.csv",
+      "rows": 2,
+      "columns": 3,
+      "file_size_bytes": 58,
+      "encoding": "utf-8-sig",
+      "exported_at": "2026-06-22T00:35:16.326274",
+      "metadata_file": "backend\\tests\\fixtures\\exports\\batch_export\\csv_export_20260622_003516_table_2.metadata.json"
+    }
+  ]
+}

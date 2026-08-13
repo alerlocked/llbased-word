@@ -1,0 +1,22 @@
+{
+  "table_id": "empty_table",
+  "page_number": 0,
+  "bbox": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "confidence_score": 0.0,
+  "extraction_method": "test",
+  "parser_used": "simple",
+  "table_type": "general_table",
+  "metadata": {
+    "has_merged_cells": false,
+    "is_continuation": false,
+    "has_border": true,
+    "is_rotated": false
+  },
+  "exported_at": "2026-07-05T10:05:31.937233",
+  "encoding": "utf-8-sig"
+}
