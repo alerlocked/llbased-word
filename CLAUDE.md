@@ -4,9 +4,10 @@
 
 ## Repo
 
-- GitHub: `alerlocked/llbased-word`
+- GitHub: `alerlocked/llbased-word`（**public**，`main` 受 branch protection 保护，禁直推走 PR）
 - Project Board: https://github.com/users/alerlocked/projects/1
-- 当前分支: `feature/v1-cleanup`
+- 主干: `main`
+- 协作流程: 见 [CONTRIBUTING.md](CONTRIBUTING.md)（分支模型 / PR + review / ⭐架构层隔离清单 / commit 规范 / 新协作者入门）
 
 ## 技术栈
 

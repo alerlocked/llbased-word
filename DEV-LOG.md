@@ -2,15 +2,16 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-12T22:17:49+08:00
-last_commit: 85820d8
+updated_at: 2026-08-12T22:18:12+08:00
+last_commit: f18e861
 status: unify-selection-into-dialog done（总纲 dialog-task-pipeline 延伸,PLAN fd76964 seal,feat c2e8dbe）: 框选改 Cursor 式并入对话——删 AIContextMenu 浮菜单+agent.py quick_action 分支/字段,选区→贴入浮按钮→引用标签(📎预览+×)→user_input 拼引用块并入对话上下文(后端零改动)。审校按钮留快捷入口,AISuggestionBar+旧端点保留。验证 tsc 0 错+pytest 718 passed(1预存failed无关)+import OK+quick_action 残留清零。端到端 UI+LLM 响应留部署环境验。
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `85820d8` feat(deploy): add MindIE configs, scripts and package for Kylin (1 second ago)
+- `f18e861` feat(profile): expand assembly profile and refine VISION acceptance (0 seconds ago)
+- `85820d8` feat(deploy): add MindIE configs, scripts and package for Kylin (24 seconds ago)
 - `a1dfa18` docs(edit-local): 方向落盘 - 框选+自然语言都要,cell+段落对象,下轮开 (22 hours ago)
 - `a694702` docs(devlog): unify-selection-into-dialog done + 端到端留部署验 (24 hours ago)
 - `c2e8dbe` feat(unify-selection-into-dialog): 框选改 Cursor 式并入对话 + 删 quick_action (24 hours ago)
@@ -19,11 +20,12 @@ task_state: done
 - `4393422` feat(intent-llm-dispatch-fix): 意图识别改LLM+修下游断链+多加测试 (13 days ago)
 - `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (13 days ago)
 - `bb58cb3` feat(qa-retrieval-quality): QA 检索提质-同义词扩展+失败强约束+jieba词典 (13 days ago)
-- `6abd5c9` plan(qa-retrieval-quality): seal - 同义词扩展+失败强约束+jieba词典 (13 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **完成（multi-dev-git-governance，2026-08-13）**: 进入多人协作前的仓库治理。① **force push** 本地 main 对齐远程（打破 380/1 分叉死循环，已核实远程唯一 commit #59 功能本地已覆盖）② 仓库改 **public** + 配 `main` **branch protection**（require PR + ≥1 review + 禁 force push；`enforce_admins=false` admin 可 bypass，单人推进不卡）③ `.gitignore` 补全（screenshots / deploy-screenshots / e2e 报告 / backend data 运行数据 / 根 data 业务 docx·wps）+ 删误建 `backend/backend/` 副本 ④ **CONTRIBUTING.md** 协作规范（分支模型 / PR 流程 / ⭐架构层隔离：`backend/app/agents/**` + `hierarchical_context.py` + `knowledge_graph.py` + `models/database.py` + `agent.py` generate-stream 主链 + `ARCHITECTURE.md` → 独立 PR 强制 review / commit 规范 / 新人入门）⑤ 项目 CLAUDE.md 修过时分支段。安全扫确认无密钥泄露（仅内网拓扑 IP，用户判内网隔离可接受）。补 csv export 测试 fixtures。
 
 - **完成（unify-selection-into-dialog，PLAN `fd76964` 重 seal，feat `c2e8dbe`）**: 框选改 Cursor 式并入对话。删 AIContextMenu 浮菜单(7动作)+agent.py quick_action 分支/字段(注:上 session quick_action 实现未 commit 进 agent.py,只 seal 了 PLAN,本块连同删除首次提交,故 diff HEAD agent.py 仅 +1 空行)。选区→MarkdownTiptapEditor 贴入浮按钮(position:fixed,核实原 AIContextMenu 未用 portal 故不需)→AIChatPanel 引用标签(📎 N字+前40字预览,Tag closable)→user_input 拼引用块(`【用户引用的原文】<引用块开始>...<引用块结束>`)并入对话上下文。**后端零改动**(Plan agent 核实:_dispatch_to_sub_agent 签名无 context 形参,独立字段送不到 agent;意图识别只读 user_input;generate shortcut 在 recognize 前短路不经 dispatch——独立字段方案要改主链签名违反增量改,前端拼装是唯一最小路径,且引用块标记引导判 edit_document 正合 unify 语义)。**守卫**: generate/fill 模式不拼选区(全量生成语义),空需求+有选区补默认指令"请针对我引用的原文进行处理",fetch 成功后 onClearSelectedText 一次性清空。**禁区守住**: AISuggestionBar+useAIStream+旧端点 /quick-actions-stream+ACTION_PROMPTS 全保留(AISuggestionBar 依赖),审校按钮留快捷入口,generate/fill 主链零改动,intent_recognizer/dispatch/orchestrator 不动。**验证**: tsc 0 错 + pytest 718 passed(1 预存 failed test_prompt_requires_step_name_prefix 与本次无关) + import OK + grep quick_action app/ 仅 assistant.py。**留部署环境验**: 端到端 UI 5 场景(贴入发送/空需求默认指令/×关闭/generate 守卫不拼/二次贴入覆盖)+ LLM 针对 选区回复。**待拆后续块**: 意图收敛(10→5)/edit_local 执行单元/计划确认交互/素材检查追问。**task_state: done。**
 
