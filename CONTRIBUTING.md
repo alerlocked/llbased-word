@@ -6,6 +6,7 @@
 
 - 仓库 public：`github.com/alerlocked/llbased-word`
 - `main` **受保护**：禁止直推、禁止 force push，所有改动走 **PR + 至少 1 个 review**
+- **PR 审查路由**：`CODEOWNERS` 强制所有 PR 必须经 `@alerlocked`（admin）review 才能 merge；协作者互相 approve **不算数**。架构层（§4）同样强制 admin review。
 - 本地是 source of truth，远程跟随；分叉不擅自 pull/merge/rebase，暴露在 PR 里讨论
 
 ## 2. 分支模型
@@ -38,7 +39,8 @@ git push -u origin feature/<your-feature>
 # 5. GitHub 开 PR：
 #    - base: main ← compare: feature/<your-feature>
 #    - 涉及架构层 → 标题前缀 [architecture]（见 §4）
-#    - 等 ≥1 个 review 通过
+#    - 等 admin(@alerlocked) review 通过 —— CODEOWNERS 强制,
+#      协作者互相 approve 不算数
 
 # 6. review 通过后 merge（squash 或 merge commit 均可），删远程分支
 ```

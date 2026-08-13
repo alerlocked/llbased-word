@@ -1,0 +1,15 @@
+# CODEOWNERS - PR 审查强制路由
+# 所有 PR 必须经 @alerlocked (admin) review 才能 merge
+# 协作者互相 approve 不算数（require_code_owner_reviews=true）
+# 详见 CONTRIBUTING.md §4 架构层隔离
+
+# 默认: 所有文件 owner = admin
+* @alerlocked
+
+# 架构层(显式强调,CONTRIBUTING §4 - 独立 PR 强制 admin review)
+/backend/app/agents/ @alerlocked
+/backend/app/services/hierarchical_context.py @alerlocked
+/backend/app/services/knowledge_graph.py @alerlocked
+/backend/app/models/database.py @alerlocked
+/backend/app/api/agent.py @alerlocked
+/ARCHITECTURE.md @alerlocked

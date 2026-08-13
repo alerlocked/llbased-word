@@ -2,15 +2,16 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-13T21:36:02+08:00
-last_commit: f25162f
+updated_at: 2026-08-13T21:36:35+08:00
+last_commit: a30550e
 status: unify-selection-into-dialog done（总纲 dialog-task-pipeline 延伸,PLAN fd76964 seal,feat c2e8dbe）: 框选改 Cursor 式并入对话——删 AIContextMenu 浮菜单+agent.py quick_action 分支/字段,选区→贴入浮按钮→引用标签(📎预览+×)→user_input 拼引用块并入对话上下文(后端零改动)。审校按钮留快捷入口,AISuggestionBar+旧端点保留。验证 tsc 0 错+pytest 718 passed(1预存failed无关)+import OK+quick_action 残留清零。端到端 UI+LLM 响应留部署环境验。
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `f25162f` chore(governance): multi-dev collaboration setup (0 seconds ago)
+- `a30550e` test(fixtures): add csv export test fixtures (1 second ago)
+- `f25162f` chore(governance): multi-dev collaboration setup (33 seconds ago)
 - `f18e861` feat(profile): expand assembly profile and refine VISION acceptance (23 hours ago)
 - `85820d8` feat(deploy): add MindIE configs, scripts and package for Kylin (23 hours ago)
 - `a1dfa18` docs(edit-local): 方向落盘 - 框选+自然语言都要,cell+段落对象,下轮开 (2 days ago)
@@ -19,7 +20,6 @@ task_state: done
 - `fd76964` plan(unify-selection-into-dialog): 重 seal - 框选改 Cursor 式引用标签+删 quick_action (2 days ago)
 - `6141ac2` plan(unify-selection-into-dialog): seal - 框选修改并入对话,UI/端点/SSE 统一 (2 weeks ago)
 - `4393422` feat(intent-llm-dispatch-fix): 意图识别改LLM+修下游断链+多加测试 (2 weeks ago)
-- `9593d0a` plan(intent-llm-dispatch-fix): seal - 意图识别改LLM+修下游断链+多加测试 (2 weeks ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
