@@ -1734,6 +1734,27 @@ class WritingAgent(BaseAgent):
                 f"每个检验点独占一行（用换行分隔）。不要写操作步骤（操作步骤归 content）。\n\n"
                 f"## 工序{i}（{name}）工步原文（content 的依据，按上述工步结构详实展开，保留全部工步信息）\n{sub_text}\n"
             )
+            def _fallback_slots(reason: str) -> List[Dict[str, Any]]:
+                """Degraded fill (Ch16 in-tier): LLM generation failed after all
+                retries → fall back to source substeps verbatim, marked for
+                human review. Same-row LLM 润色 degrades to 原文直抄, never a
+                silently empty delivered row."""
+                # Compose readable lines: strip the two-space indent + keep
+                # the 辅材 suffix; prefix each with the i.N step id like the
+                # normal generation format.
+                lines = [l.strip() for l in sub_text.splitlines() if l.strip()]
+                if lines == ["（原文未提供）"]:
+                    return []  # nothing to fall back to — report as gap
+                content_lines = []
+                for k, l in enumerate(lines, start=1):
+                    content_lines.append(f"{i}.{k} {l}")
+                content = "\n".join(content_lines) + "\n（原文直填，待润色）"
+                logger.warning(
+                    "g25a_per_step_fallback",
+                    step=i, reason=reason, lines=len(content_lines),
+                )
+                return [{"row": i, "slot": "content", "value": content}]
+
             async with semaphore:
                 # Per-row resilience (F1): retry LLM errors and JSON parse
                 # failures in place (2 retries, exponential backoff). Before
@@ -1765,7 +1786,7 @@ class WritingAgent(BaseAgent):
                             "g25a_per_step_failed", step=i,
                             error=result.get("error"), attempts=max_attempts,
                         )
-                        return []
+                        return _fallback_slots(f"llm_error:{last_failure_class}")
                     raw = result["content"].strip()
                     if result.get("finish_reason") == "length":
                         logger.warning("g25a_per_step_truncated", step=i, max_tokens=3000)
@@ -1780,7 +1801,7 @@ class WritingAgent(BaseAgent):
                             )
                             continue
                         logger.warning("g25a_per_step_parse_failed", step=i, attempts=max_attempts)
-                        return []
+                        return _fallback_slots("parse_fail")
                     break
                 slots = []
                 for item in parsed:
@@ -1817,22 +1838,39 @@ class WritingAgent(BaseAgent):
                 aux_overrides[s["row"]] = s["value"]
             else:
                 content_slots.append(s)
-        # Completeness check (F4): rows with no content value after all retries
-        # are reported as explicit gaps — never silently delivered empty.
+        # Completeness check (F4): after retries + sub_text fallback, two
+        # residual gap kinds — degraded rows (fell back, delivered but marked
+        # for review) and true gaps (no source text to fall back on).
         rows_covered = {s["row"] for s in content_slots if s.get("value")}
+        degraded_rows = {
+            s["row"] for s in content_slots
+            if "（原文直填，待润色）" in (s.get("value") or "")
+        }
         missing_rows = [i for i in range(1, n + 1) if i not in rows_covered]
         row_gaps: List[Dict[str, Any]] = []
+        for i in degraded_rows:
+            name = skel[i - 1] if i - 1 < len(skel) else str(i)
+            row_gaps.append({
+                "row": i,
+                "message": f"工序 {i}（{name}）生成失败，已回退原文直填，建议人工复核",
+            })
         if missing_rows:
             for i in missing_rows:
                 name = skel[i - 1] if i - 1 < len(skel) else str(i)
                 row_gaps.append({
                     "row": i,
-                    "message": f"工序 {i}（{name}）内容生成失败，该行留空",
+                    "message": f"工序 {i}（{name}）生成失败且原文未提供，该行留空",
                 })
             logger.warning(
                 "g25a_completeness_gaps",
                 chapter_code="G25a", expected_rows=n,
                 missing_rows=missing_rows,
+            )
+        if degraded_rows:
+            logger.warning(
+                "g25a_degraded_rows_fallback",
+                chapter_code="G25a", expected_rows=n,
+                degraded_rows=sorted(degraded_rows),
             )
         logger.info(
             "g25a_per_step_parallel_done",
