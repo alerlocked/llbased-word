@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/session-continuity-local-resilience
-updated_at: 2026-08-16T12:53:37+08:00
-last_commit: 2cecac1
+updated_at: 2026-08-16T12:54:43+08:00
+last_commit: c9090db
 status: session-continuity-local-resilience running（底层架构更新第一批:会话接续 state+memory/LLM 韧性/G25a 静默失败治理;PLAN ff191eb seal,9 节点 2 轨道,分支 feature/session-continuity-local-resilience,PR 流程合入）;前序:unify-selection-into-dialog done/multi-dev-git-governance done
 task_state: running
 task_slug: session-continuity-local-resilience
@@ -11,22 +11,22 @@ task_slug: session-continuity-local-resilience
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `2cecac1` fix(writing): per-row retry and completeness reporting for G25a parallel generation (1 second ago)
-- `140b4a1` feat(agents): pass project working state into writing agent chapter prompts (4 minutes ago)
-- `4fe8d05` feat(state): inject project working state into generation chain and record per-turn updates (6 minutes ago)
-- `2d65586` feat(memory): scope session memory per project with keyword-recall fallback to global (8 minutes ago)
-- `4b7481e` feat(state): add per-project rolling working-state service with atomic JSON storage (9 minutes ago)
-- `c901813` feat(llm): retry with backoff, context-trim, and classified errors in generate_with_messages (9 minutes ago)
-- `a569541` feat(llm): add LLM error classification module with per-class mitigation policies (20 minutes ago)
-- `3933133` docs(devlog): mark session-continuity-local-resilience running (0/9) (21 minutes ago)
-- `ff191eb` plan: session continuity + local LLM resilience + G25a silent-failure fix (9 nodes, 2 tracks) (21 minutes ago)
-- `dda8eda` align: resolve all open questions (state+memory / g25a root cause / PR flow / per-project memory) (52 minutes ago)
+- `c9090db` feat(sse): emit warning events for chapter row gaps and surface them in chat panel (1 second ago)
+- `2cecac1` fix(writing): per-row retry and completeness reporting for G25a parallel generation (67 seconds ago)
+- `140b4a1` feat(agents): pass project working state into writing agent chapter prompts (5 minutes ago)
+- `4fe8d05` feat(state): inject project working state into generation chain and record per-turn updates (7 minutes ago)
+- `2d65586` feat(memory): scope session memory per project with keyword-recall fallback to global (9 minutes ago)
+- `4b7481e` feat(state): add per-project rolling working-state service with atomic JSON storage (11 minutes ago)
+- `c901813` feat(llm): retry with backoff, context-trim, and classified errors in generate_with_messages (11 minutes ago)
+- `a569541` feat(llm): add LLM error classification module with per-class mitigation policies (21 minutes ago)
+- `3933133` docs(devlog): mark session-continuity-local-resilience running (0/9) (22 minutes ago)
+- `ff191eb` plan: session continuity + local LLM resilience + G25a silent-failure fix (9 nodes, 2 tracks) (22 minutes ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **进行中（session-continuity-local-resilience，2026-08-16 开）**: 底层架构更新第一批（同事做登录界面，本线做底层）。三包：A 会话接续（项目级 state 滚动工作状态 + memory 按项目分目录，新会话开局注入主生成链路，解决本地 Qwen3-30B-A3B 多轮上下文满 + 新会话无法接续）；B LLM 韧性层（llm_service 错误分类 + 重试退避 + 溢出裁剪）；C G25a 静默失败治理（根因：writing_agent.py:1729/1736/1762 单行失败静默 return []，治法 = 单行重试 + 完成度核对 SSE warning 上报，补 VISION"可靠"验收漏网点）。PLAN `ff191eb` seal（9 节点 2 轨道：N1→N2→N7→N8 韧性线 / N3→N4/N5→N6 接续线）。**验证基线实测 784 passed**（非旧数 718），预存失败 test_prompt_requires_step_name_prefix 保持 deselect。分支 `feature/session-continuity-local-resilience`，合入走标准 PR + /pr-review（agents/** 架构层隔离强制 review）。进度：0/9 节点。
+- **进行中（session-continuity-local-resilience，2026-08-16 开）**: 底层架构更新第一批（同事做登录界面，本线做底层）。三包：A 会话接续（项目级 state 滚动工作状态 + memory 按项目分目录，新会话开局注入主生成链路，解决本地 Qwen3-30B-A3B 多轮上下文满 + 新会话无法接续）；B LLM 韧性层（llm_service 错误分类 + 重试退避 + 溢出裁剪）；C G25a 静默失败治理（根因：writing_agent.py:1729/1736/1762 单行失败静默 return []，治法 = 单行重试 + 完成度核对 SSE warning 上报，补 VISION"可靠"验收漏网点）。PLAN `ff191eb` seal（9 节点 2 轨道）。**进度：9/9 节点完成**——N1 llm_errors(`a569541`) / N2 llm_service 重试层(`c901813`) / N3 ProjectStateService(`4b7481e`) / N4 memory 按项目分域(`2d65586`) / N5 主链路 state 注入+写入(`4fe8d05`) / N6 WritingAgent state 注入(`140b4a1`) / N7 G25a per-row 重试+完成度(`2cecac1`) / N8 SSE warning 前后端(`c9090db`) / N9 ARCHITECTURE 更新(本 commit)。新增单测 58 个；中点基线 815 passed 0 回归；前端 tsc 0 错；收尾全量门跑完再 push 开 PR。分支 `feature/session-continuity-local-resilience`，合入走标准 PR + /pr-review（agents/** 架构层隔离强制 review）。
 
 - **完成（multi-dev-git-governance，2026-08-13）**: 进入多人协作前的仓库治理。① **force push** 本地 main 对齐远程（打破 380/1 分叉死循环，已核实远程唯一 commit #59 功能本地已覆盖）② 仓库改 **public** + 配 `main` **branch protection**（require PR + ≥1 review + 禁 force push；`enforce_admins=false` admin 可 bypass，单人推进不卡）③ `.gitignore` 补全（screenshots / deploy-screenshots / e2e 报告 / backend data 运行数据 / 根 data 业务 docx·wps）+ 删误建 `backend/backend/` 副本 ④ **CONTRIBUTING.md** 协作规范（分支模型 / PR 流程 / ⭐架构层隔离：`backend/app/agents/**` + `hierarchical_context.py` + `knowledge_graph.py` + `models/database.py` + `agent.py` generate-stream 主链 + `ARCHITECTURE.md` → 独立 PR 强制 review / commit 规范 / 新人入门）⑤ 项目 CLAUDE.md 修过时分支段。安全扫确认无密钥泄露（仅内网拓扑 IP，用户判内网隔离可接受）。补 csv export 测试 fixtures。
 

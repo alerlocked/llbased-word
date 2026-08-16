@@ -36,6 +36,18 @@
 
 ## 4. 上下文 + 检索
 
+### 项目工作状态 + 项目级记忆(2026-08-16 session-continuity 加)
+- **ProjectStateService**(`services/project_state_service.py`):项目级滚动工作状态(session 接续)。存储 `data/project_state/{project_id}.json`(7 字段:current_task ≤200 字/focus_chapters ≤5/recent_intents ≤5/user_preferences/last_session_id/updated_at/project_id),原子写(tmp+os.replace,threading.Lock)。**注入链**:`_build_orchestrator_context`(agent.py)加载渲染块 → ① fallback LLM system_msg(`_build_llm_messages` project_state_block 参数)② orchestrator `_dispatch_to_sub_agent` 把块挂 agent_task → writing_agent system_msg 追加(两处组装点:通用 + `_do_template_fill`)。**写入**:4 个产出点旁 `_update_project_state`(提取 G25a 类章节码 + 意图 + 偏好信号词"以后都/统一"等)。多用户将来加路径层 `{user_id}/{project_id}/`(工厂函数一处改)。
+- **memory 按项目分域**:`data/memory/projects/{project_id}/`(`get_project_memory_service` 工厂,惰性缓存)。`build_context`/`_load_filtered_memory` 加 `project_id` 可选 kwarg——项目目录优先,空则回退全局目录(存量全局文件不迁移)。`_save_memory` 带 project_id 时路由项目级。
+
+### LLM 韧性层(2026-08-16 local-resilience 加)
+- **错误分类**(`services/llm_errors.py`):`LLMErrorClass` 7 类(timeout/connection_refused/context_overflow/empty_reply/json_parse_fail/rate_limit/unknown)+ `classify_exception`/`classify_error_text` + `USER_FACING_MESSAGES` 中文可读映射 + `should_retry` + `trim_messages_for_overflow`(只裁最长 user 消息,system 不动)。
+- **重试包装**(`llm_service._generate_with_retry`):`generate_with_messages`/`generate_text` 1+2 次重试指数退避;context_overflow 裁剪一次后仍在预算内重试;empty_reply 同消息重试;错误 dict 增量加 `error_class` 键(原 4 键契约不动);流式接口错误也分类+可读化。structlog(`llm_call_retry`/`llm_call_failed`)。
+
+### G25a per-row 韧性 + 完成度上报(2026-08-16 加)
+- `_generate_g25a_per_row_parallel` `gen_one`:LLM error/JSON parse fail 原地重试 2 次(0.5/1.0s 退避,`g25a_per_step_retry` 日志带分类)。
+- gather 后**完成度核对**:`rows_covered` vs n,缺口 `g25a_completeness_gaps` 日志 + 返回 4 元组加 `row_gaps`;`_do_template_fill` 返回 dict 增量加 `warnings` 键(沿 structured_results 管道零改动穿透到 agent.py)→ SSE `{'type':'warning','message':'[G25a] 工序 5…'}` 事件(content/result 之前 yield)→ 前端 AIChatPanel `warning` 分支渲染 `⚠`。治"工序四有/五空/六有"静默交付(违反 VISION 可靠验收的漏网点)。
+
 ### HierarchicalContext(`services/hierarchical_context.py:105`,4 层)
 - L0 元信息索引(`load_meta_index`)/ L1 表格索引(`load_table_index`)/ L2 表格 HTML(`extract_table_html`)/ L3 关键词检索(`global_keyword_search`,jieba 分词)/ **L3.5 KG**(`_search_knowledge_graph`,全局 craft_kg 辅料-标准-参数图谱,2026-07-24 加)。
 - material filter:型号(model)/ 专业(specialty)穿透。
@@ -54,6 +66,7 @@
 ## 5. 数据存储
 
 - `backend/data/documents/{material_id}/`:`index.json`(元信息)/ `content.html`(MinerU 解析)/ `content.json`(结构化)/ `chapter_index.json` / `vlm/`。
+- `data/project_state/{project_id}.json`(2026-08-16):项目滚动工作状态(见 §4)。`data/memory/projects/{project_id}/`(2026-08-16):项目级会话记忆(回退全局 `data/memory/`)。
 - **DB 表**(`models/database.py`,SQLite):Material / MaterialCatalog / MaterialPage / Figure / ProcessStep / Standard / StandardClause / StepMaterial / StepTool。
   - 关联:ProcessStep ←StepMaterial/StepTool→ MaterialCatalog。
   - `MaterialCatalog.standard_code`:G18a catalog enrich exact 查键。
