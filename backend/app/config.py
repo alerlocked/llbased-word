@@ -72,6 +72,19 @@ class Settings(BaseSettings):
     DASHSCOPE_BASE_URL_SIMPLE: str = ""  # e.g. http://localhost:1028/v1
     DASHSCOPE_BASE_URL_COMPLEX: str = ""  # 本地千问3-30B-A3B: http://localhost:1028/v1
 
+    # Thinking (reasoning) budget per tier — TPM economy for small local models.
+    # simple-tier calls (intent recognition / summaries / memory / QA lookup)
+    # are judgment tasks: thinking adds latency + burns TPM without quality
+    # gain → disabled by default. complex-tier generation keeps thinking with
+    # a moderate budget (per-row G25a content benefits; full-file review keeps
+    # the higher default). Tune per deployment via .env, e.g.:
+    #   THINKING_ENABLED_SIMPLE=false  THINKING_BUDGET_SIMPLE=0
+    #   THINKING_ENABLED_COMPLEX=true   THINKING_BUDGET_COMPLEX=512
+    THINKING_ENABLED_SIMPLE: bool = False
+    THINKING_BUDGET_SIMPLE: int = 0
+    THINKING_ENABLED_COMPLEX: bool = True
+    THINKING_BUDGET_COMPLEX: int = 1024
+
     # 阿里云检索服务配置
     ALIYUN_ACCESS_KEY_ID: str = ""
     ALIYUN_ACCESS_KEY_SECRET: str = ""
