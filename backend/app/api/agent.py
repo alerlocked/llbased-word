@@ -1079,7 +1079,12 @@ async def generate_stream(request: GenerateStreamRequest):
                             }
                             yield f"data: {json.dumps(sse_result, ensure_ascii=False)}\n\n"
                             logger.info(f"[draft_complete] template output: {len(chapters)} chapters (no markdown)")
-                            _save_memory(session_id, user_input, json.dumps(template_json, ensure_ascii=False))
+                            _save_memory(session_id, user_input, json.dumps(template_json, ensure_ascii=False), project_id=request.project_id)
+                            _update_project_state(
+                                request.project_id, session_id, user_input,
+                                intent_type=intent_type,
+                                focus_chapters=list(structured_results.keys()) if isinstance(structured_results, dict) else None,
+                            )
                         except Exception as e:
                             logger.warning(f"[draft_complete] template assembly failed (no-markdown path): {e}")
                             yield f"data: {json.dumps({'type': 'content', 'content': '执行完成但模板组装失败。'}, ensure_ascii=False)}\n\n"
@@ -1163,7 +1168,11 @@ async def generate_stream(request: GenerateStreamRequest):
                                 'content_format': 'markdown',
                             }
                         yield f"data: {json.dumps(sse_result, ensure_ascii=False)}\n\n"
-                        _save_memory(session_id, user_input, new_content)
+                        _save_memory(session_id, user_input, new_content, project_id=request.project_id)
+                        _update_project_state(
+                            request.project_id, session_id, user_input,
+                            intent_type=intent_type,
+                        )
                     else:
                         logger.warning(f"[draft_complete] new_content 为空! agent_result={str(agent_result)[:200]}")
                         yield f"data: {json.dumps({'type': 'content', 'content': '执行完成但未生成内容。'}, ensure_ascii=False)}\n\n"
@@ -1212,7 +1221,8 @@ async def generate_stream(request: GenerateStreamRequest):
                     yield f"data: {json.dumps({'type': 'content', 'content': chat_content}, ensure_ascii=False)}\n\n"
 
                 # Save memory
-                _save_memory(session_id, user_input, generated_content)
+                _save_memory(session_id, user_input, generated_content, project_id=request.project_id)
+                _update_project_state(request.project_id, session_id, user_input, intent_type=intent_type)
 
                 # Send final result
                 if editor_content:
@@ -1241,6 +1251,7 @@ async def generate_stream(request: GenerateStreamRequest):
                 uploaded_file_name=uploaded_file_name,
                 reference_materials=reference_materials,
                 chat_history=request.chat_history or [],
+                project_state_block=orch_context.get("project_state_block", ""),
             )
 
             model_tier = "simple" if mode == "qa" else "complex"
@@ -1277,7 +1288,8 @@ async def generate_stream(request: GenerateStreamRequest):
                 editor_content = parts[1].strip() if len(parts) > 1 else ""
 
             # Save memory
-            _save_memory(session_id, user_input, full_content)
+            _save_memory(session_id, user_input, full_content, project_id=request.project_id)
+            _update_project_state(request.project_id, session_id, user_input, intent_type=mode)
 
             # Send final result
             if editor_content:
@@ -1337,6 +1349,7 @@ def _build_orchestrator_context(
             session_id=current_session_id,
             max_tokens=15000,
             mode=mode,
+            project_id=request.project_id,
         )
 
         # Multi-pass retrieval for craft file mode
@@ -1383,6 +1396,24 @@ def _build_orchestrator_context(
 
     ctx["profile_context"] = profile_context
     ctx["graph_context"] = graph_context
+
+    # ── Project working state (session continuity) ──
+    project_state_block = ""
+    if request.project_id:
+        try:
+            from app.services.project_state_service import project_state_service
+
+            project_state_block = project_state_service.render_context_block(
+                project_state_service.load(request.project_id)
+            )
+            if project_state_block:
+                logger.info(
+                    f"[AI助手] 项目工作状态注入成功: project_id={request.project_id}, 长度={len(project_state_block)}"
+                )
+        except Exception as e:
+            logger.warning(f"[AI助手] 项目工作状态加载失败（将继续无状态生成）: {e}")
+
+    ctx["project_state_block"] = project_state_block
 
     # ── Material status instruction ──
     # Retrieval-empty: library has docs but L3 keyword search hit nothing for this query.
@@ -1488,6 +1519,7 @@ def _build_llm_messages(
     uploaded_file_name: Optional[str] = None,
     reference_materials: Optional[List[dict]] = None,
     chat_history: Optional[List[dict]] = None,
+    project_state_block: str = "",
 ) -> List[Dict[str, str]]:
     """Build structured message array for LLM call."""
     messages: List[Dict[str, str]] = []
@@ -1498,6 +1530,8 @@ def _build_llm_messages(
         system_parts.append(material_section)
     if profile_context:
         system_parts.append(f"\n## 当前用户画像\n{profile_context}")
+    if project_state_block:
+        system_parts.append(f"\n{project_state_block}")
     messages.append({"role": "system", "content": "\n".join(system_parts)})
 
     # 2. Chat history
@@ -1539,17 +1573,49 @@ def _build_llm_messages(
     return messages
 
 
-def _save_memory(session_id: Optional[str], user_input: str, content: str):
-    """Async save conversation memory (fire-and-forget)."""
+def _save_memory(
+    session_id: Optional[str],
+    user_input: str,
+    content: str,
+    project_id: Optional[int] = None,
+):
+    """Async save conversation memory (fire-and-forget, per-project scoped)."""
     if not session_id:
         return
     try:
-        from app.services.hierarchical_context import hierarchical_context
-        hierarchical_context._memory_service.save_summary_async(
-            session_id, user_input, content
-        )
+        if project_id is not None:
+            from app.services.memory_service import get_project_memory_service
+
+            get_project_memory_service(project_id).save_summary_async(
+                session_id, user_input, content
+            )
+        else:
+            from app.services.hierarchical_context import hierarchical_context
+            hierarchical_context._memory_service.save_summary_async(
+                session_id, user_input, content
+            )
     except Exception as e:
         logger.warning(f"[AI助手] 记忆保存跳过: {e}")
+
+
+def _update_project_state(
+    project_id: Optional[int],
+    session_id: Optional[str],
+    user_input: str,
+    intent_type: Optional[str] = None,
+    focus_chapters: Optional[List[str]] = None,
+):
+    """Roll the project working state forward after one turn (fire-and-forget)."""
+    if project_id is None:
+        return
+    try:
+        from app.services.project_state_service import project_state_service
+
+        project_state_service.update_from_turn(
+            project_id, session_id, user_input, intent_type, focus_chapters
+        )
+    except Exception as e:
+        logger.warning(f"[AI助手] 项目状态更新跳过: {e}")
 
 
 @router.post("/select-solution")
