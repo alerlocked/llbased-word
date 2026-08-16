@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/session-continuity-local-resilience
-updated_at: 2026-08-16T12:32:42+08:00
-last_commit: 3933133
+updated_at: 2026-08-16T12:34:03+08:00
+last_commit: a569541
 status: session-continuity-local-resilience running（底层架构更新第一批:会话接续 state+memory/LLM 韧性/G25a 静默失败治理;PLAN ff191eb seal,9 节点 2 轨道,分支 feature/session-continuity-local-resilience,PR 流程合入）;前序:unify-selection-into-dialog done/multi-dev-git-governance done
 task_state: running
 task_slug: session-continuity-local-resilience
@@ -11,16 +11,16 @@ task_slug: session-continuity-local-resilience
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `3933133` docs(devlog): mark session-continuity-local-resilience running (0/9) (1 second ago)
-- `ff191eb` plan: session continuity + local LLM resilience + G25a silent-failure fix (9 nodes, 2 tracks) (22 seconds ago)
-- `dda8eda` align: resolve all open questions (state+memory / g25a root cause / PR flow / per-project memory) (32 minutes ago)
-- `ccc4172` align: session continuity + local LLM resilience (slug session-continuity-local-resilience) (49 minutes ago)
+- `a569541` feat(llm): add LLM error classification module with per-class mitigation policies (0 seconds ago)
+- `3933133` docs(devlog): mark session-continuity-local-resilience running (0/9) (82 seconds ago)
+- `ff191eb` plan: session continuity + local LLM resilience + G25a silent-failure fix (9 nodes, 2 tracks) (2 minutes ago)
+- `dda8eda` align: resolve all open questions (state+memory / g25a root cause / PR flow / per-project memory) (33 minutes ago)
+- `ccc4172` align: session continuity + local LLM resilience (slug session-continuity-local-resilience) (51 minutes ago)
 - `b0c808e` chore: drop 72 done PLAN/ALIGN process files (recoverable via git history) (2 days ago)
 - `12a3caa` feat(governance): wire /pr-review into PR review flow (3 days ago)
 - `50a2f07` docs(readme): add ONBOARDING/CONTRIBUTING pointers for collaborators (3 days ago)
 - `dd78b57` docs: add ONBOARDING quickstart for collaborators (3 days ago)
 - `b8eb17c` chore(governance): add PR template + review process doc (3 days ago)
-- `7fc642f` chore(governance): enforce admin-only PR review via CODEOWNERS (3 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
