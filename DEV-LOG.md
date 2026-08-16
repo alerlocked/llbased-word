@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/review-pipeline
-updated_at: 2026-08-16T23:32:16+08:00
-last_commit: cc93494
+updated_at: 2026-08-17T07:43:07+08:00
+last_commit: 0a922f2
 status: session-continuity-local-resilience 完成9/9待review合入（state+memory会话接续/LLM韧性/G25a静默失败治理;PLAN ff191eb,最终门853 passed 0回归+tsc 0错,PR #60 已开待 /pr-review 后合入）;前序:unify-selection-into-dialog done/multi-dev-git-governance done
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `cc93494` align: resolve open questions (safe-edit-fallback / four-way review) (0 seconds ago)
-- `6b122a2` align: review pipeline + intent gating + last-output snapshot (slug review-pipeline) (6 minutes ago)
-- `b61653d` Merge pull request #61 from alerlocked/feature/thinking-budget-tiers (37 minutes ago)
-- `55d5c63` Merge pull request #60 from alerlocked/feature/session-continuity-local-resilience (38 minutes ago)
-- `4b91239` feat(llm): per-tier thinking budget — simple tier off, complex tier tunable (2 hours ago)
-- `6cbaf30` fix(review): address pr-review findings F1-F8 (8 hours ago)
-- `44de60e` docs(devlog): record N10 delivery-grade fallback rationale (10 hours ago)
-- `368c574` feat(writing): G25a exhausted-retry fallback to sub_text verbatim fill (delivery-grade resilience) (10 hours ago)
-- `b3a8174` docs(devlog): mark session-continuity-local-resilience done (9/9, PR #60) (10 hours ago)
-- `657c518` docs(architecture): document project state, per-project memory, LLM resilience, G25a warnings (11 hours ago)
+- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (0 seconds ago)
+- `cc93494` align: resolve open questions (safe-edit-fallback / four-way review) (8 hours ago)
+- `6b122a2` align: review pipeline + intent gating + last-output snapshot (slug review-pipeline) (8 hours ago)
+- `b61653d` Merge pull request #61 from alerlocked/feature/thinking-budget-tiers (9 hours ago)
+- `55d5c63` Merge pull request #60 from alerlocked/feature/session-continuity-local-resilience (9 hours ago)
+- `4b91239` feat(llm): per-tier thinking budget — simple tier off, complex tier tunable (11 hours ago)
+- `6cbaf30` fix(review): address pr-review findings F1-F8 (16 hours ago)
+- `44de60e` docs(devlog): record N10 delivery-grade fallback rationale (18 hours ago)
+- `368c574` feat(writing): G25a exhausted-retry fallback to sub_text verbatim fill (delivery-grade resilience) (18 hours ago)
+- `b3a8174` docs(devlog): mark session-continuity-local-resilience done (9/9, PR #60) (19 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

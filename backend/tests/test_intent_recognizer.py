@@ -147,3 +147,57 @@ class TestRealLLM:
             IntentType.GENERATE_DOCUMENT.value,
             IntentType.DRAFT_COMPLETE.value,
         )
+
+
+class TestQuestionGateN1:
+    """N1 (review-pipeline): question-form inputs must NEVER boost draft_complete.
+
+    23:18 incident: "配套明细表还需要补充吗" hit 补充+工艺文件 → 0.85 boost
+    hijacked the intent and rewrote the whole document.
+    """
+
+    @pytest.mark.asyncio
+    async def test_question_with_supplement_not_draft_complete(self, recognizer):
+        ctx = {"has_uploaded_file": True, "uploaded_file_content": "x"}
+        result = await recognizer.recognize("生成的工艺文件，配套明细表还需要补充吗", context=ctx)
+        assert result["type"] != IntentType.DRAFT_COMPLETE.value
+
+    @pytest.mark.asyncio
+    async def test_question_mark_variants(self, recognizer):
+        ctx = {"has_uploaded_file": True}
+        for q in ["文件还需要完善吗", "缺什么吗？", "内容完整吗", "有没有问题呢", "还需不需要补充"]:
+            result = await recognizer.recognize(q, context=ctx)
+            assert result["type"] != IntentType.DRAFT_COMPLETE.value, q
+
+    @pytest.mark.asyncio
+    async def test_imperative_fill_still_boosts(self, recognizer):
+        """Gate must NOT eat imperative fill commands (no question form)."""
+        ctx = {"has_uploaded_file": True, "uploaded_file_content": "x"}
+        result = await recognizer.recognize("补充完整这份文件", context=ctx)
+        assert result["type"] == IntentType.DRAFT_COMPLETE.value
+
+    @pytest.mark.asyncio
+    async def test_llm_review_classification(self, recognizer, monkeypatch):
+        """LLM classifies review questions correctly (prompt includes examples)."""
+        from unittest.mock import AsyncMock
+        from app.services import llm_service as ls
+
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
+            return {"status": "success", "content": '{"intent": "review_document"}', "finish_reason": "stop"}
+
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
+        result = await recognizer.recognize("生成的工艺文件有什么问题吗", context={"has_uploaded_file": True})
+        assert result["type"] == IntentType.REVIEW_DOCUMENT.value
+
+    @pytest.mark.asyncio
+    async def test_unknown_carries_needs_clarification(self, recognizer, monkeypatch):
+        from unittest.mock import AsyncMock
+        from app.services import llm_service as ls
+
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
+            return {"status": "success", "content": '{"intent": "unknown"}', "finish_reason": "stop"}
+
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
+        result = await recognizer.recognize("嗯嗯嗯嗯嗯", context=None)
+        assert result["type"] == IntentType.UNKNOWN.value
+        assert result["needs_clarification"] is True

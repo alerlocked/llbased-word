@@ -89,6 +89,15 @@ class IntentRecognizer:
         r"工艺文件|文件|文档|初稿|草稿|draft",
         re.IGNORECASE,
     )
+    # Question-form gate (23:18 incident): a QUESTION about completeness
+    # ("还需要补充吗") is a review/query, never a fill command. Questions are
+    # excluded from the draft_complete composite boost entirely — only
+    # imperative phrasing ("补充一下工序五") may boost.
+    _QUESTION_FORM = re.compile(
+        r"吗\s*[？?]?\s*$|呢\s*[？?]?\s*$|[？?]\s*$"
+        r"|需不需要|有没有|是不是|还有什么|还缺什么",
+        re.IGNORECASE,
+    )
 
     # 工艺实体关键词
     PROCESS_ENTITIES = {
@@ -166,7 +175,10 @@ class IntentRecognizer:
                     for it, score in intent_results.items()
                     if it != primary_intent and score > 0.1
                 ],
-                "context_used": bool(context)
+                "context_used": bool(context),
+                # unknown must never silently fall through to a doing-something
+                # branch — callers use this flag to ask for clarification.
+                "needs_clarification": primary_intent == IntentType.UNKNOWN,
             }
 
             logger.info(
@@ -185,7 +197,8 @@ class IntentRecognizer:
                 "type": IntentType.UNKNOWN.value,
                 "confidence": 0.0,
                 "error": str(e),
-                "entities": {}
+                "entities": {},
+                "needs_clarification": True,
             }
 
     async def _classify_with_llm(self, user_input: str) -> Optional[IntentType]:
@@ -202,6 +215,12 @@ class IntentRecognizer:
             "draft_complete=基于初稿补全文件, parse_pdf=解析PDF, "
             "search_knowledge=搜索知识, align_terminology=对齐术语, "
             "check_compliance=检查合规, export_to_pdm=导出PDM。\n"
+            "判定要点:\n"
+            "- 问句形式的询问（…有什么问题吗/还需要补充吗/还缺什么/完整吗/有没有问题）"
+            "是 review_document 或 search_knowledge，绝不是 draft_complete——"
+            "draft_complete 只对应明确的补全指令（如\"补充完整这份文件\"\"把工序五补全\"）。\n"
+            "- 关于已生成内容的评价、缺陷、完整性询问 → review_document。\n"
+            "- 一般工艺知识咨询 → search_knowledge。\n"
             f"用户输入: {user_input[:500]}\n"
             '只输出JSON,示例: {"intent": "create_document"}\n'
             "不要输出多余文字。"
@@ -283,6 +302,12 @@ class IntentRecognizer:
         """
         has_action = any(p.search(processed_input) for p in self._DRAFT_COMPLETE_COMPOUND_PATTERNS)
         if not has_action:
+            return 0.0
+
+        # Question gate: "还需要补充吗" is asking ABOUT completeness (review),
+        # not commanding a fill. Never let a question trigger the boost —
+        # it used to hijack the intent and rewrite the whole document.
+        if self._QUESTION_FORM.search(processed_input):
             return 0.0
 
         # 检查是否提到了文档
