@@ -242,6 +242,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 }
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
+              } else if (data.type === 'warning') {
+                // Per-chapter row-gap warnings (e.g. G25a rows left empty after retries)
+                contentAccumulator += `\n⚠ ${data.message || ''}\n`
               }
 
               const updatedAssistant: Message = {
@@ -381,6 +384,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 }
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
+              } else if (data.type === 'warning') {
+                // Per-chapter row-gap warnings (e.g. G25a rows left empty after retries)
+                contentAccumulator += `\n⚠ ${data.message || ''}\n`
               }
 
               const updatedAssistant: Message = {
@@ -709,6 +715,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 }
               } else if (data.type === 'error') {
                 contentAccumulator += `\n[错误] ${data.error}`
+              } else if (data.type === 'warning') {
+                // Per-chapter row-gap warnings (e.g. G25a rows left empty after retries)
+                contentAccumulator += `\n⚠ ${data.message || ''}\n`
               }
 
               const updatedAssistant: Message = {

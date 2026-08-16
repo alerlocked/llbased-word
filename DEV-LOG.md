@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/session-continuity-local-resilience
-updated_at: 2026-08-16T12:50:03+08:00
-last_commit: 140b4a1
+updated_at: 2026-08-16T12:53:37+08:00
+last_commit: 2cecac1
 status: session-continuity-local-resilience running（底层架构更新第一批:会话接续 state+memory/LLM 韧性/G25a 静默失败治理;PLAN ff191eb seal,9 节点 2 轨道,分支 feature/session-continuity-local-resilience,PR 流程合入）;前序:unify-selection-into-dialog done/multi-dev-git-governance done
 task_state: running
 task_slug: session-continuity-local-resilience
@@ -11,16 +11,16 @@ task_slug: session-continuity-local-resilience
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `140b4a1` feat(agents): pass project working state into writing agent chapter prompts (0 seconds ago)
-- `4fe8d05` feat(state): inject project working state into generation chain and record per-turn updates (2 minutes ago)
-- `2d65586` feat(memory): scope session memory per project with keyword-recall fallback to global (5 minutes ago)
-- `4b7481e` feat(state): add per-project rolling working-state service with atomic JSON storage (6 minutes ago)
-- `c901813` feat(llm): retry with backoff, context-trim, and classified errors in generate_with_messages (6 minutes ago)
-- `a569541` feat(llm): add LLM error classification module with per-class mitigation policies (16 minutes ago)
-- `3933133` docs(devlog): mark session-continuity-local-resilience running (0/9) (17 minutes ago)
-- `ff191eb` plan: session continuity + local LLM resilience + G25a silent-failure fix (9 nodes, 2 tracks) (18 minutes ago)
-- `dda8eda` align: resolve all open questions (state+memory / g25a root cause / PR flow / per-project memory) (49 minutes ago)
-- `ccc4172` align: session continuity + local LLM resilience (slug session-continuity-local-resilience) (67 minutes ago)
+- `2cecac1` fix(writing): per-row retry and completeness reporting for G25a parallel generation (1 second ago)
+- `140b4a1` feat(agents): pass project working state into writing agent chapter prompts (4 minutes ago)
+- `4fe8d05` feat(state): inject project working state into generation chain and record per-turn updates (6 minutes ago)
+- `2d65586` feat(memory): scope session memory per project with keyword-recall fallback to global (8 minutes ago)
+- `4b7481e` feat(state): add per-project rolling working-state service with atomic JSON storage (9 minutes ago)
+- `c901813` feat(llm): retry with backoff, context-trim, and classified errors in generate_with_messages (9 minutes ago)
+- `a569541` feat(llm): add LLM error classification module with per-class mitigation policies (20 minutes ago)
+- `3933133` docs(devlog): mark session-continuity-local-resilience running (0/9) (21 minutes ago)
+- `ff191eb` plan: session continuity + local LLM resilience + G25a silent-failure fix (9 nodes, 2 tracks) (21 minutes ago)
+- `dda8eda` align: resolve all open questions (state+memory / g25a root cause / PR flow / per-project memory) (52 minutes ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

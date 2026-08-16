@@ -1035,6 +1035,15 @@ async def generate_stream(request: GenerateStreamRequest):
                     # Template-first: if structured_results exist, emit template output
                     # even when new_content (Markdown) is empty
                     if not new_content and structured_results and isinstance(structured_results, dict) and len(structured_results) > 0:
+                        # Per-chapter row-gap warnings (G25a per-row completeness)
+                        # — surfaced BEFORE content/result so they are visible
+                        # even if the client navigates away on result.
+                        for _code, _data in structured_results.items():
+                            if not isinstance(_data, dict):
+                                continue
+                            for _w in (_data.get("warnings") or []):
+                                _warn_msg = f"[{_code}] {_w.get('message', '')}"
+                                yield f"data: {json.dumps({'type': 'warning', 'message': _warn_msg}, ensure_ascii=False)}\n\n"
                         from app.services.template_types import StructuredDocument, ChapterData
 
                         try:
