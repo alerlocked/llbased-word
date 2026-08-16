@@ -95,3 +95,40 @@ class TestRenderContextBlock:
         assert block.startswith("## 项目当前工作状态")
         assert "G25a" in block
         assert "edit_document" in block
+
+
+class TestLastOutputSnapshot:
+    """N3 (review-pipeline): last_output snapshot + render into state block."""
+
+    def test_output_summary_persisted(self, svc):
+        svc.update_from_turn(
+            1, "s1", "补齐", "generate",
+            output_summary={
+                "chapters": [
+                    {"code": "G25a", "title": "装配工艺卡片", "rows": 10},
+                    {"code": "G4a", "title": "工艺文件目录", "rows": 8},
+                ],
+                "warnings_count": 2,
+            },
+        )
+        state = svc.load(1)
+        lo = state["last_output"]
+        assert len(lo["chapters"]) == 2
+        assert lo["warnings_count"] == 2
+        assert lo["chapters"][0]["code"] == "G25a"
+        assert "updated_at" in lo
+
+    def test_no_summary_keeps_old_snapshot(self, svc):
+        svc.update_from_turn(1, "s1", "补齐", None, output_summary={"chapters": [{"code": "G4a", "title": "", "rows": 1}], "warnings_count": 0})
+        svc.update_from_turn(1, "s1", "继续问", "review_document")  # no summary
+        assert svc.load(1)["last_output"]["chapters"][0]["code"] == "G4a"  # not wiped
+
+    def test_rendered_into_context_block(self, svc):
+        svc.update_from_turn(
+            1, "s1", "补齐", "generate",
+            output_summary={"chapters": [{"code": c, "title": "", "rows": 1} for c in ["G4a", "G25a", "G18a"]], "warnings_count": 3},
+        )
+        block = svc.render_context_block(svc.load(1))
+        assert "最近产出" in block
+        assert "G25a" in block
+        assert "3 处警告" in block

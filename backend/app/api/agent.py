@@ -1088,11 +1088,28 @@ async def generate_stream(request: GenerateStreamRequest):
                             }
                             yield f"data: {json.dumps(sse_result, ensure_ascii=False)}\n\n"
                             logger.info(f"[draft_complete] template output: {len(chapters)} chapters (no markdown)")
+                            _output_summary = {
+                                "chapters": [
+                                    {
+                                        "code": code,
+                                        "title": (data.get("chapter_title", "") if isinstance(data, dict) else ""),
+                                        "rows": len(data.get("filled_data") or []) if isinstance(data, dict) else 0,
+                                    }
+                                    for code, data in (structured_results or {}).items()
+                                    if isinstance(data, dict)
+                                ],
+                                "warnings_count": sum(
+                                    len((d.get("warnings") or []))
+                                    for d in (structured_results or {}).values()
+                                    if isinstance(d, dict)
+                                ),
+                            }
                             _persist_turn(
                                 session_id, request.project_id, user_input,
                                 content=json.dumps(template_json, ensure_ascii=False),
                                 intent_type=intent_type,
                                 focus_chapters=list(structured_results.keys()) if isinstance(structured_results, dict) else None,
+                                output_summary=_output_summary,
                             )
                         except Exception as e:
                             logger.warning(f"[draft_complete] template assembly failed (no-markdown path): {e}")
@@ -1180,6 +1197,17 @@ async def generate_stream(request: GenerateStreamRequest):
                         _persist_turn(
                             session_id, request.project_id, user_input,
                             content=new_content, intent_type=intent_type,
+                            focus_chapters=list(structured_results.keys()) if isinstance(structured_results, dict) and structured_results else None,
+                            output_summary=(
+                                {
+                                    "chapters": [
+                                        {"code": c, "title": (d.get("chapter_title", "") if isinstance(d, dict) else ""), "rows": len(d.get("filled_data") or []) if isinstance(d, dict) else 0}
+                                        for c, d in structured_results.items() if isinstance(d, dict)
+                                    ],
+                                    "warnings_count": sum(len((d.get("warnings") or [])) for d in structured_results.values() if isinstance(d, dict)),
+                                }
+                                if isinstance(structured_results, dict) and structured_results else None
+                            ),
                         )
                     else:
                         logger.warning(f"[draft_complete] new_content 为空! agent_result={str(agent_result)[:200]}")
@@ -1616,6 +1644,7 @@ def _update_project_state(
     user_input: str,
     intent_type: Optional[str] = None,
     focus_chapters: Optional[List[str]] = None,
+    output_summary: Optional[dict] = None,
 ):
     """Roll the project working state forward after one turn (fire-and-forget)."""
     if project_id is None:
@@ -1624,7 +1653,8 @@ def _update_project_state(
         from app.services.project_state_service import project_state_service
 
         project_state_service.update_from_turn(
-            project_id, session_id, user_input, intent_type, focus_chapters
+            project_id, session_id, user_input, intent_type, focus_chapters,
+            output_summary=output_summary,
         )
     except Exception as e:
         logger.warning(f"[AI助手] 项目状态更新跳过: {e}")
@@ -1637,6 +1667,7 @@ def _persist_turn(
     content: str,
     intent_type: Optional[str] = None,
     focus_chapters: Optional[List[str]] = None,
+    output_summary: Optional[dict] = None,
 ):
     """One call per completed turn: conversation memory + project state roll.
 
@@ -1644,11 +1675,14 @@ def _persist_turn(
     streaming fallback) AND for future workflows (e.g. the dialog-edit line):
     any new workflow that produces a turn should call THIS, so state/memory
     stay consistent no matter which path the user took.
+    output_summary: template-output paths pass {"chapters": [...], "warnings_count": n}
+    so later turns can reference "刚才生成的那篇" (last_output snapshot).
     """
     _save_memory(session_id, user_input, content, project_id=project_id)
     _update_project_state(
         project_id, session_id, user_input,
         intent_type=intent_type, focus_chapters=focus_chapters,
+        output_summary=output_summary,
     )
 
 
