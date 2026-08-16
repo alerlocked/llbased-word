@@ -389,3 +389,26 @@ class MemoryService:
             summary = text.strip()[:200]
 
         return summary, entities
+
+
+# ---------------------------------------------------------------------------
+# Per-project memory scoping (session continuity)
+# ---------------------------------------------------------------------------
+
+_project_memory_cache: dict = {}
+
+
+def get_project_memory_service(project_id) -> "MemoryService":
+    """Lazily construct (and cache) a MemoryService scoped to one project.
+
+    Directory: {MEMORY_PROJECTS_DIR}/{project_id}/. Future user dimension
+    (multi-tenant) = one more path level here, nothing else changes.
+    """
+    key = str(project_id)
+    if key not in _project_memory_cache:
+        from app.config import settings
+
+        _project_memory_cache[key] = MemoryService(
+            str(settings.MEMORY_PROJECTS_DIR / key)
+        )
+    return _project_memory_cache[key]
