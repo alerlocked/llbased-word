@@ -937,6 +937,64 @@ async def generate_stream(request: GenerateStreamRequest):
                 yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
                 return
 
+            # Case 0a: gated draft_complete (dialog tried to trigger generate/fill)
+            if orch_result.get("state") == "gated":
+                yield f"data: {json.dumps({'type': 'content', 'content': orch_result.get('message', '')}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                _persist_turn(
+                    session_id, request.project_id, user_input,
+                    content=orch_result.get("message", ""), intent_type="gated_draft_complete",
+                )
+                return
+
+            # Case 0b: review_document → four-way factual review (chat-only,
+            # never touches the editor). Falls back to state's last_output
+            # snapshot when no in-session structured results exist.
+            if intent_type == "review_document":
+                try:
+                    from app.services.review_pipeline import run_review
+                    from app.services.project_state_service import project_state_service
+
+                    project_state = (
+                        project_state_service.load(request.project_id)
+                        if request.project_id else {}
+                    )
+                    review = await run_review(
+                        user_input=user_input,
+                        project_state=project_state,
+                        structured_results=None,  # cross-session: snapshot path
+                    )
+                    yield f"data: {json.dumps({'type': 'progress', 'message': '已完成四对照审查（模板/数据库/内容质量/需求）'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'content', 'content': review['reply']}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                    logger.info(
+                        "[AI助手] review_pipeline 完成",
+                        issues=len(review.get("issues", [])),
+                    )
+                    _persist_turn(
+                        session_id, request.project_id, user_input,
+                        content=review["reply"], intent_type="review_document",
+                    )
+                except Exception as e:
+                    logger.error(f"[AI助手] review_pipeline 失败: {e}", exc_info=True)
+                    yield f"data: {json.dumps({'type': 'error', 'error': f'审查执行失败: {e}'}, ensure_ascii=False)}\n\n"
+                return
+
+            # Case 0c: edit_document → safe fallback until the dialog-edit
+            # workflow (colleague line) lands. Never rewrites the document.
+            if intent_type == "edit_document" and not request.generation_mode:
+                fallback = (
+                    "已识别为修改需求。修改功能建设中（正由协作线开发），"
+                    "当前请使用编辑器框选或生成按钮操作——我不会从对话直接改文件。"
+                )
+                yield f"data: {json.dumps({'type': 'content', 'content': fallback}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                _persist_turn(
+                    session_id, request.project_id, user_input,
+                    content=fallback, intent_type="edit_document_fallback",
+                )
+                return
+
             # Case 1: draft_complete → show analysis then auto-confirm and execute
             if orch_result.get("requires_response"):
                 plan = orch_result.get("modification_plan", "")
