@@ -3,7 +3,7 @@
 使用通义千问qwen-plus模型进行文本生成
 """
 import time
-from typing import List, Dict, Optional, Literal, AsyncGenerator
+from typing import Any, List, Dict, Optional, Literal, AsyncGenerator
 import httpx
 from openai import AsyncOpenAI
 
@@ -545,6 +545,24 @@ class QwenLLMService:
                     "finish_reason": None,
                 }
 
+    @staticmethod
+    def _thinking_extra_body(tier: str) -> Dict[str, Any]:
+        """Per-tier thinking params from settings (TPM economy).
+
+        simple tier (intent/summary/memory — judgment tasks): thinking off by
+        default. complex tier (generation): on with a moderate budget. Both
+        tunable via .env — small local models burn TPM fast otherwise.
+        """
+        enabled = (
+            settings.THINKING_ENABLED_COMPLEX if tier == "complex"
+            else settings.THINKING_ENABLED_SIMPLE
+        )
+        budget = (
+            settings.THINKING_BUDGET_COMPLEX if tier == "complex"
+            else settings.THINKING_BUDGET_SIMPLE
+        )
+        return {"enable_thinking": bool(enabled), "thinking_budget": int(budget)}
+
     async def _collect_stream_content(
         self,
         messages: List[Dict[str, str]],
@@ -566,7 +584,7 @@ class QwenLLMService:
             temperature=temperature,
             max_tokens=max_tokens,
             stream=True,
-            extra_body={"enable_thinking": True, "thinking_budget": 1024},
+            extra_body=self._thinking_extra_body(tier),
         )
         async for chunk in stream:
             choice = chunk.choices[0] if chunk.choices else None
@@ -604,7 +622,7 @@ class QwenLLMService:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=True,
-                extra_body={"enable_thinking": True, "thinking_budget": 1024},
+                extra_body=self._thinking_extra_body(tier),
             )
 
             async for chunk in stream:
