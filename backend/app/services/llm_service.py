@@ -347,36 +347,21 @@ class QwenLLMService:
             else settings.MODEL_TIER_COMPLEX
         )
 
-        try:
-            response = await self._get_client(tier).chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            
-            content = response.choices[0].message.content.strip()
-            
-            duration_ms = (time.time() - start_time) * 1000
-            log_api_call("通义千问LLM", "文本生成", "success", duration_ms)
-            
-            return {
-                "status": "success",
-                "content": content
-            }
-            
-        except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            log_api_call("通义千问LLM", "文本生成", "error", duration_ms)
-            logger.error(f"❌ 文本生成失败: {str(e)}")
-            
-            return {
-                "status": "error",
-                "error": str(e),
-                "content": ""
-            }
+        # Route through the resilience wrapper (retry/backoff/trim), adapting
+        # the non-stream path via a single-message collect through the same
+        # stream transport for consistent error handling.
+        result = await self._generate_with_retry(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tier=tier,
+            model=model,
+            start_time=start_time,
+        )
+        if "finish_reason" in result:
+            # generate_text contract is {"status","content"[,"error"]} — keep it
+            return {k: v for k, v in result.items() if k != "finish_reason"}
+        return result
 
     async def generate_with_messages(
         self,
@@ -384,6 +369,7 @@ class QwenLLMService:
         temperature: float = 0.7,
         max_tokens: int = 2000,
         tier: Literal["simple", "complex"] = "complex",
+        max_retries: int = 2,
     ) -> Dict:
         """
         Chat completion with native message array (OpenAI-compatible format).
@@ -393,6 +379,10 @@ class QwenLLMService:
             temperature: sampling temperature
             max_tokens: max tokens to generate
             tier: "simple" for QA/lookup (fast, cheap), "complex" for generation/review
+            max_retries: transport-level retry budget. Callers that own their
+                own retry loop (e.g. writing_agent G25a per-row) pass 0 so the
+                budget lives in ONE layer — prevents retry multiplication
+                (3 outer × 3 inner = 9 calls/row).
 
         Returns:
             {"status": "success"|"error", "content": str}
@@ -405,50 +395,155 @@ class QwenLLMService:
             else settings.MODEL_TIER_COMPLEX
         )
 
-        try:
-            # Stream mode (was non-stream + fallback): qwen3 enable_thinking
-            # requires stream call (400 "enable_thinking only support stream
-            # call" on non-stream). _collect_stream_content streams with
-            # enable_thinking+thinking_budget, collects delta.content (discards
-            # reasoning_content). Returns (content, finish_reason).
-            content, finish_reason = await self._collect_stream_content(
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                tier=tier,
-            )
-            if not content:
-                logger.error(
-                    "llm_empty_content_stream",
-                    model=model, finish_reason=finish_reason,
+        return await self._generate_with_retry(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tier=tier,
+            model=model,
+            start_time=start_time,
+            max_retries=max_retries,
+        )
+
+    async def _generate_with_retry(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+        tier: str,
+        model: str,
+        start_time: float,
+        max_retries: int = 2,
+    ) -> Dict:
+        """Resilience wrapper around _collect_stream_content.
+
+        1 initial call + up to `max_retries` retries with exponential backoff.
+        Per-class mitigation (llm_errors): transient classes retry; CONTEXT_OVERFLOW
+        applies one context trim then retries; EMPTY_REPLY retries with the same
+        messages. Error dicts gain an additive "error_class" key; the four
+        contract keys {"status","content","finish_reason","error"} are untouched.
+        """
+        from app.services.llm_errors import (
+            LLMErrorClass,
+            classify_exception,
+            should_retry,
+            terminal_message,
+            trim_messages_for_overflow,
+        )
+
+        import asyncio as _asyncio
+
+        current_messages = messages
+        trimmed = False  # context trim applied at most once
+        attempt = 0
+        while True:
+            try:
+                # Stream mode (was non-stream + fallback): qwen3 enable_thinking
+                # requires stream call (400 "enable_thinking only support stream
+                # call" on non-stream). _collect_stream_content streams with
+                # enable_thinking+thinking_budget, collects delta.content (discards
+                # reasoning_content). Returns (content, finish_reason).
+                content, finish_reason = await self._collect_stream_content(
+                    messages=current_messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tier=tier,
                 )
+                if not content:
+                    # EMPTY_REPLY: retry with the same messages before failing
+                    error_class = LLMErrorClass.EMPTY_REPLY
+                    if should_retry(error_class, attempt, max_retries):
+                        delay = 0.5 * (2 ** attempt)
+                        logger.warning(
+                            "llm_call_retry",
+                            attempt=attempt + 1, error_class=error_class.value,
+                            delay_s=delay, model=model,
+                        )
+                        await _asyncio.sleep(delay)
+                        attempt += 1
+                        continue
+                    duration_ms = (time.time() - start_time) * 1000
+                    log_api_call("通义千问LLM", "消息生成", "error", duration_ms)
+                    logger.error(
+                        "llm_empty_content_stream",
+                        model=model, finish_reason=finish_reason,
+                    )
+                    return {
+                        "status": "error",
+                        "error": terminal_message(error_class),
+                        "error_class": error_class.value,
+                        "content": "",
+                        "finish_reason": finish_reason,
+                    }
+
+                duration_ms = (time.time() - start_time) * 1000
+                log_api_call("通义千问LLM", "消息生成", "success", duration_ms)
+
                 return {
-                    "status": "error",
-                    "error": "LLM 返回空内容（流式收集后仍空）",
-                    "content": "",
+                    "status": "success",
+                    "content": content,
                     "finish_reason": finish_reason,
                 }
 
-            duration_ms = (time.time() - start_time) * 1000
-            log_api_call("通义千问LLM", "消息生成", "success", duration_ms)
-
-            return {
-                "status": "success",
-                "content": content,
-                "finish_reason": finish_reason,
-            }
-
-        except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            log_api_call("通义千问LLM", "消息生成", "error", duration_ms)
-            logger.error(f"❌ 消息生成失败: {str(e)}")
-
-            return {
-                "status": "error",
-                "error": str(e),
-                "content": "",
-                "finish_reason": None,
-            }
+            except Exception as e:
+                error_class = classify_exception(e)
+                # CONTEXT_OVERFLOW: trim once (the mitigation), then keep retrying
+                # within the normal budget — the trimmed payload may still be
+                # near the limit and succeed on a retry.
+                if (
+                    error_class == LLMErrorClass.CONTEXT_OVERFLOW
+                    and not trimmed
+                    and any(m.get("role") == "user" for m in current_messages)
+                ):
+                    current_messages = trim_messages_for_overflow(current_messages)
+                    trimmed = True
+                    logger.warning(
+                        "llm_call_retry",
+                        attempt=attempt + 1, error_class=error_class.value,
+                        delay_s=0.0, model=model, trimmed=True,
+                    )
+                    attempt += 1
+                    continue
+                if error_class == LLMErrorClass.CONTEXT_OVERFLOW or should_retry(
+                    error_class, attempt, max_retries
+                ):
+                    if attempt >= max_retries:
+                        # budget exhausted
+                        duration_ms = (time.time() - start_time) * 1000
+                        log_api_call("通义千问LLM", "消息生成", "error", duration_ms)
+                        logger.error(
+                            "llm_call_failed",
+                            error_class=error_class.value, model=model, error=str(e),
+                        )
+                        return {
+                            "status": "error",
+                            "error": f"{terminal_message(error_class)}（{e}）",
+                            "error_class": error_class.value,
+                            "content": "",
+                            "finish_reason": None,
+                        }
+                    delay = 1.0 * (2 ** attempt)
+                    logger.warning(
+                        "llm_call_retry",
+                        attempt=attempt + 1, error_class=error_class.value,
+                        delay_s=delay, model=model,
+                    )
+                    await _asyncio.sleep(delay)
+                    attempt += 1
+                    continue
+                duration_ms = (time.time() - start_time) * 1000
+                log_api_call("通义千问LLM", "消息生成", "error", duration_ms)
+                logger.error(
+                    "llm_call_failed",
+                    error_class=error_class.value, model=model, error=str(e),
+                )
+                return {
+                    "status": "error",
+                    "error": f"{terminal_message(error_class)}（{e}）",
+                    "error_class": error_class.value,
+                    "content": "",
+                    "finish_reason": None,
+                }
 
     async def _collect_stream_content(
         self,
@@ -538,8 +633,17 @@ class QwenLLMService:
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             log_api_call("通义千问LLM", "流式消息生成", "error", duration_ms)
-            logger.error(f"❌ 流式消息生成失败: {str(e)}")
-            yield {"type": "error", "content": str(e)}
+            from app.services.llm_errors import classify_exception, terminal_message
+            error_class = classify_exception(e)
+            logger.error(
+                "llm_stream_failed",
+                error_class=error_class.value, model=model, error=str(e),
+            )
+            yield {
+                "type": "error",
+                "content": f"{terminal_message(error_class)}（{e}）",
+                "error_class": error_class.value,
+            }
 
 # 创建全局实例
 llm_service = QwenLLMService()

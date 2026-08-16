@@ -1,29 +1,31 @@
 ---
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
-branch: main
-updated_at: 2026-08-14T08:40:05+08:00
-last_commit: b0c808e
-status: unify-selection-into-dialog done（总纲 dialog-task-pipeline 延伸,PLAN fd76964 seal,feat c2e8dbe）: 框选改 Cursor 式并入对话——删 AIContextMenu 浮菜单+agent.py quick_action 分支/字段,选区→贴入浮按钮→引用标签(📎预览+×)→user_input 拼引用块并入对话上下文(后端零改动)。审校按钮留快捷入口,AISuggestionBar+旧端点保留。验证 tsc 0 错+pytest 718 passed(1预存failed无关)+import OK+quick_action 残留清零。端到端 UI+LLM 响应留部署环境验。
+branch: feature/session-continuity-local-resilience
+updated_at: 2026-08-16T13:55:45+08:00
+last_commit: 44de60e
+status: session-continuity-local-resilience 完成9/9待review合入（state+memory会话接续/LLM韧性/G25a静默失败治理;PLAN ff191eb,最终门853 passed 0回归+tsc 0错,PR #60 已开待 /pr-review 后合入）;前序:unify-selection-into-dialog done/multi-dev-git-governance done
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `b0c808e` chore: drop 72 done PLAN/ALIGN process files (recoverable via git history) (0 seconds ago)
-- `12a3caa` feat(governance): wire /pr-review into PR review flow (8 hours ago)
-- `50a2f07` docs(readme): add ONBOARDING/CONTRIBUTING pointers for collaborators (8 hours ago)
-- `dd78b57` docs: add ONBOARDING quickstart for collaborators (8 hours ago)
-- `b8eb17c` chore(governance): add PR template + review process doc (9 hours ago)
-- `7fc642f` chore(governance): enforce admin-only PR review via CODEOWNERS (9 hours ago)
-- `a30550e` test(fixtures): add csv export test fixtures (11 hours ago)
-- `f25162f` chore(governance): multi-dev collaboration setup (11 hours ago)
-- `f18e861` feat(profile): expand assembly profile and refine VISION acceptance (34 hours ago)
-- `85820d8` feat(deploy): add MindIE configs, scripts and package for Kylin (34 hours ago)
+- `44de60e` docs(devlog): record N10 delivery-grade fallback rationale (1 second ago)
+- `368c574` feat(writing): G25a exhausted-retry fallback to sub_text verbatim fill (delivery-grade resilience) (63 seconds ago)
+- `b3a8174` docs(devlog): mark session-continuity-local-resilience done (9/9, PR #60) (52 minutes ago)
+- `657c518` docs(architecture): document project state, per-project memory, LLM resilience, G25a warnings (60 minutes ago)
+- `c9090db` feat(sse): emit warning events for chapter row gaps and surface them in chat panel (61 minutes ago)
+- `2cecac1` fix(writing): per-row retry and completeness reporting for G25a parallel generation (62 minutes ago)
+- `140b4a1` feat(agents): pass project working state into writing agent chapter prompts (66 minutes ago)
+- `4fe8d05` feat(state): inject project working state into generation chain and record per-turn updates (68 minutes ago)
+- `2d65586` feat(memory): scope session memory per project with keyword-recall fallback to global (70 minutes ago)
+- `4b7481e` feat(state): add per-project rolling working-state service with atomic JSON storage (72 minutes ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **进行中（session-continuity-local-resilience，2026-08-16 开）**: 底层架构更新第一批（同事做登录界面，本线做底层）。三包：A 会话接续（项目级 state 滚动工作状态 + memory 按项目分目录，新会话开局注入主生成链路，解决本地 Qwen3-30B-A3B 多轮上下文满 + 新会话无法接续）；B LLM 韧性层（llm_service 错误分类 + 重试退避 + 溢出裁剪）；C G25a 静默失败治理（根因：writing_agent.py:1729/1736/1762 单行失败静默 return []，治法 = 单行重试 + 完成度核对 SSE warning 上报，补 VISION"可靠"验收漏网点）。PLAN `ff191eb` seal（9 节点 2 轨道）。**进度：9/9 节点完成**——N1 llm_errors(`a569541`) / N2 llm_service 重试层(`c901813`) / N3 ProjectStateService(`4b7481e`) / N4 memory 按项目分域(`2d65586`) / N5 主链路 state 注入+写入(`4fe8d05`) / N6 WritingAgent state 注入(`140b4a1`) / N7 G25a per-row 重试+完成度(`2cecac1`) / N8 SSE warning 前后端(`c9090db`) / N9 ARCHITECTURE 更新(本 commit)。**N10 交付级降级追加（2026-08-16 用户纠偏后，`368c574`）**：N7 初版"重试+上报"是开发视角假完整——交付后 warning 平息不了用户怒火。补 Ch16 执行层内降：重试耗尽 → content 回退 sub_text 原文直填（i.N 编号行文 + （原文直填，待润色）标记），warning 改行动导向"已回退原文直填，建议人工复核"；无原文可降才真留空。救援链闭环 = 重试→降级→兜底→上报。新增单测 60 个（g25a_resilience 4→6）；最终门 853 passed 0 回归 + tsc 0 错；PR #60（14 commits）。分支 `feature/session-continuity-local-resilience`，合入走标准 PR + /pr-review（agents/** 架构层隔离强制 review）。
 
 - **完成（multi-dev-git-governance，2026-08-13）**: 进入多人协作前的仓库治理。① **force push** 本地 main 对齐远程（打破 380/1 分叉死循环，已核实远程唯一 commit #59 功能本地已覆盖）② 仓库改 **public** + 配 `main` **branch protection**（require PR + ≥1 review + 禁 force push；`enforce_admins=false` admin 可 bypass，单人推进不卡）③ `.gitignore` 补全（screenshots / deploy-screenshots / e2e 报告 / backend data 运行数据 / 根 data 业务 docx·wps）+ 删误建 `backend/backend/` 副本 ④ **CONTRIBUTING.md** 协作规范（分支模型 / PR 流程 / ⭐架构层隔离：`backend/app/agents/**` + `hierarchical_context.py` + `knowledge_graph.py` + `models/database.py` + `agent.py` generate-stream 主链 + `ARCHITECTURE.md` → 独立 PR 强制 review / commit 规范 / 新人入门）⑤ 项目 CLAUDE.md 修过时分支段。安全扫确认无密钥泄露（仅内网拓扑 IP，用户判内网隔离可接受）。补 csv export 测试 fixtures。
 

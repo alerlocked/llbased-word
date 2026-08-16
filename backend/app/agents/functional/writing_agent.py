@@ -525,6 +525,13 @@ class WritingAgent(BaseAgent):
                 )
                 if self._writing_preferences:
                     system_msg += self._get_preference_prompt_fragment()
+                # Project working state (session continuity): informs the writer
+                # what this project was last working on (e.g. editing G25a).
+                state_block = task.get("project_state_block") or (task.get("params") or {}).get(
+                    "project_state_block", ""
+                )
+                if state_block:
+                    system_msg += f"\n\n{state_block}"
 
                 user_parts = [f"## 生成指令\n{module_instruction}"]
                 if material_instr:
@@ -832,6 +839,7 @@ class WritingAgent(BaseAgent):
         is_g25a_sourced = chapter_code == "G25a" and bool(_assembly)
         g25a_source_block = ""
         g25a_skeleton_block = ""
+        row_gaps: List[Dict[str, Any]] = []  # filled by G25a per-row path
         if is_g25a_sourced:
             asm: Dict[int, Dict[str, Any]] = {}
             for _k, _v in _assembly.items():
@@ -1074,6 +1082,13 @@ class WritingAgent(BaseAgent):
 
             if self._writing_preferences:
                 system_msg += self._get_preference_prompt_fragment()
+            # Project working state (session continuity): what this project was
+            # last working on — rides base_system_msg into per-row G25a calls.
+            _state_block = task.get("project_state_block") or (task.get("params") or {}).get(
+                "project_state_block", ""
+            )
+            if _state_block:
+                system_msg += f"\n\n{_state_block}"
 
             user_parts = []
             if knowledge_context:
@@ -1101,7 +1116,7 @@ class WritingAgent(BaseAgent):
                 # call (Semaphore(4) concurrent). Avoids max_tokens truncation
                 # (critical for local qwen3-30b-a3b, maxIterTimes=2048) and
                 # improves quality — each call focuses on one step's content.
-                unstructured_slots, llm_row_count, aux_overrides = await self._generate_g25a_per_row_parallel(
+                unstructured_slots, llm_row_count, aux_overrides, row_gaps = await self._generate_g25a_per_row_parallel(
                     base_system_msg=system_msg,
                     user_parts=user_parts,
                     unstructured_cols=unstructured_cols,
@@ -1305,6 +1320,11 @@ class WritingAgent(BaseAgent):
             "field_values": chapter_data.field_values,
             "table_type": chapter_type,
             "fill_sources": fill_sources,
+            # Per-row generation gaps; rides structured_results → agent.py SSE
+            # warning events. No chapter guard: row_gaps is [] for chapters
+            # without a per-row path, and a guard here would silently swallow
+            # a future chapter's warnings.
+            "warnings": row_gaps,
         }
 
     async def _derive_list_from_upstream(
@@ -1716,44 +1736,98 @@ class WritingAgent(BaseAgent):
                 f"每个检验点独占一行（用换行分隔）。不要写操作步骤（操作步骤归 content）。\n\n"
                 f"## 工序{i}（{name}）工步原文（content 的依据，按上述工步结构详实展开，保留全部工步信息）\n{sub_text}\n"
             )
-            async with semaphore:
-                result = await llm_service.generate_with_messages(
-                    messages=[
-                        {"role": "system", "content": step_msg},
-                        {"role": "user", "content": user_msg},
-                    ],
-                    temperature=0.2,
-                    max_tokens=3000,
-                    tier="complex",
+            def _fallback_slots(reason: str) -> List[Dict[str, Any]]:
+                """Degraded fill (Ch16 in-tier): LLM generation failed after all
+                retries → fall back to source substeps verbatim, marked for
+                human review. Same-row LLM 润色 degrades to 原文直抄, never a
+                silently empty delivered row."""
+                # Compose readable lines: strip the two-space indent + keep
+                # the 辅材 suffix; prefix each with the i.N step id like the
+                # normal generation format.
+                lines = [l.strip() for l in sub_text.splitlines() if l.strip()]
+                if lines == ["（原文未提供）"]:
+                    return []  # nothing to fall back to — report as gap
+                content_lines = []
+                for k, l in enumerate(lines, start=1):
+                    content_lines.append(f"{i}.{k} {l}")
+                content = "\n".join(content_lines) + "\n（原文直填，待润色）"
+                logger.warning(
+                    "g25a_per_step_fallback",
+                    step=i, reason=reason, lines=len(content_lines),
                 )
-            if result["status"] == "error":
-                logger.warning("g25a_per_step_failed", step=i, error=result.get("error"))
-                return []
-            raw = result["content"].strip()
-            if result.get("finish_reason") == "length":
-                logger.warning("g25a_per_step_truncated", step=i, max_tokens=3000)
-            parsed = _parse_llm_json(raw)
-            if not parsed or not isinstance(parsed, list):
-                logger.warning("g25a_per_step_parse_failed", step=i)
-                return []
-            slots = []
-            for item in parsed:
-                s = item.get("slot", "")
-                s = label_to_key.get(s, s)
-                if s in slot_keys:
-                    val = item.get("value", "")
-                    if s == "content" and val:
-                        # Force leading N.M step-id first segment = i. The LLM
-                        # sometimes copies the source doc's numbering verbatim
-                        # (e.g. "1.1 ..." under 工序9); rewrite so every line's
-                        # leading id starts with the current step number.
-                        val = re.sub(
-                            r'^(\d+)\.(\d+(?:\.\d+)*)',
-                            lambda m: f"{i}.{m.group(2)}",
-                            val, flags=re.MULTILINE,
+                # "degraded": machine flag — completeness check keys on this,
+                # NOT on the user-visible marker text (wording changes must
+                # never break detection).
+                return [{"row": i, "slot": "content", "value": content, "degraded": True}]
+
+            async with semaphore:
+                # Per-row resilience (F1): retry LLM errors and JSON parse
+                # failures in place (2 retries, exponential backoff). Before
+                # this, a single row failure silently returned [] → empty row
+                # in the delivered table (工序四有/五空/六有 pattern).
+                max_attempts = 3
+                last_failure_class = "unknown"
+                for attempt in range(max_attempts):
+                    result = await llm_service.generate_with_messages(
+                        messages=[
+                            {"role": "system", "content": step_msg},
+                            {"role": "user", "content": user_msg},
+                        ],
+                        temperature=0.2,
+                        max_tokens=3000,
+                        tier="complex",
+                        max_retries=0,  # this loop owns the retry budget —
+                        # one layer only (3 calls/row max, not 3×3=9)
+                    )
+                    if result["status"] == "error":
+                        last_failure_class = result.get("error_class") or "llm_error"
+                        if attempt < max_attempts - 1:
+                            await asyncio.sleep(0.5 * (2 ** attempt))
+                            logger.warning(
+                                "g25a_per_step_retry",
+                                step=i, attempt=attempt + 1,
+                                reason=f"llm_error:{last_failure_class}",
+                            )
+                            continue
+                        logger.warning(
+                            "g25a_per_step_failed", step=i,
+                            error=result.get("error"), attempts=max_attempts,
                         )
-                    slots.append({"row": i, "slot": s, "value": val})
-            return slots
+                        return _fallback_slots(f"llm_error:{last_failure_class}")
+                    raw = result["content"].strip()
+                    if result.get("finish_reason") == "length":
+                        logger.warning("g25a_per_step_truncated", step=i, max_tokens=3000)
+                    parsed = _parse_llm_json(raw)
+                    if not parsed or not isinstance(parsed, list):
+                        last_failure_class = "json_parse_fail"
+                        if attempt < max_attempts - 1:
+                            await asyncio.sleep(0.5 * (2 ** attempt))
+                            logger.warning(
+                                "g25a_per_step_retry",
+                                step=i, attempt=attempt + 1, reason="parse_fail",
+                            )
+                            continue
+                        logger.warning("g25a_per_step_parse_failed", step=i, attempts=max_attempts)
+                        return _fallback_slots("parse_fail")
+                    break
+                slots = []
+                for item in parsed:
+                    s = item.get("slot", "")
+                    s = label_to_key.get(s, s)
+                    if s in slot_keys:
+                        val = item.get("value", "")
+                        if s == "content" and val:
+                            # Force leading N.M step-id first segment = i. The LLM
+                            # sometimes copies the source doc's numbering verbatim
+                            # (e.g. "1.1 ..." under 工序9); rewrite so every line's
+                            # leading id starts with the current step number.
+                            val = re.sub(
+                                r'^(\d+)\.(\d+(?:\.\d+)*)',
+                                lambda m: f"{i}.{m.group(2)}",
+                                val, flags=re.MULTILINE,
+                            )
+                        slots.append({"row": i, "slot": s, "value": val})
+                return slots
 
         tasks = [gen_one(i) for i in range(1, n + 1)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -1771,11 +1845,48 @@ class WritingAgent(BaseAgent):
                 aux_overrides[s["row"]] = s["value"]
             else:
                 content_slots.append(s)
+        # Completeness check (F4): a row is covered ONLY when its content slot
+        # has a value — inspection-only rows with empty content are gaps (the
+        # old any-slot check let them slip through silently). Degraded rows are
+        # detected via the machine flag set by _fallback_slots, not by sniffing
+        # the user-visible marker text.
+        rows_covered = {
+            s["row"] for s in content_slots
+            if s.get("slot") == "content" and s.get("value")
+        }
+        degraded_rows = {s["row"] for s in content_slots if s.get("degraded")}
+        missing_rows = [i for i in range(1, n + 1) if i not in rows_covered]
+        row_gaps: List[Dict[str, Any]] = []
+        for i in degraded_rows:
+            name = skel[i - 1] if i - 1 < len(skel) else str(i)
+            row_gaps.append({
+                "row": i,
+                "message": f"工序 {i}（{name}）生成失败，已回退原文直填，建议人工复核",
+            })
+        if missing_rows:
+            for i in missing_rows:
+                name = skel[i - 1] if i - 1 < len(skel) else str(i)
+                row_gaps.append({
+                    "row": i,
+                    "message": f"工序 {i}（{name}）生成失败且原文未提供，该行留空",
+                })
+            logger.warning(
+                "g25a_completeness_gaps",
+                chapter_code="G25a", expected_rows=n,
+                missing_rows=missing_rows,
+            )
+        if degraded_rows:
+            logger.warning(
+                "g25a_degraded_rows_fallback",
+                chapter_code="G25a", expected_rows=n,
+                degraded_rows=sorted(degraded_rows),
+            )
         logger.info(
             "g25a_per_step_parallel_done",
             steps=n, slots=len(content_slots), aux_overrides=len(aux_overrides),
+            gaps=len(row_gaps),
         )
-        return content_slots, n, aux_overrides
+        return content_slots, n, aux_overrides, row_gaps
 
     def _get_preference_prompt_fragment(self) -> str:
         """Generate a prompt fragment from loaded preferences."""

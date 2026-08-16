@@ -652,6 +652,7 @@ class HierarchicalContext:
         session_id: str,
         max_tokens: int = 15000,
         mode: str = "write",
+        project_id: Optional[int] = None,
     ) -> str:
         """构建分层上下文
 
@@ -799,7 +800,7 @@ class HierarchicalContext:
                 from app.config import settings
                 memory_budget = min(settings.MEMORY_MAX_TOKENS, effective_max_tokens - used_tokens)
                 if memory_budget > 100:
-                    memory_text = self._load_filtered_memory(query, memory_budget)
+                    memory_text = self._load_filtered_memory(query, memory_budget, project_id=project_id)
                     if memory_text:
                         memory_section = f"\n## 历史对话记忆\n\n{memory_text}\n"
                         layer4_tokens = self._estimate_tokens(memory_section)
@@ -1217,19 +1218,34 @@ class HierarchicalContext:
         status["missing_topics"] = missing
         return status
 
-    def _load_filtered_memory(self, query: str, max_tokens: int) -> str:
+    def _load_filtered_memory(
+        self, query: str, max_tokens: int, project_id: Optional[int] = None
+    ) -> str:
         """Load memory filtered by query relevance.
 
         1. Keyword-match against query; inject top 2-3 relevant memories.
         2. Fallback: inject the most recent 1 memory.
+        Project scoping: when project_id given, MERGE candidates from the
+        project dir and the global dir into one scored pool (project entries
+        win ties via mtime sort) — the global dir is NOT shadowed. Global is
+        legacy: end-state is user-layer/project-layer only (user_id lands with
+        the auth line); global gets migrated or dropped then.
         """
         if not self._memory_service:
             return ""
 
         query_keywords = extract_keywords(query)
-        memory_dir = self._memory_service.memory_dir
-        if not memory_dir.exists():
-            return ""
+        memory_dirs = [self._memory_service.memory_dir]
+        if project_id is not None:
+            try:
+                from app.services.memory_service import get_project_memory_service
+
+                project_dir = get_project_memory_service(project_id).memory_dir
+                if project_dir != memory_dirs[0]:
+                    # project first → ties resolve toward project memories
+                    memory_dirs.insert(0, project_dir)
+            except Exception as e:
+                logger.warning(f"[上下文] 项目记忆目录加载失败,仅全局: {e}")
 
         def _safe_mtime(p: Path) -> float:
             try:
@@ -1237,11 +1253,15 @@ class HierarchicalContext:
             except OSError:
                 return 0.0
 
-        memory_files = sorted(
-            memory_dir.glob("*.md"),
-            key=_safe_mtime,
-            reverse=True,
-        )
+        seen_names = set()
+        memory_files = []
+        for d in memory_dirs:
+            if not d.exists():
+                continue
+            for f in sorted(d.glob("*.md"), key=_safe_mtime, reverse=True):
+                if f.name not in seen_names:  # project copy shadows same-name global
+                    seen_names.add(f.name)
+                    memory_files.append(f)
         if not memory_files:
             return ""
 
