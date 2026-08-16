@@ -2,15 +2,16 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/review-pipeline
-updated_at: 2026-08-17T07:43:07+08:00
-last_commit: 0a922f2
+updated_at: 2026-08-17T07:45:28+08:00
+last_commit: 90572b5
 status: session-continuity-local-resilience 完成9/9待review合入（state+memory会话接续/LLM韧性/G25a静默失败治理;PLAN ff191eb,最终门853 passed 0回归+tsc 0错,PR #60 已开待 /pr-review 后合入）;前序:unify-selection-into-dialog done/multi-dev-git-governance done
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (0 seconds ago)
+- `90572b5` fix(intent): question-form gate on draft_complete boost + review examples in LLM prompt + needs_clarification (0 seconds ago)
+- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (2 minutes ago)
 - `cc93494` align: resolve open questions (safe-edit-fallback / four-way review) (8 hours ago)
 - `6b122a2` align: review pipeline + intent gating + last-output snapshot (slug review-pipeline) (8 hours ago)
 - `b61653d` Merge pull request #61 from alerlocked/feature/thinking-budget-tiers (9 hours ago)
@@ -19,7 +20,6 @@ task_state: done
 - `6cbaf30` fix(review): address pr-review findings F1-F8 (16 hours ago)
 - `44de60e` docs(devlog): record N10 delivery-grade fallback rationale (18 hours ago)
 - `368c574` feat(writing): G25a exhausted-retry fallback to sub_text verbatim fill (delivery-grade resilience) (18 hours ago)
-- `b3a8174` docs(devlog): mark session-continuity-local-resilience done (9/9, PR #60) (19 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

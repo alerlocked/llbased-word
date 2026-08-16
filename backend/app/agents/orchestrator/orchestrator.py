@@ -527,6 +527,26 @@ class ProcessOrchestrator:
             # 4.5 Route DRAFT_COMPLETE to dedicated handler
             # This includes temp uploaded file scenarios (no draft_id)
             if intent.get("type") == "draft_complete":
+                # Admission gate (user rule): generate/fill run ONLY from the
+                # button (generation_mode). A draft_complete intent detected
+                # from plain dialog text (no generation_mode) must NOT execute
+                # — clarify instead. Prevents "chat question rewrote my file".
+                gate = self._gate_draft_complete(context, full_context)
+                if not gate["allowed"]:
+                    logger.warning(
+                        "draft_complete_gated",
+                        reason=gate["reason"], user_input=user_input[:100],
+                    )
+                    return {
+                        "success": True,
+                        "intent": intent,
+                        "state": "gated",
+                        "message": (
+                            "这句话听起来像是要补全文件，但生成/补齐只能通过生成按钮触发，"
+                            "对话里我不会直接重写文件。如果你是想让我检查或补充内容，"
+                            "可以直接问（如\"还需要补充吗\"），我会基于模板和已生成内容给你对照结果。"
+                        ),
+                    }
                 # Record user message before routing
                 if self.repository and self.current_task_id:
                     self.repository.add_message(
@@ -627,6 +647,25 @@ class ProcessOrchestrator:
                 "error": str(e),
                 "state": self.state_machine.current_state.value,
             }
+
+    @staticmethod
+    def _gate_draft_complete(
+        context: Optional[Dict[str, Any]],
+        full_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Admission gate for draft_complete execution (user-set red line).
+
+        generate/fill execute ONLY when the request carries
+        generation_mode ∈ {generate, fill} (the button path). A draft_complete
+        intent detected from dialog text (no generation_mode) is gated:
+        {"allowed": False, "reason": "dialog_no_generation_mode"}.
+        """
+        gen_mode = (context or {}).get("generation_mode") or (
+            full_context or {}
+        ).get("generation_mode")
+        if gen_mode in ("generate", "fill"):
+            return {"allowed": True, "reason": f"generation_mode={gen_mode}"}
+        return {"allowed": False, "reason": "dialog_no_generation_mode"}
 
     async def _build_context(self, additional_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
