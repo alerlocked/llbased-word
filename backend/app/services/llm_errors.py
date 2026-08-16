@@ -29,6 +29,24 @@ USER_FACING_MESSAGES: Dict[LLMErrorClass, str] = {
     LLMErrorClass.UNKNOWN: "模型服务异常",
 }
 
+# Terminal wording: used in FINAL error returns after the retry budget is
+# exhausted (or retries disabled). Never says "retrying" — the user must not
+# wait on a permanently failed call. Map from the in-flight message.
+TERMINAL_MESSAGES: Dict[LLMErrorClass, str] = {
+    LLMErrorClass.TIMEOUT: "模型响应超时，已重试仍失败，请稍后重试或检查本地模型状态",
+    LLMErrorClass.CONNECTION_REFUSED: "无法连接本地模型服务，请检查模型是否已启动",
+    LLMErrorClass.CONTEXT_OVERFLOW: "输入内容超出模型上下文长度，压缩后重试仍失败，请缩减输入内容",
+    LLMErrorClass.EMPTY_REPLY: "模型多次返回空内容，请稍后重试",
+    LLMErrorClass.JSON_PARSE_FAIL: "模型输出格式多次异常，请重试",
+    LLMErrorClass.RATE_LIMIT: "模型服务请求过多，已重试仍失败，请稍后再试",
+    LLMErrorClass.UNKNOWN: "模型服务异常，请重试",
+}
+
+
+def terminal_message(error_class: LLMErrorClass) -> str:
+    """User-facing message for a permanently failed call (retries exhausted)."""
+    return TERMINAL_MESSAGES.get(error_class, USER_FACING_MESSAGES[error_class])
+
 # Error classes worth retrying (idempotent calls, transient failure modes).
 _RETRYABLE = {
     LLMErrorClass.TIMEOUT,

@@ -63,6 +63,15 @@ class TestUpdateFromTurn:
         assert state["last_session_id"] == "s1"
         assert state["recent_intents"] == ["edit_document"]
 
+    def test_extracts_chapter_codes_cjk_adjacent(self, svc):
+        # \b never fires between CJK and ASCII; lookarounds must (F1 fix)
+        svc.update_from_turn(1, "s1", "修改G25a第3行的内容", None, None)
+        assert svc.load(1)["focus_chapters"] == ["G25a"]
+
+    def test_letter_wrapped_codes_not_matched(self, svc):
+        svc.update_from_turn(1, "s1", "AG25a型号和RGB25色不是章节", None, None)
+        assert svc.load(1)["focus_chapters"] == []
+
     def test_focus_chapters_dedupe(self, svc):
         svc.update_from_turn(1, "s1", "改 G25a", None, ["G25a"])
         assert svc.load(1)["focus_chapters"] == ["G25a"]

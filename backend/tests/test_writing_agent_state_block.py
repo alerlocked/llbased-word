@@ -45,7 +45,7 @@ class TestTemplateFillStateBlock:
 
         captured = {}
 
-        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex"):
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             captured["system"] = messages[0]["content"]
             return {"status": "success", "content": '[{"row": 1, "slot": "content", "value": "v"}]', "finish_reason": "stop"}
 
@@ -73,7 +73,7 @@ class TestTemplateFillStateBlock:
 
         captured = {}
 
-        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex"):
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             captured["system"] = messages[0]["content"]
             return {"status": "success", "content": '[{"row": 1, "slot": "content", "value": "v"}]', "finish_reason": "stop"}
 

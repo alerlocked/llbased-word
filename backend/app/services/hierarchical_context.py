@@ -1225,25 +1225,27 @@ class HierarchicalContext:
 
         1. Keyword-match against query; inject top 2-3 relevant memories.
         2. Fallback: inject the most recent 1 memory.
-        Project scoping: when project_id given, read from the project memory
-        dir; fall back to the global dir when the project dir has no files.
+        Project scoping: when project_id given, MERGE candidates from the
+        project dir and the global dir into one scored pool (project entries
+        win ties via mtime sort) — the global dir is NOT shadowed. Global is
+        legacy: end-state is user-layer/project-layer only (user_id lands with
+        the auth line); global gets migrated or dropped then.
         """
         if not self._memory_service:
             return ""
 
         query_keywords = extract_keywords(query)
-        memory_dir = self._memory_service.memory_dir
+        memory_dirs = [self._memory_service.memory_dir]
         if project_id is not None:
             try:
                 from app.services.memory_service import get_project_memory_service
 
                 project_dir = get_project_memory_service(project_id).memory_dir
-                if project_dir.exists() and any(project_dir.glob("*.md")):
-                    memory_dir = project_dir
+                if project_dir != memory_dirs[0]:
+                    # project first → ties resolve toward project memories
+                    memory_dirs.insert(0, project_dir)
             except Exception as e:
-                logger.warning(f"[上下文] 项目记忆目录加载失败,回退全局: {e}")
-        if not memory_dir.exists():
-            return ""
+                logger.warning(f"[上下文] 项目记忆目录加载失败,仅全局: {e}")
 
         def _safe_mtime(p: Path) -> float:
             try:
@@ -1251,11 +1253,15 @@ class HierarchicalContext:
             except OSError:
                 return 0.0
 
-        memory_files = sorted(
-            memory_dir.glob("*.md"),
-            key=_safe_mtime,
-            reverse=True,
-        )
+        seen_names = set()
+        memory_files = []
+        for d in memory_dirs:
+            if not d.exists():
+                continue
+            for f in sorted(d.glob("*.md"), key=_safe_mtime, reverse=True):
+                if f.name not in seen_names:  # project copy shadows same-name global
+                    seen_names.add(f.name)
+                    memory_files.append(f)
         if not memory_files:
             return ""
 

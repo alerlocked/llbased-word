@@ -1320,9 +1320,11 @@ class WritingAgent(BaseAgent):
             "field_values": chapter_data.field_values,
             "table_type": chapter_type,
             "fill_sources": fill_sources,
-            # Per-row generation gaps after retries (G25a path); rides
-            # structured_results → agent.py SSE warning events (N8).
-            "warnings": row_gaps if chapter_code == "G25a" else [],
+            # Per-row generation gaps; rides structured_results → agent.py SSE
+            # warning events. No chapter guard: row_gaps is [] for chapters
+            # without a per-row path, and a guard here would silently swallow
+            # a future chapter's warnings.
+            "warnings": row_gaps,
         }
 
     async def _derive_list_from_upstream(
@@ -1753,7 +1755,10 @@ class WritingAgent(BaseAgent):
                     "g25a_per_step_fallback",
                     step=i, reason=reason, lines=len(content_lines),
                 )
-                return [{"row": i, "slot": "content", "value": content}]
+                # "degraded": machine flag — completeness check keys on this,
+                # NOT on the user-visible marker text (wording changes must
+                # never break detection).
+                return [{"row": i, "slot": "content", "value": content, "degraded": True}]
 
             async with semaphore:
                 # Per-row resilience (F1): retry LLM errors and JSON parse
@@ -1771,6 +1776,8 @@ class WritingAgent(BaseAgent):
                         temperature=0.2,
                         max_tokens=3000,
                         tier="complex",
+                        max_retries=0,  # this loop owns the retry budget —
+                        # one layer only (3 calls/row max, not 3×3=9)
                     )
                     if result["status"] == "error":
                         last_failure_class = result.get("error_class") or "llm_error"
@@ -1838,14 +1845,16 @@ class WritingAgent(BaseAgent):
                 aux_overrides[s["row"]] = s["value"]
             else:
                 content_slots.append(s)
-        # Completeness check (F4): after retries + sub_text fallback, two
-        # residual gap kinds — degraded rows (fell back, delivered but marked
-        # for review) and true gaps (no source text to fall back on).
-        rows_covered = {s["row"] for s in content_slots if s.get("value")}
-        degraded_rows = {
+        # Completeness check (F4): a row is covered ONLY when its content slot
+        # has a value — inspection-only rows with empty content are gaps (the
+        # old any-slot check let them slip through silently). Degraded rows are
+        # detected via the machine flag set by _fallback_slots, not by sniffing
+        # the user-visible marker text.
+        rows_covered = {
             s["row"] for s in content_slots
-            if "（原文直填，待润色）" in (s.get("value") or "")
+            if s.get("slot") == "content" and s.get("value")
         }
+        degraded_rows = {s["row"] for s in content_slots if s.get("degraded")}
         missing_rows = [i for i in range(1, n + 1) if i not in rows_covered]
         row_gaps: List[Dict[str, Any]] = []
         for i in degraded_rows:

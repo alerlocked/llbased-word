@@ -369,6 +369,7 @@ class QwenLLMService:
         temperature: float = 0.7,
         max_tokens: int = 2000,
         tier: Literal["simple", "complex"] = "complex",
+        max_retries: int = 2,
     ) -> Dict:
         """
         Chat completion with native message array (OpenAI-compatible format).
@@ -378,6 +379,10 @@ class QwenLLMService:
             temperature: sampling temperature
             max_tokens: max tokens to generate
             tier: "simple" for QA/lookup (fast, cheap), "complex" for generation/review
+            max_retries: transport-level retry budget. Callers that own their
+                own retry loop (e.g. writing_agent G25a per-row) pass 0 so the
+                budget lives in ONE layer — prevents retry multiplication
+                (3 outer × 3 inner = 9 calls/row).
 
         Returns:
             {"status": "success"|"error", "content": str}
@@ -397,6 +402,7 @@ class QwenLLMService:
             tier=tier,
             model=model,
             start_time=start_time,
+            max_retries=max_retries,
         )
 
     async def _generate_with_retry(
@@ -421,8 +427,8 @@ class QwenLLMService:
             LLMErrorClass,
             classify_exception,
             should_retry,
+            terminal_message,
             trim_messages_for_overflow,
-            USER_FACING_MESSAGES,
         )
 
         import asyncio as _asyncio
@@ -464,7 +470,7 @@ class QwenLLMService:
                     )
                     return {
                         "status": "error",
-                        "error": USER_FACING_MESSAGES[error_class],
+                        "error": terminal_message(error_class),
                         "error_class": error_class.value,
                         "content": "",
                         "finish_reason": finish_reason,
@@ -511,7 +517,7 @@ class QwenLLMService:
                         )
                         return {
                             "status": "error",
-                            "error": f"{USER_FACING_MESSAGES[error_class]}（{e}）",
+                            "error": f"{terminal_message(error_class)}（{e}）",
                             "error_class": error_class.value,
                             "content": "",
                             "finish_reason": None,
@@ -533,7 +539,7 @@ class QwenLLMService:
                 )
                 return {
                     "status": "error",
-                    "error": f"{USER_FACING_MESSAGES[error_class]}（{e}）",
+                    "error": f"{terminal_message(error_class)}（{e}）",
                     "error_class": error_class.value,
                     "content": "",
                     "finish_reason": None,
@@ -627,7 +633,7 @@ class QwenLLMService:
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             log_api_call("通义千问LLM", "流式消息生成", "error", duration_ms)
-            from app.services.llm_errors import classify_exception, USER_FACING_MESSAGES
+            from app.services.llm_errors import classify_exception, terminal_message
             error_class = classify_exception(e)
             logger.error(
                 "llm_stream_failed",
@@ -635,7 +641,7 @@ class QwenLLMService:
             )
             yield {
                 "type": "error",
-                "content": f"{USER_FACING_MESSAGES[error_class]}（{e}）",
+                "content": f"{terminal_message(error_class)}（{e}）",
                 "error_class": error_class.value,
             }
 

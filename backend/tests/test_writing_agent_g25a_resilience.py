@@ -1,3 +1,4 @@
+import json
 """Unit tests: G25a per-row retry + completeness reporting (N7).
 
 Mocks llm_service.generate_with_messages with scripted side effects per step.
@@ -51,7 +52,7 @@ class TestPerRowRetry:
         # step1 ok; step2: err, err, ok; step3 ok — per-row independence
         calls = {"1": 0, "2": 0, "3": 0}
 
-        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex"):
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             sys = messages[0]["content"]
             import re
             m = re.search(r"只生成第 (\d+) 道工序", sys)
@@ -71,7 +72,7 @@ class TestPerRowRetry:
     async def test_step_always_errors_reported_as_gap(self, monkeypatch):
         from app.services import llm_service as ls
 
-        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex"):
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             import re
             step = re.search(r"只生成第 (\d+) 道工序", messages[0]["content"]).group(1)
             if step == "3":
@@ -91,7 +92,7 @@ class TestPerRowRetry:
 
         calls = {"1": 0}
 
-        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex"):
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             import re
             step = re.search(r"只生成第 (\d+) 道工序", messages[0]["content"]).group(1)
             if step == "1":
@@ -111,7 +112,7 @@ class TestPerRowRetry:
 
         collect = AsyncMock(side_effect=None)
 
-        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex"):
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             import re
             step = re.search(r"只生成第 (\d+) 道工序", messages[0]["content"]).group(1)
             return _ok(int(step))
@@ -138,7 +139,7 @@ class TestSubTextFallback:
     async def test_exhausted_retries_fall_back_to_sub_text(self, monkeypatch):
         from app.services import llm_service as ls
 
-        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex"):
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             import re
             step = re.search(r"只生成第 (\d+) 道工序", messages[0]["content"]).group(1)
             if step == "2":
@@ -168,7 +169,7 @@ class TestSubTextFallback:
     async def test_no_source_text_true_gap(self, monkeypatch):
         from app.services import llm_service as ls
 
-        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex"):
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             return _err()
 
         monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
@@ -179,3 +180,80 @@ class TestSubTextFallback:
         assert content_slots == []
         assert len(gaps) == 1
         assert "留空" in gaps[0]["message"]
+
+    async def test_inspection_only_row_reported_as_gap(self, monkeypatch):
+        """F3: row with inspection filled but content empty = gap (old any-slot
+        check let it slip through silently)."""
+        from app.services import llm_service as ls
+
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
+            import re
+            step = re.search(r"只生成第 (\d+) 道工序", messages[0]["content"]).group(1)
+            if step == "1":
+                return {
+                    "status": "success",
+                    "content": json.dumps([
+                        {"row": 1, "slot": "inspection", "value": "检查密封性"},
+                        {"row": 1, "slot": "content", "value": ""},
+                    ]),
+                    "finish_reason": "stop",
+                }
+            return _ok(int(step))
+
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
+        agent = _agent()
+        content_slots, n, aux, gaps = await self._make_method_with_subs(agent, 2, {})
+        assert [g["row"] for g in gaps] == [1]
+        assert "生成失败" in gaps[0]["message"]
+
+    async def test_degraded_flag_detection_not_text_sniff(self, monkeypatch):
+        """F8b: degraded rows detected via flag, not marker-string sniffing."""
+        from app.services import llm_service as ls
+
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
+            import re
+            step = re.search(r"只生成第 (\d+) 道工序", messages[0]["content"]).group(1)
+            if step == "1":
+                return _ok(int(step))
+            return _err()
+
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
+        agent = _agent()
+        content_slots, n, aux, gaps = await self._make_method_with_subs(agent, 2, {})
+        # row 2 fell back: slot carries degraded=True
+        row2 = [s for s in content_slots if s["row"] == 2]
+        assert row2 and row2[0].get("degraded") is True
+        assert [g["row"] for g in gaps] == [2]
+        assert "已回退原文直填" in gaps[0]["message"]
+
+
+class TestSingleLayerRetry:
+    """F5: gen_one owns the retry budget; inner transport does single-shot."""
+
+    async def test_gen_one_passes_zero_retries(self, monkeypatch):
+        from app.services import llm_service as ls
+
+        seen_kwargs = {}
+
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
+            import re
+            step = re.search(r"只生成第 (\d+) 道工序", messages[0]["content"]).group(1)
+            seen_kwargs[int(step)] = max_retries
+            return _ok(int(step))
+
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
+        await _make_method(_agent(), n=2)
+        assert seen_kwargs == {1: 0, 2: 0}  # inner layer disabled for per-row
+
+    async def test_row_retry_count_is_three_not_nine(self, monkeypatch):
+        from app.services import llm_service as ls
+
+        calls = {"1": 0}
+
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
+            calls["1"] += 1
+            return _err()
+
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
+        await _make_method(_agent(), n=1)
+        assert calls["1"] == 3  # outer loop only — no 3×3 multiplication

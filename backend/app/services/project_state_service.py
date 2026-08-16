@@ -20,8 +20,11 @@ from app.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Chapter codes like G25a / G4a / A1 / K3b appearing in user input
-_CHAPTER_CODE_RE = re.compile(r"\b([A-Z]\d{1,2}[a-z]?)\b")
+# Chapter codes like G25a / G4a / A1 / K3b appearing in user input.
+# ASCII-only lookarounds (NOT \b): Python \w includes CJK, so \b never fires
+# between a Chinese char and an ASCII letter — "修改G25a第3行" would extract
+# nothing. Lookarounds also reject letter-wrapped tokens (AG25a, RGB25).
+_CHAPTER_CODE_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]\d{1,2}[a-z]?)(?![A-Za-z0-9])")
 
 # Preference-signal keywords in user input → append to user_preferences
 _PREFERENCE_SIGNALS = ("偏好", "以后都", "统一", "都改成", "一律", "默认用")
@@ -73,38 +76,49 @@ class ProjectStateService:
         intent_type: Optional[str],
         focus_chapters: Optional[List[str]] = None,
     ) -> bool:
-        """Roll the state forward after one conversation turn."""
-        fields: Dict[str, Any] = {}
-        if session_id:
-            fields["last_session_id"] = session_id
-        if user_input:
-            fields["current_task"] = user_input.strip()
-        if intent_type:
-            fields.setdefault("recent_intents", [])
-            # appended below via update() merge: need prior list to append, so
-            # compose explicitly
-        existing = self.load(project_id)
-        intents = list(existing.get("recent_intents") or [])
-        if intent_type and intent_type not in intents[-1:]:
-            intents.append(intent_type)
-        fields["recent_intents"] = intents
+        """Roll the state forward after one conversation turn.
 
-        chapters = list(focus_chapters or [])
-        if user_input:
-            chapters.extend(_CHAPTER_CODE_RE.findall(user_input))
-        # dedupe preserving order, cap applied in update()
-        seen = set()
-        ordered = [c for c in chapters if not (c in seen or seen.add(c))]
-        merged = list(existing.get("focus_chapters") or []) + ordered
-        seen2 = set()
-        fields["focus_chapters"] = [c for c in merged if not (c in seen2 or seen2.add(c))]
+        Composition happens INSIDE the lock off a single load — two loads
+        (compose, then merge) had a lost-update window between them.
+        """
+        from app.config import settings
 
-        if user_input and any(s in user_input for s in _PREFERENCE_SIGNALS):
-            prefs = existing.get("user_preferences") or ""
-            new_pref = user_input.strip()
-            fields["user_preferences"] = (prefs + ("；" if prefs else "") + new_pref)[-200:]
+        with self._lock:
+            existing = self.load(project_id)
 
-        return self.update(project_id, **fields)
+            if session_id:
+                existing["last_session_id"] = session_id
+            if user_input:
+                existing["current_task"] = user_input.strip()
+            intents = list(existing.get("recent_intents") or [])
+            if intent_type and intent_type not in intents[-1:]:
+                intents.append(intent_type)
+            existing["recent_intents"] = intents
+
+            chapters = list(focus_chapters or [])
+            if user_input:
+                chapters.extend(_CHAPTER_CODE_RE.findall(user_input))
+            seen = set()
+            ordered = [c for c in chapters if not (c in seen or seen.add(c))]
+            merged = list(existing.get("focus_chapters") or []) + ordered
+            seen2 = set()
+            existing["focus_chapters"] = [
+                c for c in merged if not (c in seen2 or seen2.add(c))
+            ]
+
+            if user_input and any(s in user_input for s in _PREFERENCE_SIGNALS):
+                prefs = existing.get("user_preferences") or ""
+                existing["user_preferences"] = (
+                    prefs + ("；" if prefs else "") + user_input.strip()
+                )[-200:]
+
+            # rolling caps + persist (same invariants as update())
+            existing["current_task"] = (existing.get("current_task") or "")[: settings.STATE_TASK_MAX_CHARS]
+            existing["focus_chapters"] = (existing.get("focus_chapters") or [])[-settings.STATE_FOCUS_CHAPTERS_KEEP:]
+            existing["recent_intents"] = (existing.get("recent_intents") or [])[-settings.STATE_RECENT_INTENTS_KEEP:]
+            existing["project_id"] = project_id
+            existing["updated_at"] = datetime.now().isoformat(timespec="seconds")
+            return self._atomic_write(self._path(project_id), existing)
 
     def render_context_block(self, state: Dict[str, Any]) -> str:
         """Render a compact '## 项目当前工作状态' prompt block; '' when empty."""

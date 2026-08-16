@@ -487,6 +487,12 @@ class ProcessOrchestrator:
 
             # 3. 构建上下文
             full_context = await self._build_context(context)
+            # Store for ALL downstream paths (dispatch reads project_state_block
+            # from here). Previously only the interaction/draft_complete paths
+            # stored it — the plain intent→decompose→dispatch path dispatched
+            # with an empty _collected_info, silently losing the project
+            # working-state block (state continuity must work for any workflow).
+            self._collected_info["context"] = full_context
 
             # 4. 更新会话状态
             await self.state_machine.transition_to(

@@ -65,7 +65,21 @@ class TestFilteredMemoryProjectScope:
 
         text = hc._load_filtered_memory("G25a 工序", 800, project_id=9)
         assert "项目九" in text
-        assert "全局记忆" not in text
+
+    async def test_project_and_global_merged_not_shadowed(self, tmp_path, monkeypatch, clean_cache):
+        """F7: project memory must not shadow global — both scored in one pool."""
+        from app.config import settings
+
+        hc = self._build_hc(tmp_path, monkeypatch)
+        monkeypatch.setattr(settings, "MEMORY_PROJECTS_DIR", tmp_path / "projects")
+
+        hc._memory_service.save_summary("g1", "全局记忆提到密封装配工法", ["装配"])
+        get_project_memory_service(11).save_summary("p1", "项目十一记忆提到 G25a", ["G25a"])
+
+        # query hits BOTH: project entry (G25a) and global entry (密封装配)
+        text = hc._load_filtered_memory("密封装配与 G25a 的工序", 800, project_id=11)
+        assert "项目十一" in text
+        assert "全局记忆" in text  # global no longer shadowed (F7 fix)
 
     async def test_fallback_to_global_when_project_empty(self, tmp_path, monkeypatch, clean_cache):
         from app.config import settings

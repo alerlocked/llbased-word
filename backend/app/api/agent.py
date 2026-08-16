@@ -1088,9 +1088,9 @@ async def generate_stream(request: GenerateStreamRequest):
                             }
                             yield f"data: {json.dumps(sse_result, ensure_ascii=False)}\n\n"
                             logger.info(f"[draft_complete] template output: {len(chapters)} chapters (no markdown)")
-                            _save_memory(session_id, user_input, json.dumps(template_json, ensure_ascii=False), project_id=request.project_id)
-                            _update_project_state(
-                                request.project_id, session_id, user_input,
+                            _persist_turn(
+                                session_id, request.project_id, user_input,
+                                content=json.dumps(template_json, ensure_ascii=False),
                                 intent_type=intent_type,
                                 focus_chapters=list(structured_results.keys()) if isinstance(structured_results, dict) else None,
                             )
@@ -1177,10 +1177,9 @@ async def generate_stream(request: GenerateStreamRequest):
                                 'content_format': 'markdown',
                             }
                         yield f"data: {json.dumps(sse_result, ensure_ascii=False)}\n\n"
-                        _save_memory(session_id, user_input, new_content, project_id=request.project_id)
-                        _update_project_state(
-                            request.project_id, session_id, user_input,
-                            intent_type=intent_type,
+                        _persist_turn(
+                            session_id, request.project_id, user_input,
+                            content=new_content, intent_type=intent_type,
                         )
                     else:
                         logger.warning(f"[draft_complete] new_content 为空! agent_result={str(agent_result)[:200]}")
@@ -1229,9 +1228,11 @@ async def generate_stream(request: GenerateStreamRequest):
                 if chat_content:
                     yield f"data: {json.dumps({'type': 'content', 'content': chat_content}, ensure_ascii=False)}\n\n"
 
-                # Save memory
-                _save_memory(session_id, user_input, generated_content, project_id=request.project_id)
-                _update_project_state(request.project_id, session_id, user_input, intent_type=intent_type)
+                # Save memory + roll project state
+                _persist_turn(
+                    session_id, request.project_id, user_input,
+                    content=generated_content, intent_type=intent_type,
+                )
 
                 # Send final result
                 if editor_content:
@@ -1296,9 +1297,11 @@ async def generate_stream(request: GenerateStreamRequest):
                 chat_content = parts[0].strip()
                 editor_content = parts[1].strip() if len(parts) > 1 else ""
 
-            # Save memory
-            _save_memory(session_id, user_input, full_content, project_id=request.project_id)
-            _update_project_state(request.project_id, session_id, user_input, intent_type=mode)
+            # Save memory + roll project state (fallback streaming path uses mode as intent)
+            _persist_turn(
+                session_id, request.project_id, user_input,
+                content=full_content, intent_type=mode,
+            )
 
             # Send final result
             if editor_content:
@@ -1625,6 +1628,28 @@ def _update_project_state(
         )
     except Exception as e:
         logger.warning(f"[AI助手] 项目状态更新跳过: {e}")
+
+
+def _persist_turn(
+    session_id: Optional[str],
+    project_id: Optional[int],
+    user_input: str,
+    content: str,
+    intent_type: Optional[str] = None,
+    focus_chapters: Optional[List[str]] = None,
+):
+    """One call per completed turn: conversation memory + project state roll.
+
+    Single entry for ALL output paths (template / markdown / sub-agent /
+    streaming fallback) AND for future workflows (e.g. the dialog-edit line):
+    any new workflow that produces a turn should call THIS, so state/memory
+    stay consistent no matter which path the user took.
+    """
+    _save_memory(session_id, user_input, content, project_id=project_id)
+    _update_project_state(
+        project_id, session_id, user_input,
+        intent_type=intent_type, focus_chapters=focus_chapters,
+    )
 
 
 @router.post("/select-solution")

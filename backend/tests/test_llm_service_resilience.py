@@ -49,6 +49,25 @@ class TestGenerateWithMessagesRetry:
         for key in ("status", "content", "finish_reason", "error"):
             assert key in result
 
+    async def test_terminal_error_never_claims_retrying(self, monkeypatch):
+        """F6: final error must not say 正在重试 — the call is permanently failed."""
+        import httpx
+        collect = _collect_mock([httpx.ReadTimeout("t")] * 3)
+        monkeypatch.setattr(ls.llm_service, "_collect_stream_content", collect)
+        result = await ls.llm_service.generate_with_messages(messages=MSG)
+        assert "正在自动重试" not in result["error"]
+        assert "已重试仍失败" in result["error"]
+
+    async def test_zero_retries_single_call(self, monkeypatch):
+        """F5: max_retries=0 = single shot (callers owning their own loop)."""
+        import httpx
+        collect = _collect_mock([httpx.ReadTimeout("t")])
+        monkeypatch.setattr(ls.llm_service, "_collect_stream_content", collect)
+        result = await ls.llm_service.generate_with_messages(messages=MSG, max_retries=0)
+        assert collect.await_count == 1
+        assert result["status"] == "error"
+        assert "正在" not in result["error"]
+
     async def test_overflow_trims_once_then_retries(self, monkeypatch):
         from openai import BadRequestError
 

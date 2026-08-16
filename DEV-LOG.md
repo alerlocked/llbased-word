@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/session-continuity-local-resilience
-updated_at: 2026-08-16T13:54:42+08:00
-last_commit: 368c574
+updated_at: 2026-08-16T13:55:45+08:00
+last_commit: 44de60e
 status: session-continuity-local-resilience 完成9/9待review合入（state+memory会话接续/LLM韧性/G25a静默失败治理;PLAN ff191eb,最终门853 passed 0回归+tsc 0错,PR #60 已开待 /pr-review 后合入）;前序:unify-selection-into-dialog done/multi-dev-git-governance done
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `368c574` feat(writing): G25a exhausted-retry fallback to sub_text verbatim fill (delivery-grade resilience) (0 seconds ago)
-- `b3a8174` docs(devlog): mark session-continuity-local-resilience done (9/9, PR #60) (51 minutes ago)
-- `657c518` docs(architecture): document project state, per-project memory, LLM resilience, G25a warnings (59 minutes ago)
-- `c9090db` feat(sse): emit warning events for chapter row gaps and surface them in chat panel (60 minutes ago)
-- `2cecac1` fix(writing): per-row retry and completeness reporting for G25a parallel generation (61 minutes ago)
-- `140b4a1` feat(agents): pass project working state into writing agent chapter prompts (65 minutes ago)
-- `4fe8d05` feat(state): inject project working state into generation chain and record per-turn updates (67 minutes ago)
-- `2d65586` feat(memory): scope session memory per project with keyword-recall fallback to global (69 minutes ago)
-- `4b7481e` feat(state): add per-project rolling working-state service with atomic JSON storage (71 minutes ago)
-- `c901813` feat(llm): retry with backoff, context-trim, and classified errors in generate_with_messages (71 minutes ago)
+- `44de60e` docs(devlog): record N10 delivery-grade fallback rationale (1 second ago)
+- `368c574` feat(writing): G25a exhausted-retry fallback to sub_text verbatim fill (delivery-grade resilience) (63 seconds ago)
+- `b3a8174` docs(devlog): mark session-continuity-local-resilience done (9/9, PR #60) (52 minutes ago)
+- `657c518` docs(architecture): document project state, per-project memory, LLM resilience, G25a warnings (60 minutes ago)
+- `c9090db` feat(sse): emit warning events for chapter row gaps and surface them in chat panel (61 minutes ago)
+- `2cecac1` fix(writing): per-row retry and completeness reporting for G25a parallel generation (62 minutes ago)
+- `140b4a1` feat(agents): pass project working state into writing agent chapter prompts (66 minutes ago)
+- `4fe8d05` feat(state): inject project working state into generation chain and record per-turn updates (68 minutes ago)
+- `2d65586` feat(memory): scope session memory per project with keyword-recall fallback to global (70 minutes ago)
+- `4b7481e` feat(state): add per-project rolling working-state service with atomic JSON storage (72 minutes ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
