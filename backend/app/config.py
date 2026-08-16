@@ -121,6 +121,13 @@ class Settings(BaseSettings):
     MEMORY_MAX_TOKENS: int = 800  # memory injection token hard cap
     MEMORY_KEEP_COUNT: int = 20  # max memory files to keep
     MEMORY_SUMMARY_MAX_TOKENS: int = 200  # max_tokens for LLM summary generation
+    MEMORY_PROJECTS_DIR: Path = DATA_DIR / "memory" / "projects"  # per-project memory dirs
+
+    # 项目工作状态（session continuity: rolling per-project working state)
+    PROJECT_STATE_DIR: Path = DATA_DIR / "project_state"
+    STATE_TASK_MAX_CHARS: int = 200  # current_task summary cap
+    STATE_FOCUS_CHAPTERS_KEEP: int = 5  # focus_chapters rolling list cap
+    STATE_RECENT_INTENTS_KEEP: int = 5  # recent_intents rolling list cap
 
     # 上下文工程配置
     CONTEXT_COMPRESSION_THRESHOLD: float = 0.85  # 压缩触发阈值（窗口85%）
@@ -279,6 +286,8 @@ settings.CSV_EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 settings.STATIC_DIR.mkdir(parents=True, exist_ok=True)
 settings.TASK_DATA_DIR.mkdir(parents=True, exist_ok=True)
 settings.MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+settings.MEMORY_PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+settings.PROJECT_STATE_DIR.mkdir(parents=True, exist_ok=True)
 settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 settings.EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)
