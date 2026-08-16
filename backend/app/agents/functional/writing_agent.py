@@ -525,6 +525,13 @@ class WritingAgent(BaseAgent):
                 )
                 if self._writing_preferences:
                     system_msg += self._get_preference_prompt_fragment()
+                # Project working state (session continuity): informs the writer
+                # what this project was last working on (e.g. editing G25a).
+                state_block = task.get("project_state_block") or (task.get("params") or {}).get(
+                    "project_state_block", ""
+                )
+                if state_block:
+                    system_msg += f"\n\n{state_block}"
 
                 user_parts = [f"## 生成指令\n{module_instruction}"]
                 if material_instr:
@@ -1074,6 +1081,13 @@ class WritingAgent(BaseAgent):
 
             if self._writing_preferences:
                 system_msg += self._get_preference_prompt_fragment()
+            # Project working state (session continuity): what this project was
+            # last working on — rides base_system_msg into per-row G25a calls.
+            _state_block = task.get("project_state_block") or (task.get("params") or {}).get(
+                "project_state_block", ""
+            )
+            if _state_block:
+                system_msg += f"\n\n{_state_block}"
 
             user_parts = []
             if knowledge_context:

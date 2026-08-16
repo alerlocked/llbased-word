@@ -716,6 +716,15 @@ class ProcessOrchestrator:
                     if key in task:
                         agent_task[key] = task[key]
 
+                # Project working state block (session continuity): riding the
+                # orchestrator context captured at intent time, so writing agent
+                # prompts can reference what this project was last working on.
+                state_block = (self._collected_info.get("context") or {}).get(
+                    "project_state_block", ""
+                )
+                if state_block:
+                    agent_task["project_state_block"] = state_block
+
                 # Load domain profile for review-related tasks
                 if agent_name in ("review", "proofread"):
                     domain = task.get("domain", "assembly")
