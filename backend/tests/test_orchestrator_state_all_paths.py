@@ -74,3 +74,66 @@ class TestContextStoredOnAllPaths:
         if state_block:
             agent_task["project_state_block"] = state_block
         assert "项目当前工作状态" in agent_task["project_state_block"]
+
+
+class TestDraftCompleteGate:
+    """N2 (review-pipeline): dialog text must never execute generate/fill."""
+
+    def test_gate_unit_semantics(self):
+        # no generation_mode anywhere → gated
+        assert ProcessOrchestrator._gate_draft_complete(None) == {
+            "allowed": False, "reason": "dialog_no_generation_mode",
+        }
+        assert ProcessOrchestrator._gate_draft_complete({})["allowed"] is False
+        assert ProcessOrchestrator._gate_draft_complete({"generation_mode": "chat"})["allowed"] is False
+        # button path → allowed
+        assert ProcessOrchestrator._gate_draft_complete({"generation_mode": "generate"})["allowed"] is True
+        assert ProcessOrchestrator._gate_draft_complete({"generation_mode": "fill"})["allowed"] is True
+        # generation_mode may ride full_context instead of context
+        assert ProcessOrchestrator._gate_draft_complete({}, {"generation_mode": "fill"})["allowed"] is True
+
+    @pytest.mark.asyncio
+    async def test_dialog_draft_complete_gated_not_executed(self, monkeypatch, tmp_path):
+        """Intent = draft_complete from dialog (no generation_mode) → gated message, zero execution."""
+        from app.repositories.json_repository import JsonFileRepository
+
+        repo = JsonFileRepository(str(tmp_path / "tasks"))
+        orch = ProcessOrchestrator(repository=repo)
+
+        async def fake_build_context(additional_context=None):
+            return {"task_id": orch.current_task_id, "state": "idle"}
+
+        monkeypatch.setattr(orch, "_build_context", fake_build_context)
+        monkeypatch.setattr(
+            orch.intent_recognizer, "recognize",
+            AsyncMock(return_value={"type": "draft_complete", "confidence": 0.9}),
+        )
+
+        executed = AsyncMock()
+        monkeypatch.setattr(orch, "_handle_draft_complete", executed)
+
+        result = await orch.process_intent(user_input="补充完整这份文件", context={"session_id": "s"})
+        # THE assertions: gated, never executed
+        assert result["state"] == "gated"
+        assert result["success"] is True
+        assert "生成按钮" in result["message"]
+        executed.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_generation_mode_still_executes(self, monkeypatch, tmp_path):
+        """Button path (generation_mode) passes the gate unchanged — hard constraint."""
+        from app.repositories.json_repository import JsonFileRepository
+
+        repo = JsonFileRepository(str(tmp_path / "tasks"))
+        orch = ProcessOrchestrator(repository=repo)
+
+        async def fake_handle(user_input, intent, merged_context):
+            return {"success": True, "state": "completion"}
+
+        monkeypatch.setattr(orch, "_handle_draft_complete", fake_handle)
+
+        result = await orch.process_intent(
+            user_input="补齐", context={"session_id": "s", "generation_mode": "fill"}
+        )
+        assert result["success"] is True
+        assert result.get("state") != "gated"

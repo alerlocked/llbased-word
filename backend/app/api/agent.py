@@ -937,6 +937,83 @@ async def generate_stream(request: GenerateStreamRequest):
                 yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
                 return
 
+            # Case 0a: gated draft_complete (dialog tried to trigger generate/fill)
+            if orch_result.get("state") == "gated":
+                yield f"data: {json.dumps({'type': 'content', 'content': orch_result.get('message', '')}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                _persist_turn(
+                    session_id, request.project_id, user_input,
+                    content=orch_result.get("message", ""), intent_type="gated_draft_complete",
+                )
+                return
+
+            # Case 0a': unclear intent → hand back to the user for
+            # clarification. Never decompose, never fall through to the
+            # streaming fallback (bare "安全" used to get classified at 0.85
+            # and wander into a knowledge-search essay nobody asked for).
+            if intent_type == "unknown" and orch_result.get("intent", {}).get("needs_clarification"):
+                clarify = (
+                    f"没太明白「{user_input[:20]}」的意思——想让我做什么？比如：\n"
+                    "- 检查已生成文件的问题（问\"有什么问题吗\"）\n"
+                    "- 问工艺知识（说完整问题，如\"安全操作要求是什么\"）\n"
+                    "- 补全文件请点生成按钮"
+                )
+                yield f"data: {json.dumps({'type': 'content', 'content': clarify}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                _persist_turn(
+                    session_id, request.project_id, user_input,
+                    content=clarify, intent_type="clarification",
+                )
+                return
+
+            # Case 0b: review_document → four-way factual review (chat-only,
+            # never touches the editor). Falls back to state outputs.generated
+            # snapshot when no in-session structured results exist.
+            if intent_type == "review_document":
+                try:
+                    from app.services.review_pipeline import run_review
+                    from app.services.project_state_service import project_state_service
+
+                    project_state = (
+                        project_state_service.load(request.project_id)
+                        if request.project_id else {}
+                    )
+                    review = await run_review(
+                        user_input=user_input,
+                        project_state=project_state,
+                        structured_results=None,  # cross-session: snapshot path
+                    )
+                    yield f"data: {json.dumps({'type': 'progress', 'message': '已完成四对照审查（模板/数据库/内容质量/需求）'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'content', 'content': review['reply']}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                    logger.info(
+                        "[AI助手] review_pipeline 完成",
+                        issues=len(review.get("issues", [])),
+                    )
+                    _persist_turn(
+                        session_id, request.project_id, user_input,
+                        content=review["reply"], intent_type="review_document",
+                    )
+                except Exception as e:
+                    logger.error(f"[AI助手] review_pipeline 失败: {e}", exc_info=True)
+                    yield f"data: {json.dumps({'type': 'error', 'error': f'审查执行失败: {e}'}, ensure_ascii=False)}\n\n"
+                return
+
+            # Case 0c: edit_document → safe fallback until the dialog-edit
+            # workflow (colleague line) lands. Never rewrites the document.
+            if intent_type == "edit_document" and not request.generation_mode:
+                fallback = (
+                    "已识别为修改需求。修改功能建设中（正由协作线开发），"
+                    "当前请使用编辑器框选或生成按钮操作——我不会从对话直接改文件。"
+                )
+                yield f"data: {json.dumps({'type': 'content', 'content': fallback}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                _persist_turn(
+                    session_id, request.project_id, user_input,
+                    content=fallback, intent_type="edit_document_fallback",
+                )
+                return
+
             # Case 1: draft_complete → show analysis then auto-confirm and execute
             if orch_result.get("requires_response"):
                 plan = orch_result.get("modification_plan", "")
@@ -1088,11 +1165,28 @@ async def generate_stream(request: GenerateStreamRequest):
                             }
                             yield f"data: {json.dumps(sse_result, ensure_ascii=False)}\n\n"
                             logger.info(f"[draft_complete] template output: {len(chapters)} chapters (no markdown)")
+                            _output_summary = {
+                                "chapters": [
+                                    {
+                                        "code": code,
+                                        "title": (data.get("chapter_title", "") if isinstance(data, dict) else ""),
+                                        "rows": len(data.get("filled_data") or []) if isinstance(data, dict) else 0,
+                                    }
+                                    for code, data in (structured_results or {}).items()
+                                    if isinstance(data, dict)
+                                ],
+                                "warnings_count": sum(
+                                    len((d.get("warnings") or []))
+                                    for d in (structured_results or {}).values()
+                                    if isinstance(d, dict)
+                                ),
+                            }
                             _persist_turn(
                                 session_id, request.project_id, user_input,
                                 content=json.dumps(template_json, ensure_ascii=False),
                                 intent_type=intent_type,
                                 focus_chapters=list(structured_results.keys()) if isinstance(structured_results, dict) else None,
+                                output_summary=_output_summary,
                             )
                         except Exception as e:
                             logger.warning(f"[draft_complete] template assembly failed (no-markdown path): {e}")
@@ -1180,6 +1274,17 @@ async def generate_stream(request: GenerateStreamRequest):
                         _persist_turn(
                             session_id, request.project_id, user_input,
                             content=new_content, intent_type=intent_type,
+                            focus_chapters=list(structured_results.keys()) if isinstance(structured_results, dict) and structured_results else None,
+                            output_summary=(
+                                {
+                                    "chapters": [
+                                        {"code": c, "title": (d.get("chapter_title", "") if isinstance(d, dict) else ""), "rows": len(d.get("filled_data") or []) if isinstance(d, dict) else 0}
+                                        for c, d in structured_results.items() if isinstance(d, dict)
+                                    ],
+                                    "warnings_count": sum(len((d.get("warnings") or [])) for d in structured_results.values() if isinstance(d, dict)),
+                                }
+                                if isinstance(structured_results, dict) and structured_results else None
+                            ),
                         )
                     else:
                         logger.warning(f"[draft_complete] new_content 为空! agent_result={str(agent_result)[:200]}")
@@ -1616,6 +1721,7 @@ def _update_project_state(
     user_input: str,
     intent_type: Optional[str] = None,
     focus_chapters: Optional[List[str]] = None,
+    output_summary: Optional[dict] = None,
 ):
     """Roll the project working state forward after one turn (fire-and-forget)."""
     if project_id is None:
@@ -1624,7 +1730,8 @@ def _update_project_state(
         from app.services.project_state_service import project_state_service
 
         project_state_service.update_from_turn(
-            project_id, session_id, user_input, intent_type, focus_chapters
+            project_id, session_id, user_input, intent_type, focus_chapters,
+            output_summary=output_summary,
         )
     except Exception as e:
         logger.warning(f"[AI助手] 项目状态更新跳过: {e}")
@@ -1637,6 +1744,7 @@ def _persist_turn(
     content: str,
     intent_type: Optional[str] = None,
     focus_chapters: Optional[List[str]] = None,
+    output_summary: Optional[dict] = None,
 ):
     """One call per completed turn: conversation memory + project state roll.
 
@@ -1644,11 +1752,14 @@ def _persist_turn(
     streaming fallback) AND for future workflows (e.g. the dialog-edit line):
     any new workflow that produces a turn should call THIS, so state/memory
     stay consistent no matter which path the user took.
+    output_summary: template-output paths pass {"chapters": [...], "warnings_count": n}
+    so later turns can reference "刚才生成的那篇" (outputs.generated registry).
     """
     _save_memory(session_id, user_input, content, project_id=project_id)
     _update_project_state(
         project_id, session_id, user_input,
         intent_type=intent_type, focus_chapters=focus_chapters,
+        output_summary=output_summary,
     )
 
 

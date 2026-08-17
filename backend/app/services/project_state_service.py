@@ -75,11 +75,17 @@ class ProjectStateService:
         user_input: str,
         intent_type: Optional[str],
         focus_chapters: Optional[List[str]] = None,
+        output_summary: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Roll the state forward after one conversation turn.
 
         Composition happens INSIDE the lock off a single load — two loads
         (compose, then merge) had a lost-update window between them.
+        output_summary (optional): {"chapters": [...], "warnings_count": int}
+        — written into outputs.generated (the project's typed output
+        registry; each slot keeps only the latest). Summary level — full
+        data lives in the editor. Any session continuing the same project
+        reads the same latest snapshot.
         """
         from app.config import settings
 
@@ -90,6 +96,13 @@ class ProjectStateService:
                 existing["last_session_id"] = session_id
             if user_input:
                 existing["current_task"] = user_input.strip()
+            if output_summary:
+                outputs = existing.get("outputs") or {}
+                outputs["generated"] = {
+                    "updated_at": datetime.now().isoformat(timespec="seconds"),
+                    **output_summary,
+                }
+                existing["outputs"] = outputs
             intents = list(existing.get("recent_intents") or [])
             if intent_type and intent_type not in intents[-1:]:
                 intents.append(intent_type)
@@ -131,6 +144,12 @@ class ProjectStateService:
             lines.append(f"- 正在编辑: {'、'.join(state['focus_chapters'])}")
         if state.get("recent_intents"):
             lines.append(f"- 最近意图: {'、'.join(state['recent_intents'][-3:])}")
+        last_output = (state.get("outputs") or {}).get("generated") or {}
+        if last_output.get("chapters"):
+            codes = "、".join(c.get("code", "") for c in last_output["chapters"][:8])
+            extra = f" 等共 {len(last_output['chapters'])} 章" if len(last_output["chapters"]) > 8 else ""
+            warn = f"，{last_output.get('warnings_count', 0)} 处警告" if last_output.get("warnings_count") else ""
+            lines.append(f"- 最近产出: 已生成 {codes}{extra}{warn}（{last_output.get('updated_at', '')}）")
         if state.get("user_preferences"):
             lines.append(f"- 用户措辞偏好: {state['user_preferences']}")
         if not lines:

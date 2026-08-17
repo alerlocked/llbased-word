@@ -89,6 +89,15 @@ class IntentRecognizer:
         r"工艺文件|文件|文档|初稿|草稿|draft",
         re.IGNORECASE,
     )
+    # Question-form gate (23:18 incident): a QUESTION about completeness
+    # ("还需要补充吗") is a review/query, never a fill command. Questions are
+    # excluded from the draft_complete composite boost entirely — only
+    # imperative phrasing ("补充一下工序五") may boost.
+    _QUESTION_FORM = re.compile(
+        r"吗\s*[？?]?\s*$|呢\s*[？?]?\s*$|[？?]\s*$"
+        r"|需不需要|有没有|是不是|还有什么|还缺什么",
+        re.IGNORECASE,
+    )
 
     # 工艺实体关键词
     PROCESS_ENTITIES = {
@@ -98,6 +107,14 @@ class IntentRecognizer:
         "material": ["材料", "原料", "毛坯", "工件", "零件"],
         "quality": ["质量", "检验", "检测", "要求", "标准"]
     }
+
+    # Short-but-routable commands (buttons / confirmations legitimately send
+    # one or two words). Anything short NOT in this list is insufficient.
+    _SHORT_COMMANDS = {
+        "补齐", "生成", "继续", "重试", "确认", "取消", "是", "否", "好",
+        "可以", "开始", "执行", "下一步", "上一步", "完成",
+    }
+    _MIN_MEANINGFUL_LEN = 4  # chars, punctuation/whitespace excluded
 
     def __init__(self):
         """初始化意图识别器"""
@@ -130,6 +147,30 @@ class IntentRecognizer:
             processed_input = self._preprocess_input(user_input)
             draft_complete_boost = self._detect_draft_complete(processed_input, context)
             extracted_entities = self._extract_entities(processed_input)
+
+            # 1.5 输入充分性闸门（零 LLM，纯规则）: too-short / meaningless
+            # input ("安全", "嗯嗯") carries no decidable intent — the LLM
+            # classifier would still confidently pick one (0.85) and the turn
+            # would wander into a wrong pipeline. Hand back to the user
+            # instead: unknown + needs_clarification, caller asks a
+            # clarification question. Command whitelist ("补齐/继续/生成"…)
+            # stays routable — buttons and confirmations legitimately send
+            # short words.
+            if self._is_insufficient_input(processed_input):
+                logger.info(
+                    "intent_input_insufficient",
+                    length=len(processed_input), user_input=user_input[:50],
+                )
+                return {
+                    "type": IntentType.UNKNOWN.value,
+                    "confidence": 0.0,
+                    "original_input": user_input,
+                    "processed_input": processed_input,
+                    "entities": extracted_entities,
+                    "alternative_intents": [],
+                    "context_used": bool(context),
+                    "needs_clarification": True,
+                }
 
             # 2. LLM 意图分类（fail-soft → 关键词正则兜底，绝不阻塞主流程）
             llm_intent = await self._classify_with_llm(user_input)
@@ -166,7 +207,10 @@ class IntentRecognizer:
                     for it, score in intent_results.items()
                     if it != primary_intent and score > 0.1
                 ],
-                "context_used": bool(context)
+                "context_used": bool(context),
+                # unknown must never silently fall through to a doing-something
+                # branch — callers use this flag to ask for clarification.
+                "needs_clarification": primary_intent == IntentType.UNKNOWN,
             }
 
             logger.info(
@@ -185,7 +229,8 @@ class IntentRecognizer:
                 "type": IntentType.UNKNOWN.value,
                 "confidence": 0.0,
                 "error": str(e),
-                "entities": {}
+                "entities": {},
+                "needs_clarification": True,
             }
 
     async def _classify_with_llm(self, user_input: str) -> Optional[IntentType]:
@@ -202,6 +247,12 @@ class IntentRecognizer:
             "draft_complete=基于初稿补全文件, parse_pdf=解析PDF, "
             "search_knowledge=搜索知识, align_terminology=对齐术语, "
             "check_compliance=检查合规, export_to_pdm=导出PDM。\n"
+            "判定要点:\n"
+            "- 问句形式的询问（…有什么问题吗/还需要补充吗/还缺什么/完整吗/有没有问题）"
+            "是 review_document 或 search_knowledge，绝不是 draft_complete——"
+            "draft_complete 只对应明确的补全指令（如\"补充完整这份文件\"\"把工序五补全\"）。\n"
+            "- 关于已生成内容的评价、缺陷、完整性询问 → review_document。\n"
+            "- 一般工艺知识咨询 → search_knowledge。\n"
             f"用户输入: {user_input[:500]}\n"
             '只输出JSON,示例: {"intent": "create_document"}\n'
             "不要输出多余文字。"
@@ -248,6 +299,24 @@ class IntentRecognizer:
         intent = data.get("intent") if isinstance(data, dict) else None
         return str(intent).strip() if intent else None
 
+    @classmethod
+    def _is_insufficient_input(cls, processed_input: str) -> bool:
+        """Input-sufficiency check (rule-based, zero LLM).
+
+        True when the input is too short to carry a decidable intent and is
+        not a whitelisted short command. Such turns must be handed back to
+        the user for clarification — never classified (the LLM would
+        confidently guess) and never silently routed.
+        """
+        stripped = "".join(
+            ch for ch in processed_input if ch.isalnum()
+        )
+        if not stripped:
+            return True
+        if processed_input.strip() in cls._SHORT_COMMANDS:
+            return False
+        return len(stripped) < cls._MIN_MEANINGFUL_LEN
+
     def _preprocess_input(self, user_input: str) -> str:
         """
         预处理用户输入
@@ -283,6 +352,12 @@ class IntentRecognizer:
         """
         has_action = any(p.search(processed_input) for p in self._DRAFT_COMPLETE_COMPOUND_PATTERNS)
         if not has_action:
+            return 0.0
+
+        # Question gate: "还需要补充吗" is asking ABOUT completeness (review),
+        # not commanding a fill. Never let a question trigger the boost —
+        # it used to hijack the intent and rewrite the whole document.
+        if self._QUESTION_FORM.search(processed_input):
             return 0.0
 
         # 检查是否提到了文档

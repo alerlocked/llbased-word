@@ -24,6 +24,13 @@
 - **任务调度**:`_dispatch_to_sub_agent`(orchestrator.py)按 task_type 映射到单 agent(writing/review/proofread);无 workflow 编排链路(`_select_workflow`/`execute_workflow` 为死代码,2026-07-30 清理)。
 - **Orchestrator 状态机**(`agents/orchestrator/state_machine.py`):IDLE → INTENT_RECOGNITION → INFO_ASSESSMENT / INFO_COLLECTION → ... → TASK_DECOMPOSITION → TASK_EXECUTION → RESULT_AGGREGATION → COMPLETION;特殊:DRAFT_ANALYSIS(初稿分析)/ PAUSED(等输入)/ ERROR(自恢复 IDLE)。
 
+### 意图准入 + 审查流(2026-08-17 review-pipeline 加)
+- **问句闸门**(intent_recognizer `_QUESTION_FORM`):问句形式("…还需要补充吗/有什么问题吗")永不触发 draft_complete 复合 boost——补全只认命令式。23:18 事故根因(问句+补充+文件→0.85 覆盖→重写全文件)。
+- **准入守卫**(`orchestrator._gate_draft_complete`):**生成/补齐只从按钮(generation_mode∈generate/fill)触发**;对话文本识别出的 draft_complete 无 generation_mode → state="gated" 澄清回复,绝不执行。按钮路径行为不变。
+- **四对照审查执行器**(`services/review_pipeline.py`):review_document 意图 → ①模板章节差集(机器,模板是缺章唯一裁判) ②DB 材料有据(MaterialCatalog 查,info 级) ③内容质量(空格/待补/warnings 扫描) ④需求覆盖(唯一 LLM,simple 档,只能引用①②③事实清单,禁通识)。回复纯聊天文本(SSE content),不碰编辑器。无 structured_results 时回退 state.last_output 快照。
+- **修改意图安全兜底**:edit_document 从对话进来(同事执行单元未合入)→"功能建设中"回复,不改文件。
+- **意图路由**(agent.py):gated / review_document / edit_document 三分支在 draft_complete 主分支之前拦截。
+
 ## 3. 生成流程(端到端)
 
 - **入口**:`POST /api/agent/generate-stream`(`api/agent.py:853`)→ `orchestrator.process_intent` → SSE 事件(mode/progress/content/content_section/result/error)。
@@ -66,7 +73,7 @@
 ## 5. 数据存储
 
 - `backend/data/documents/{material_id}/`:`index.json`(元信息)/ `content.html`(MinerU 解析)/ `content.json`(结构化)/ `chapter_index.json` / `vlm/`。
-- `data/project_state/{project_id}.json`(2026-08-16):项目滚动工作状态(见 §4)。`data/memory/projects/{project_id}/`(2026-08-16):项目级会话记忆(回退全局 `data/memory/`)。
+- `data/project_state/{project_id}.json`(2026-08-16):项目滚动工作状态(见 §4)。`data/memory/projects/{project_id}/`(2026-08-16):项目级会话记忆(回退全局 `data/memory/`)。project_state 含 `last_output` 快照(2026-08-17:章节摘要+警告计数,跨会话指代"刚才生成的那篇"的实体)。
 - **DB 表**(`models/database.py`,SQLite):Material / MaterialCatalog / MaterialPage / Figure / ProcessStep / Standard / StandardClause / StepMaterial / StepTool。
   - 关联:ProcessStep ←StepMaterial/StepTool→ MaterialCatalog。
   - `MaterialCatalog.standard_code`:G18a catalog enrich exact 查键。
