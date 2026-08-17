@@ -2,28 +2,31 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/review-pipeline
-updated_at: 2026-08-17T07:54:48+08:00
-last_commit: 254bd02
-status: session-continuity-local-resilience 完成9/9待review合入（state+memory会话接续/LLM韧性/G25a静默失败治理;PLAN ff191eb,最终门853 passed 0回归+tsc 0错,PR #60 已开待 /pr-review 后合入）;前序:unify-selection-into-dialog done/multi-dev-git-governance done
-task_state: done
+updated_at: 2026-08-17T07:59:34+08:00
+last_commit: 76b16ca
+status: review-pipeline running（意图准入问句闸门/四对照审查执行器/last_output快照;PLAN 0a922f2 seal,6节点;根因=23:18问句触发重写全文件+review无真实执行器LLM通识瞎评）;前序:session-continuity PR60已合/thinking-budget PR61已合
+task_state: running
+task_slug: review-pipeline
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `254bd02` feat(review): four-way factual review pipeline (template/db/quality machine checks + LLM coverage citing facts only) (0 seconds ago)
-- `108279c` feat(state): last_output snapshot per project (chapter summary + warnings count, rendered into state block) (2 minutes ago)
-- `d87d2af` feat(orchestrator): admission gate — dialog-detected draft_complete never executes without generation_mode (5 minutes ago)
-- `90572b5` fix(intent): question-form gate on draft_complete boost + review examples in LLM prompt + needs_clarification (9 minutes ago)
-- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (12 minutes ago)
+- `76b16ca` feat(api): route review_document to four-way pipeline, edit_document to safe fallback, gated draft_complete to clarification (0 seconds ago)
+- `254bd02` feat(review): four-way factual review pipeline (template/db/quality machine checks + LLM coverage citing facts only) (5 minutes ago)
+- `108279c` feat(state): last_output snapshot per project (chapter summary + warnings count, rendered into state block) (7 minutes ago)
+- `d87d2af` feat(orchestrator): admission gate — dialog-detected draft_complete never executes without generation_mode (10 minutes ago)
+- `90572b5` fix(intent): question-form gate on draft_complete boost + review examples in LLM prompt + needs_clarification (14 minutes ago)
+- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (16 minutes ago)
 - `cc93494` align: resolve open questions (safe-edit-fallback / four-way review) (8 hours ago)
-- `6b122a2` align: review pipeline + intent gating + last-output snapshot (slug review-pipeline) (8 hours ago)
+- `6b122a2` align: review pipeline + intent gating + last-output snapshot (slug review-pipeline) (9 hours ago)
 - `b61653d` Merge pull request #61 from alerlocked/feature/thinking-budget-tiers (9 hours ago)
 - `55d5c63` Merge pull request #60 from alerlocked/feature/session-continuity-local-resilience (9 hours ago)
-- `4b91239` feat(llm): per-tier thinking budget — simple tier off, complex tier tunable (11 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
+
+- **进行中（review-pipeline，2026-08-17 开）**: 用户实测 23:18 事故三病灶——① 问句"还需要补充吗"触发 `_detect_draft_complete` 复合 boost（补充+工艺文件→0.85 无条件覆盖）重写全文件 ② review 意图无真实执行器，LLM 通识自造"核心模块"标准瞎评 ③ "刚才生成的那篇"无产出物实体（"未找到初稿"）。用户拍板规则：**生成/补齐只从按钮触发，对话永不触发**；review 四对照一次做全；修改意图安全兜底等同事执行单元。PLAN `0a922f2`（6 节点）：N1 问句闸门+LLM prompt 审查示例+needs_clarification / N2 `_gate_draft_complete` 准入守卫（对话识别的 draft_complete 无 generation_mode → gated 澄清，绝不执行；按钮路径不变）/ N3 last_output 快照（章节摘要+警告计数进 state，渲染进接续块）/ N4 四对照审查执行器 review_pipeline.py（模板差集+DB 有据+内容质量=机器算事实清单；LLM 只做需求覆盖且只能引用清单，simple 档）/ N5 意图路由（gated/review/edit 三分支在主分支前拦截，review 纯聊天回复不碰编辑器）/ N6 收尾。**23:18 事故重放验证**：同问句在 LLM 挂掉最坏情况下不再触发 draft_complete。
 
 - **进行中（session-continuity-local-resilience，2026-08-16 开）**: 底层架构更新第一批（同事做登录界面，本线做底层）。三包：A 会话接续（项目级 state 滚动工作状态 + memory 按项目分目录，新会话开局注入主生成链路，解决本地 Qwen3-30B-A3B 多轮上下文满 + 新会话无法接续）；B LLM 韧性层（llm_service 错误分类 + 重试退避 + 溢出裁剪）；C G25a 静默失败治理（根因：writing_agent.py:1729/1736/1762 单行失败静默 return []，治法 = 单行重试 + 完成度核对 SSE warning 上报，补 VISION"可靠"验收漏网点）。PLAN `ff191eb` seal（9 节点 2 轨道）。**进度：9/9 节点完成**——N1 llm_errors(`a569541`) / N2 llm_service 重试层(`c901813`) / N3 ProjectStateService(`4b7481e`) / N4 memory 按项目分域(`2d65586`) / N5 主链路 state 注入+写入(`4fe8d05`) / N6 WritingAgent state 注入(`140b4a1`) / N7 G25a per-row 重试+完成度(`2cecac1`) / N8 SSE warning 前后端(`c9090db`) / N9 ARCHITECTURE 更新(本 commit)。**N10 交付级降级追加（2026-08-16 用户纠偏后，`368c574`）**：N7 初版"重试+上报"是开发视角假完整——交付后 warning 平息不了用户怒火。补 Ch16 执行层内降：重试耗尽 → content 回退 sub_text 原文直填（i.N 编号行文 + （原文直填，待润色）标记），warning 改行动导向"已回退原文直填，建议人工复核"；无原文可降才真留空。救援链闭环 = 重试→降级→兜底→上报。新增单测 60 个（g25a_resilience 4→6）；最终门 853 passed 0 回归 + tsc 0 错；PR #60（14 commits）。分支 `feature/session-continuity-local-resilience`，合入走标准 PR + /pr-review（agents/** 架构层隔离强制 review）。
 
