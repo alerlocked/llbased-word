@@ -108,6 +108,14 @@ class IntentRecognizer:
         "quality": ["质量", "检验", "检测", "要求", "标准"]
     }
 
+    # Short-but-routable commands (buttons / confirmations legitimately send
+    # one or two words). Anything short NOT in this list is insufficient.
+    _SHORT_COMMANDS = {
+        "补齐", "生成", "继续", "重试", "确认", "取消", "是", "否", "好",
+        "可以", "开始", "执行", "下一步", "上一步", "完成",
+    }
+    _MIN_MEANINGFUL_LEN = 4  # chars, punctuation/whitespace excluded
+
     def __init__(self):
         """初始化意图识别器"""
         # 编译正则表达式模式
@@ -139,6 +147,30 @@ class IntentRecognizer:
             processed_input = self._preprocess_input(user_input)
             draft_complete_boost = self._detect_draft_complete(processed_input, context)
             extracted_entities = self._extract_entities(processed_input)
+
+            # 1.5 输入充分性闸门（零 LLM，纯规则）: too-short / meaningless
+            # input ("安全", "嗯嗯") carries no decidable intent — the LLM
+            # classifier would still confidently pick one (0.85) and the turn
+            # would wander into a wrong pipeline. Hand back to the user
+            # instead: unknown + needs_clarification, caller asks a
+            # clarification question. Command whitelist ("补齐/继续/生成"…)
+            # stays routable — buttons and confirmations legitimately send
+            # short words.
+            if self._is_insufficient_input(processed_input):
+                logger.info(
+                    "intent_input_insufficient",
+                    length=len(processed_input), user_input=user_input[:50],
+                )
+                return {
+                    "type": IntentType.UNKNOWN.value,
+                    "confidence": 0.0,
+                    "original_input": user_input,
+                    "processed_input": processed_input,
+                    "entities": extracted_entities,
+                    "alternative_intents": [],
+                    "context_used": bool(context),
+                    "needs_clarification": True,
+                }
 
             # 2. LLM 意图分类（fail-soft → 关键词正则兜底，绝不阻塞主流程）
             llm_intent = await self._classify_with_llm(user_input)
@@ -266,6 +298,24 @@ class IntentRecognizer:
             return None
         intent = data.get("intent") if isinstance(data, dict) else None
         return str(intent).strip() if intent else None
+
+    @classmethod
+    def _is_insufficient_input(cls, processed_input: str) -> bool:
+        """Input-sufficiency check (rule-based, zero LLM).
+
+        True when the input is too short to carry a decidable intent and is
+        not a whitelisted short command. Such turns must be handed back to
+        the user for clarification — never classified (the LLM would
+        confidently guess) and never silently routed.
+        """
+        stripped = "".join(
+            ch for ch in processed_input if ch.isalnum()
+        )
+        if not stripped:
+            return True
+        if processed_input.strip() in cls._SHORT_COMMANDS:
+            return False
+        return len(stripped) < cls._MIN_MEANINGFUL_LEN
 
     def _preprocess_input(self, user_input: str) -> str:
         """

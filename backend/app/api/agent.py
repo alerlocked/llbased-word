@@ -947,6 +947,25 @@ async def generate_stream(request: GenerateStreamRequest):
                 )
                 return
 
+            # Case 0a': unclear intent → hand back to the user for
+            # clarification. Never decompose, never fall through to the
+            # streaming fallback (bare "安全" used to get classified at 0.85
+            # and wander into a knowledge-search essay nobody asked for).
+            if intent_type == "unknown" and orch_result.get("intent", {}).get("needs_clarification"):
+                clarify = (
+                    f"没太明白「{user_input[:20]}」的意思——想让我做什么？比如：\n"
+                    "- 检查已生成文件的问题（问\"有什么问题吗\"）\n"
+                    "- 问工艺知识（说完整问题，如\"安全操作要求是什么\"）\n"
+                    "- 补全文件请点生成按钮"
+                )
+                yield f"data: {json.dumps({'type': 'content', 'content': clarify}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'has_editor': False}, ensure_ascii=False)}\n\n"
+                _persist_turn(
+                    session_id, request.project_id, user_input,
+                    content=clarify, intent_type="clarification",
+                )
+                return
+
             # Case 0b: review_document → four-way factual review (chat-only,
             # never touches the editor). Falls back to state outputs.generated
             # snapshot when no in-session structured results exist.
