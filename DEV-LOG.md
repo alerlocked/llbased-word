@@ -2,25 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/review-pipeline
-updated_at: 2026-08-17T11:06:13+08:00
-last_commit: 73b0891
-status: review-pipeline running（意图准入问句闸门/四对照审查执行器/last_output快照;PLAN 0a922f2 seal,6节点;根因=23:18问句触发重写全文件+review无真实执行器LLM通识瞎评）;前序:session-continuity PR60已合/thinking-budget PR61已合
-task_state: running
-task_slug: review-pipeline
+updated_at: 2026-08-17T23:26:37+08:00
+last_commit: bbb5cf4
+status: review-pipeline done（PR62已合 e7859ce:问句闸门/准入守卫/四对照审查/outputs快照/充分性闸门澄清;全量门901 passed 0回归）（意图准入问句闸门/四对照审查执行器/last_output快照;PLAN 0a922f2 seal,6节点;根因=23:18问句触发重写全文件+review无真实执行器LLM通识瞎评）;前序:session-continuity PR60已合/thinking-budget PR61已合
+task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `73b0891` refactor(state): last_output -> outputs.generated typed registry (extensible for uploaded/edited slots) (0 seconds ago)
-- `f9c3204` docs: review-pipeline architecture (intent gating + four-way review + last_output) and devlog running (3 hours ago)
-- `76b16ca` feat(api): route review_document to four-way pipeline, edit_document to safe fallback, gated draft_complete to clarification (3 hours ago)
-- `254bd02` feat(review): four-way factual review pipeline (template/db/quality machine checks + LLM coverage citing facts only) (3 hours ago)
-- `108279c` feat(state): last_output snapshot per project (chapter summary + warnings count, rendered into state block) (3 hours ago)
-- `d87d2af` feat(orchestrator): admission gate — dialog-detected draft_complete never executes without generation_mode (3 hours ago)
-- `90572b5` fix(intent): question-form gate on draft_complete boost + review examples in LLM prompt + needs_clarification (3 hours ago)
-- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (3 hours ago)
-- `cc93494` align: resolve open questions (safe-edit-fallback / four-way review) (12 hours ago)
-- `6b122a2` align: review pipeline + intent gating + last-output snapshot (slug review-pipeline) (12 hours ago)
+- `bbb5cf4` feat(intent): insufficient-input gate — unclear turns hand back to user for clarification, never classified/routed (1 second ago)
+- `73b0891` refactor(state): last_output -> outputs.generated typed registry (extensible for uploaded/edited slots) (12 hours ago)
+- `f9c3204` docs: review-pipeline architecture (intent gating + four-way review + last_output) and devlog running (15 hours ago)
+- `76b16ca` feat(api): route review_document to four-way pipeline, edit_document to safe fallback, gated draft_complete to clarification (15 hours ago)
+- `254bd02` feat(review): four-way factual review pipeline (template/db/quality machine checks + LLM coverage citing facts only) (16 hours ago)
+- `108279c` feat(state): last_output snapshot per project (chapter summary + warnings count, rendered into state block) (16 hours ago)
+- `d87d2af` feat(orchestrator): admission gate — dialog-detected draft_complete never executes without generation_mode (16 hours ago)
+- `90572b5` fix(intent): question-form gate on draft_complete boost + review examples in LLM prompt + needs_clarification (16 hours ago)
+- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (16 hours ago)
+- `cc93494` align: resolve open questions (safe-edit-fallback / four-way review) (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
