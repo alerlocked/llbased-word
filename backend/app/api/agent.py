@@ -948,7 +948,7 @@ async def generate_stream(request: GenerateStreamRequest):
                 return
 
             # Case 0b: review_document → four-way factual review (chat-only,
-            # never touches the editor). Falls back to state's last_output
+            # never touches the editor). Falls back to state outputs.generated
             # snapshot when no in-session structured results exist.
             if intent_type == "review_document":
                 try:
@@ -1734,7 +1734,7 @@ def _persist_turn(
     any new workflow that produces a turn should call THIS, so state/memory
     stay consistent no matter which path the user took.
     output_summary: template-output paths pass {"chapters": [...], "warnings_count": n}
-    so later turns can reference "刚才生成的那篇" (last_output snapshot).
+    so later turns can reference "刚才生成的那篇" (outputs.generated registry).
     """
     _save_memory(session_id, user_input, content, project_id=project_id)
     _update_project_state(

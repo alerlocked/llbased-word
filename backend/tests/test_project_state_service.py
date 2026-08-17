@@ -112,7 +112,7 @@ class TestLastOutputSnapshot:
             },
         )
         state = svc.load(1)
-        lo = state["last_output"]
+        lo = state["outputs"]["generated"]
         assert len(lo["chapters"]) == 2
         assert lo["warnings_count"] == 2
         assert lo["chapters"][0]["code"] == "G25a"
@@ -121,7 +121,7 @@ class TestLastOutputSnapshot:
     def test_no_summary_keeps_old_snapshot(self, svc):
         svc.update_from_turn(1, "s1", "补齐", None, output_summary={"chapters": [{"code": "G4a", "title": "", "rows": 1}], "warnings_count": 0})
         svc.update_from_turn(1, "s1", "继续问", "review_document")  # no summary
-        assert svc.load(1)["last_output"]["chapters"][0]["code"] == "G4a"  # not wiped
+        assert svc.load(1)["outputs"]["generated"]["chapters"][0]["code"] == "G4a"  # not wiped
 
     def test_rendered_into_context_block(self, svc):
         svc.update_from_turn(

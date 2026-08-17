@@ -91,14 +91,14 @@ class TestCoverageCheck:
 
 class TestRunReview:
     async def test_full_flow_with_snapshot_fallback(self, monkeypatch):
-        """No structured_results → falls back to state.last_output chapter codes."""
+        """No structured_results → falls back to state outputs.generated chapter codes."""
         from app.services import llm_service as ls
 
         async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
             return {"status": "success", "content": "按清单回答。", "finish_reason": "stop"}
 
         monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
-        state = {"last_output": {"chapters": [{"code": c, "title": "", "rows": 1} for c in ("G1a", "G4a", "G25a")]}}
+        state = {"outputs": {"generated": {"chapters": [{"code": c, "title": "", "rows": 1} for c in ("G1a", "G4a", "G25a")]}}}
         result = await rp.run_review("还需要补充吗", project_state=state)
         codes_missing = [i for i in result["issues"] if i["severity"] == "critical"]
         assert len(codes_missing) == 8  # 11 template − 3 snapshot

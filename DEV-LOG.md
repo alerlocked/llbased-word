@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/review-pipeline
-updated_at: 2026-08-17T07:59:34+08:00
-last_commit: 76b16ca
+updated_at: 2026-08-17T08:05:32+08:00
+last_commit: f9c3204
 status: review-pipeline running（意图准入问句闸门/四对照审查执行器/last_output快照;PLAN 0a922f2 seal,6节点;根因=23:18问句触发重写全文件+review无真实执行器LLM通识瞎评）;前序:session-continuity PR60已合/thinking-budget PR61已合
 task_state: running
 task_slug: review-pipeline
@@ -11,16 +11,16 @@ task_slug: review-pipeline
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `76b16ca` feat(api): route review_document to four-way pipeline, edit_document to safe fallback, gated draft_complete to clarification (0 seconds ago)
-- `254bd02` feat(review): four-way factual review pipeline (template/db/quality machine checks + LLM coverage citing facts only) (5 minutes ago)
-- `108279c` feat(state): last_output snapshot per project (chapter summary + warnings count, rendered into state block) (7 minutes ago)
-- `d87d2af` feat(orchestrator): admission gate — dialog-detected draft_complete never executes without generation_mode (10 minutes ago)
-- `90572b5` fix(intent): question-form gate on draft_complete boost + review examples in LLM prompt + needs_clarification (14 minutes ago)
-- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (16 minutes ago)
-- `cc93494` align: resolve open questions (safe-edit-fallback / four-way review) (8 hours ago)
+- `f9c3204` docs: review-pipeline architecture (intent gating + four-way review + last_output) and devlog running (0 seconds ago)
+- `76b16ca` feat(api): route review_document to four-way pipeline, edit_document to safe fallback, gated draft_complete to clarification (6 minutes ago)
+- `254bd02` feat(review): four-way factual review pipeline (template/db/quality machine checks + LLM coverage citing facts only) (11 minutes ago)
+- `108279c` feat(state): last_output snapshot per project (chapter summary + warnings count, rendered into state block) (13 minutes ago)
+- `d87d2af` feat(orchestrator): admission gate — dialog-detected draft_complete never executes without generation_mode (16 minutes ago)
+- `90572b5` fix(intent): question-form gate on draft_complete boost + review examples in LLM prompt + needs_clarification (20 minutes ago)
+- `0a922f2` plan: review pipeline + intent gating + last-output snapshot (6 nodes) (22 minutes ago)
+- `cc93494` align: resolve open questions (safe-edit-fallback / four-way review) (9 hours ago)
 - `6b122a2` align: review pipeline + intent gating + last-output snapshot (slug review-pipeline) (9 hours ago)
 - `b61653d` Merge pull request #61 from alerlocked/feature/thinking-budget-tiers (9 hours ago)
-- `55d5c63` Merge pull request #60 from alerlocked/feature/session-continuity-local-resilience (9 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

@@ -198,7 +198,7 @@ async def run_review(
     check still works off chapter codes; quality/db checks degrade to info).
     """
     if not structured_results:
-        lo = (project_state or {}).get("last_output") or {}
+        lo = ((project_state or {}).get("outputs") or {}).get("generated") or {}
         snapshot_codes = {c.get("code") for c in lo.get("chapters", []) if c.get("code")}
         structured_results = {code: {"chapter_title": "", "filled_data": []} for code in snapshot_codes}
 
