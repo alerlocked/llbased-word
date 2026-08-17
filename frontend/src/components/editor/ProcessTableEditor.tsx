@@ -13,7 +13,7 @@ import {
   ColumnHeightOutlined,
   BorderInnerOutlined,
 } from '@ant-design/icons'
-import type { CellMerge, TemplateSection } from '../../types/template'
+import type { CellMerge, TemplateSection, CellInfo } from '../../types/template'
 import { getLayout } from './processDocumentLayouts'
 import {
   cellStateFor,
@@ -24,10 +24,13 @@ import {
   shiftMerges,
   splitMerge,
 } from './mergeUtils'
+import { useDragSelection } from '../../hooks/useDragSelection'
 
 interface Props {
   section: TemplateSection
   onChange: (section: TemplateSection) => void
+  sectionIndex?: number
+  onPasteToChat?: (text: string, cellInfo: CellInfo) => void
 }
 
 const cellStyle: React.CSSProperties = {
@@ -72,8 +75,9 @@ const infoCellStyle: React.CSSProperties = {
   fontSize: 12,
 }
 
-const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
+const ProcessTableEditor: React.FC<Props> = ({ section, onChange, sectionIndex = 0, onPasteToChat }) => {
   const tableRef = useRef<HTMLTableElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const chapterCode = section.section_id
   const layout = getLayout(chapterCode)
 
@@ -128,10 +132,19 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
   }
 
   // --- Hover state ---
-  const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [rowTop, setRowTop] = useState(0)
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: string } | null>(null)
+
+  // --- Windows-style drag selection (draw rectangle to select cells) ---
+  const { selection: dragSelection, isVisible: isSelVisible, dragRect } =
+    useDragSelection(containerRef, sectionIndex, { maxLength: 200 })
+
+  const handlePasteSelection = useCallback(() => {
+    if (dragSelection && onPasteToChat) {
+      onPasteToChat(dragSelection.text, dragSelection.cellInfo)
+    }
+  }, [dragSelection, onPasteToChat])
 
   return (
     <div ref={containerRef} style={{ width: '100%', overflowX: 'auto', position: 'relative' }}>
@@ -267,6 +280,7 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
                       rowSpan={state.kind === 'merge-start' ? state.rowSpan : undefined}
                       contentEditable
                       suppressContentEditableWarning
+                      data-col-key={col.key}
                       onMouseEnter={() => setHoveredCell({ row: ri, col: col.key })}
                       onMouseLeave={() => setHoveredCell(null)}
                       style={{
@@ -339,6 +353,55 @@ const ProcessTableEditor: React.FC<Props> = ({ section, onChange }) => {
               />
             </Tooltip>
           )}
+        </div>
+      )}
+
+      {/* Windows-style drag selection rectangle */}
+      {dragRect && (
+        <div
+          style={{
+            position: 'fixed',
+            left: Math.min(dragRect.startX, dragRect.endX),
+            top: Math.min(dragRect.startY, dragRect.endY),
+            width: Math.abs(dragRect.endX - dragRect.startX),
+            height: Math.abs(dragRect.endY - dragRect.startY),
+            background: 'rgba(24, 144, 255, 0.12)',
+            border: '1px solid #1890ff',
+            pointerEvents: 'none',
+            zIndex: 999,
+          }}
+        />
+      )}
+
+      {/* Floating action box — appears after drag selection completes */}
+      {onPasteToChat && isSelVisible && dragSelection && (
+        <div
+          style={{
+            position: 'fixed',
+            top: Math.max(8, (dragRect?.startY ?? 100) - 36),
+            left: Math.min(window.innerWidth - 160, dragRect?.startX ?? 100),
+            zIndex: 1000,
+            background: '#1890ff',
+            color: '#fff',
+            borderRadius: 6,
+            padding: '4px 10px',
+            fontSize: 12,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(24,144,255,0.45)',
+            whiteSpace: 'nowrap',
+            userSelect: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handlePasteSelection}
+        >
+          <span>📎</span>
+          <span>处理选区</span>
+          <span style={{ opacity: 0.8, fontSize: 11 }}>
+            {dragSelection.originalLength}字{dragSelection.isTruncated ? ' (已截断)' : ''}
+          </span>
         </div>
       )}
     </div>

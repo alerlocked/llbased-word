@@ -21,7 +21,8 @@ import { EmptyStateIllustration } from '../components/Illustrations/RecordingAni
 import InlineDiff, { FloatingConfirmBar } from '../components/common/InlineDiff'
 import MarkdownTiptapEditor from '../components/common/MarkdownTiptapEditor'
 import TemplateContentEditor from '../components/editor/TemplateContentEditor'
-import type { TemplateSection } from '../types/template'
+import SelectionDialog from '../components/editor/SelectionDialog'
+import type { TemplateSection, CellInfo } from '../types/template'
 import ProcessContentView from '../components/common/ProcessContentView'
 import { markdownToHtml } from '../utils/markdownConverter'
 import { structuredDocToSections } from '../utils/templateTransform'
@@ -94,6 +95,81 @@ const WorkspacePage: React.FC = () => {
     [currentProjectId, setEditorContent],
   )
 
+  // 选区弹窗：发送给AI对话
+  const handleSelectionSendToChat = useCallback((text: string) => {
+    _setSelectedText(text)
+  }, [])
+
+  // 选区弹窗：替换单元格原文
+  const handleSelectionReplaceCell = useCallback((cellInfo: CellInfo, newText: string) => {
+    const sections = templateSections
+    if (cellInfo.sectionIndex < 0 || cellInfo.sectionIndex >= sections.length) return
+    const section = sections[cellInfo.sectionIndex]
+    const rows = [...(section.rows || [])]
+    if (cellInfo.rowIndex < 0 || cellInfo.rowIndex >= rows.length) return
+    rows[cellInfo.rowIndex] = { ...rows[cellInfo.rowIndex], [cellInfo.colKey]: newText }
+    const updatedSection = { ...section, rows }
+    const next = [...sections]
+    next[cellInfo.sectionIndex] = updatedSection
+    handleTemplateSectionsChange(next)
+  }, [templateSections, handleTemplateSectionsChange])
+
+  // 选区弹窗：AI润色
+  const handleSelectionPolish = useCallback(async (text: string): Promise<string> => {
+    const resp = await fetch('/api/assistant/quick-actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'polish', text }),
+    })
+    if (!resp.ok) throw new Error('polish failed')
+    const data = await resp.json()
+    return data.result || data.text || text
+  }, [])
+
+  // 选区弹窗：AI审查
+  const handleSelectionReview = useCallback(async (text: string): Promise<string> => {
+    const resp = await fetch('/api/tasks/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: text, domain: 'assembly' }),
+    })
+    if (!resp.ok) throw new Error('review failed')
+    const data = await resp.json()
+    const issues = data.issues || data.result?.issues || []
+    if (issues.length === 0) return '审查通过，未发现问题。'
+    return issues.map((i: { severity: string; message: string; type: string }) =>
+      `[${i.severity || i.type}] ${i.message}`
+    ).join('\n')
+  }, [])
+
+  // 选区弹窗：AI补齐
+  const handleSelectionFill = useCallback(async (text: string): Promise<string> => {
+    const resp = await fetch('/api/assistant/quick-actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'expand', text }),
+    })
+    if (!resp.ok) throw new Error('fill failed')
+    const data = await resp.json()
+    return data.result || data.text || text
+  }, [])
+
+  // 选区弹窗：AI校对
+  const handleSelectionProofread = useCallback(async (text: string): Promise<string> => {
+    const resp = await fetch('/api/tasks/proofread', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: text }),
+    })
+    if (!resp.ok) throw new Error('proofread failed')
+    const data = await resp.json()
+    const corrections = data.corrections || data.issues || data.result?.issues || []
+    if (corrections.length === 0) return '校对通过，未发现术语或格式问题。'
+    return corrections.map((c: { type: string; message: string; original: string; suggestion: string }) =>
+      `[${c.type || '校对'}] ${c.message || ''}${c.suggestion ? ` → 建议: ${c.suggestion}` : ''}`
+    ).join('\n')
+  }, [])
+
   // UI状态
   const [imageModalVisible, setImageModalVisible] = useState(false)
   // Left sidebar: which panel is active ('materials' | 'settings' | null)
@@ -103,6 +179,11 @@ const WorkspacePage: React.FC = () => {
   // AI交互状态
   const [_selectedText, _setSelectedText] = useState('')
 
+  // 选区处理弹窗状态
+  const [selectionDialogOpen, setSelectionDialogOpen] = useState(false)
+  const [selectionDialogText, setSelectionDialogText] = useState('')
+  const [selectionDialogCellInfo, setSelectionDialogCellInfo] = useState<CellInfo | null>(null)
+
   // 预览模式状态（智能写作结果预览）
   const [previewMode, setPreviewMode] = useState(false)
   const [previewContent, setPreviewContent] = useState('')
@@ -111,7 +192,7 @@ const WorkspacePage: React.FC = () => {
   // 获取项目列表
   const fetchProjects = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/creation/projects')
+      const response = await fetch('/api/creation/projects')
       if (response.ok) {
         let list = await response.json()
         list = list.items || list
@@ -119,7 +200,7 @@ const WorkspacePage: React.FC = () => {
         // Auto-create a default project when none exist
         if (list.length === 0) {
           try {
-            const createRes = await fetch('http://localhost:8000/api/creation/projects', {
+            const createRes = await fetch('/api/creation/projects', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ name: '默认项目' })
@@ -154,7 +235,7 @@ const WorkspacePage: React.FC = () => {
   const fetchProjectContent = async (projectId: number) => {
     try {
       console.log('[fetchProjectContent] 开始加载项目内容，projectId:', projectId)
-      const response = await fetch(`http://localhost:8000/api/creation/projects/${projectId}/content`)
+      const response = await fetch(`/api/creation/projects/${projectId}/content`)
       if (response.ok) {
         const data = await response.json()
         const newContent = data.content || ''
@@ -243,7 +324,7 @@ const WorkspacePage: React.FC = () => {
     }
     setCreating(true)
     try {
-      const response = await fetch('http://localhost:8000/api/creation/projects', {
+      const response = await fetch('/api/creation/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newProjectName })
@@ -266,7 +347,7 @@ const WorkspacePage: React.FC = () => {
   // 删除项目
   const handleDeleteProject = async (projectId: number) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/creation/projects/${projectId}`, {
+      const response = await fetch(`/api/creation/projects/${projectId}`, {
         method: 'DELETE'
       })
       if (response.ok) {
@@ -301,7 +382,7 @@ const WorkspacePage: React.FC = () => {
     if (!currentProjectId) return
     console.log('[handleSave] 开始保存，内容长度:', editorContent.length, '前100字符:', editorContent.substring(0, 100))
     try {
-      const response = await fetch(`http://localhost:8000/api/creation/projects/${currentProjectId}/content`, {
+      const response = await fetch(`/api/creation/projects/${currentProjectId}/content`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: editorContent })
@@ -317,7 +398,7 @@ const WorkspacePage: React.FC = () => {
             if (Array.isArray(parsed) && parsed.length > 0) {
               const { edits, row_changes } = diffTemplateSections(originalSections, parsed as TemplateSection[])
               if (edits.length > 0 || row_changes.length > 0) {
-                fetch('http://localhost:8000/api/profile/assembly/learn-feedback', {
+                fetch('/api/profile/assembly/learn-feedback', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ domain: 'assembly', project_id: String(currentProjectId), edits, row_changes }),
@@ -381,7 +462,7 @@ const WorkspacePage: React.FC = () => {
             if (!imageUrl.startsWith('/')) {
               imageUrl = '/' + imageUrl
             }
-            imageUrl = `http://localhost:8000${imageUrl}`
+            imageUrl = `${imageUrl}`
           }
           
           // 清理 alt 文本
@@ -544,8 +625,8 @@ const WorkspacePage: React.FC = () => {
 
     try {
       const endpoint = format === 'pdf'
-        ? 'http://localhost:8000/api/export/content-pdf'
-        : 'http://localhost:8000/api/export/content-word'
+        ? '/api/export/content-pdf'
+        : '/api/export/content-word'
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -872,6 +953,11 @@ const WorkspacePage: React.FC = () => {
                     <TemplateContentEditor
                       sections={templateSections}
                       onChange={handleTemplateSectionsChange}
+                      onPasteToChat={(text, cellInfo) => {
+                        setSelectionDialogText(text)
+                        setSelectionDialogCellInfo(cellInfo)
+                        setSelectionDialogOpen(true)
+                      }}
                     />
                   ) : (
                     <MarkdownTiptapEditor
@@ -1003,6 +1089,21 @@ const WorkspacePage: React.FC = () => {
           </p>
         </div>
       </Modal>
+
+      {/* 选区处理弹窗 */}
+      <SelectionDialog
+        open={selectionDialogOpen}
+        selectedText={selectionDialogText}
+        cellInfo={selectionDialogCellInfo}
+        maxLength={200}
+        onClose={() => setSelectionDialogOpen(false)}
+        onSendToChat={handleSelectionSendToChat}
+        onReplaceCell={handleSelectionReplaceCell}
+        onPolish={handleSelectionPolish}
+        onReview={handleSelectionReview}
+        onFill={handleSelectionFill}
+        onProofread={handleSelectionProofread}
+      />
     </div>
   )
 }
