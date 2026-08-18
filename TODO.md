@@ -35,6 +35,7 @@
 - **意图路由两病灶（2026-08-18 实测"帮我把引用文件目录完善"记录,随 edit_local 一起修,现在不动——#63 接入后 edit 链路能识别局部修改句式,自然不再误触发生成）**：
   1. draft_complete 复合 boost（`intent_recognizer.py:83` 关键词 `补全|完善|补充` + 文档词 → 无条件 0.85）**覆盖 LLM 语义结果**——点状修改句式（"把X完善"）与整份补全分不开，LLM 大概率判对的 edit_document 被关键词劫持。修法：boost 前先跑 LLM 判 edit_document 优先短路
   2. gate 兜底文案（`orchestrator.py:543` 硬编码长文案）为"想生成被拦"设计,套在"想局部修改"头上文不对题。修法：砍成一句 + 识别为修改意图时改走 `agent.py:1002` edit 兜底（"修改功能建设中,用编辑器框选"）
+- **按钮收敛完成（2026-08-18,commit `0be2706`）**:右下角 4 按钮收敛为 1——审/校按钮删（对话路由已覆盖:审查/校对句式→review_document 0.85 实测）;生成并入补齐（fill 无初稿后端自动转全量,零后端改动）。顺带修了既有 bug:global.css `.ant-btn-default !important` 杀掉 inline 高亮背景,加 `mode-btn-active` class 恢复。
 - 关联：ALIGN-dialog-task-pipeline D4 / [[exp-dialog-task-pipeline]] 待办 / VISION 交互升级线
 
 ### 4. catalog enrich 同步 DB ~1s 残留阻塞
