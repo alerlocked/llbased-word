@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-18T20:18:02+08:00
-last_commit: 1fd409e
+updated_at: 2026-08-18T20:18:55+08:00
+last_commit: 6fcc7b2
 status: review-pipeline running（意图准入问句闸门/四对照审查执行器/last_output快照;PLAN 0a922f2 seal,6节点;根因=23:18问句触发重写全文件+review无真实执行器LLM通识瞎评）;前序:session-continuity PR60已合/thinking-budget PR61已合
 task_state: running
 task_slug: review-pipeline
@@ -11,7 +11,8 @@ task_slug: review-pipeline
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `1fd409e` docs(vision): add editability axis + interaction-upgrade line (drag-selection direction, PR #63 groundwork) (0 seconds ago)
+- `6fcc7b2` docs(todo): archive #8 (fork debt cleared 08-13, audit verified 0/0) and #11 (VISION exists); add #12 workspace junk (0 seconds ago)
+- `1fd409e` docs(vision): add editability axis + interaction-upgrade line (drag-selection direction, PR #63 groundwork) (53 seconds ago)
 - `e7859ce` Merge pull request #62 from alerlocked/feature/review-pipeline (21 hours ago)
 - `bbb5cf4` feat(intent): insufficient-input gate — unclear turns hand back to user for clarification, never classified/routed (21 hours ago)
 - `73b0891` refactor(state): last_output -> outputs.generated typed registry (extensible for uploaded/edited slots) (33 hours ago)
@@ -20,7 +21,6 @@ task_slug: review-pipeline
 - `254bd02` feat(review): four-way factual review pipeline (template/db/quality machine checks + LLM coverage citing facts only) (2 days ago)
 - `108279c` feat(state): last_output snapshot per project (chapter summary + warnings count, rendered into state block) (2 days ago)
 - `d87d2af` feat(orchestrator): admission gate — dialog-detected draft_complete never executes without generation_mode (2 days ago)
-- `90572b5` fix(intent): question-form gate on draft_complete boost + review examples in LLM prompt + needs_clarification (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

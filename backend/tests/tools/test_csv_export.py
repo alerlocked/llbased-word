@@ -53,8 +53,8 @@ class TestCSVExportService:
 
     @pytest.fixture
     def test_output_dir(self):
-        """测试输出目录"""
-        output_dir = Path("backend/tests/fixtures/exports")
+        """测试输出目录（锚定本文件位置，防从 backend/ 内跑 pytest 时误建 backend/backend/）"""
+        output_dir = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "exports"
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
 
