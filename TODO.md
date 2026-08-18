@@ -63,11 +63,6 @@
 
 ## P2 · 治理 / 流程 / 小尾巴（不单独立项）
 
-### 8. git 分叉债务（alerlocked/llbased-word）
-- 现状：本地 main 与远程分叉，`1028785`/`bf954f2`/`b3143a2` 等 commit `best_effort_push` 全 skipped
-- 建议：留项目 session 判断怎么对（push-only，不擅自 rebase/merge/force）
-- 关联：memory `git-sync-unification-todo` / `python scripts/project-audit.py` 对账
-
 ### 9. diagnose 脚本被清
 - 现状：`diagnose_all_chapters.py` / `diagnose_g25a.py`（exp 推荐诊断工具）已不在 backend/，本次 #1 靠 python -c + Read 临时顶
 - 建议：要么恢复脚本进 `scripts/`，要么把诊断手法固化进 exp
@@ -77,14 +72,16 @@
 - 现状：`writing_agent.py:1012` 拼 `## 画像强约束` 进 system_msg 不打 logger，日志无法确认是否生效
 - 建议：顺手加一行 log（做 #1 extract lead 时顺带）
 
-### 11. VISION.md 未建
-- 现状：项目无 VISION.md，gen-test-fixes 作为 bug 批次跳过了愿景校准
-- 建议：下个新功能 lead 前补愿景 + 可观察验收（`/vision localknowledgebase-word`）
-- 关联：lead 第 0 步强制校准
+### 12. 工作区垃圾文件（2026-08-18 对账发现）
+- 现状：`___TEMP_OUT___`（206 页 PDF 测试残留）/ `backend/backend/`（8-13 清理后**又新生成**的误建副本）/ `backend/data/project_state/`（运行数据，.gitignore 未盖）
+- 建议：删 TEMP + backend/backend；.gitignore 补 `backend/data/project_state/`
+- 关联：project-audit 2026-08-18
 
 ---
 
 ## 已归档 / 已完成
+- 2026-08-18 #8 git 分叉 —— **旧账，已核实归档**：2026-08-13 治理 force push 对齐后零分叉（project-audit 实测 main vs origin/main = 0/0），后续无复发
+- 2026-08-18 #11 VISION.md 未建 —— **过时信息，已核实归档**：文件 2026-07 已建；本日补「可改」验收轴 + 交互升级线（PR #63 方向，commit `1fd409e`）
 - 2026-07-25 G25a 装配卡检验项堆最后 —— 撤销，用户确认实际无此问题（代码层穿插本就对：`_expand_inspection_rows` 每步后插检验行 + 前端 `ProcessCard`/`processCardParser.ts:102` 归当前 step；原为 2026-07-21 便携包 v0.2 测试定位的疑点）
 - 2026-07-19 gen-test-fixes：#2 /health 404、#3 SQL echo、#4 事件循环阻塞 67s —— 均已修（commit `bf954f2`）
 
