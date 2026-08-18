@@ -32,7 +32,10 @@
 - **方向已定**（2026-08-11 PlanMode 探索 + 用户拍）：定位=**框选 + 自然语言都要**；改的对象=**表格 cell + 段落**（上传工艺文件改某段，不止 cell）；明天拆小块 lead 循环，从"框选 cell 改"起步（定位准、复用 unify 选区思路）
 - 现状：前端 `editorTemplateData` 有 cell 坐标(chapter_code,rowIndex,columnKey)+更新路径现成，但**表格无 cell/段落选区机制**(只 hover，文本段选区 unify 已有)；后端 **`_do_edit` 整段重生成**(不能改单值)/edit_document 链路错配(跑成 proofread+review)/**无反向 cell 定位**/SSE 只全量更新
 - 明天要建：表格 cell/段落框选选区 + 自然语言定位(NER+映射) + edit 执行单元(改单值/改段) + cell_update SSE 局部回传
-- 关联：ALIGN-dialog-task-pipeline D4 / [[exp-dialog-task-pipeline]] 待办
+- **意图路由两病灶（2026-08-18 实测"帮我把引用文件目录完善"记录,随 edit_local 一起修,现在不动——#63 接入后 edit 链路能识别局部修改句式,自然不再误触发生成）**：
+  1. draft_complete 复合 boost（`intent_recognizer.py:83` 关键词 `补全|完善|补充` + 文档词 → 无条件 0.85）**覆盖 LLM 语义结果**——点状修改句式（"把X完善"）与整份补全分不开，LLM 大概率判对的 edit_document 被关键词劫持。修法：boost 前先跑 LLM 判 edit_document 优先短路
+  2. gate 兜底文案（`orchestrator.py:543` 硬编码长文案）为"想生成被拦"设计,套在"想局部修改"头上文不对题。修法：砍成一句 + 识别为修改意图时改走 `agent.py:1002` edit 兜底（"修改功能建设中,用编辑器框选"）
+- 关联：ALIGN-dialog-task-pipeline D4 / [[exp-dialog-task-pipeline]] 待办 / VISION 交互升级线
 
 ### 4. catalog enrich 同步 DB ~1s 残留阻塞
 - 现状：`_enrich_names_from_catalog` 在 async 路径循环 33 次 sync `db.query().first()`，llm 改 async 后残留 1.05s 毛刺
