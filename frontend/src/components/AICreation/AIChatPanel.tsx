@@ -66,7 +66,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
 
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
-  // 'generate' = full generation, 'fill' = fill missing chapters, null = free chat
+  // 'fill' = fill missing chapters (empty doc auto-falls-back to full generation on the
+  // backend), null = free chat. 'generate' union kept for backend contract compat.
   const [generationMode, setGenerationMode] = useState<'generate' | 'fill' | null>(null)
   const [historyVisible, setHistoryVisible] = useState(false)
   // Uploaded file state for AI context injection — persisted in sessionStorage
@@ -773,102 +774,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       setStreamController(null)
       setOriginalInput('')
       // NOTE: Do NOT reset generationMode here.
-      // The fill/generate workflow spans multiple SSE rounds (user input → auto-confirm → execution).
+      // The fill workflow spans multiple SSE rounds (user input → auto-confirm → execution).
       // Resetting here makes the button lose its highlight prematurely,
-      // confusing users about whether they're still in fill/generate mode.
+      // confusing users about whether they're still in fill mode.
       // generationMode resets when user toggles the button off or starts a new session.
-    }
-  }
-
-  // Serialize current editor template to plain text for review/proofread.
-  // Best-effort: chapter title + each row's column→value (+ dual_list/flow/fields).
-  const sectionsToReviewText = (doc: StructuredDocument): string => {
-    const sections = structuredDocToSections(doc)
-    return sections.map(s => {
-      const lines = [`【${s.title}】`]
-      const rows = s.rows || []
-      const cols = s.columns || []
-      if (rows.length) {
-        rows.forEach((row, i) => {
-          lines.push(`${i + 1}. ` + cols.map(c => `${c}: ${row[c] ?? ''}`).join(' | '))
-        })
-      }
-      if (s.left_data?.length) s.left_data.forEach((r, i) => lines.push(`L${i + 1}. ` + (s.left_columns || []).map(c => `${c}: ${r[c] ?? ''}`).join(' | ')))
-      if (s.right_data?.length) s.right_data.forEach((r, i) => lines.push(`R${i + 1}. ` + (s.right_columns || []).map(c => `${c}: ${r[c] ?? ''}`).join(' | ')))
-      if (s.flow_steps?.length) lines.push(...s.flow_steps)
-      if (s.field_values) Object.entries(s.field_values).forEach(([k, v]) => lines.push(`${k}: ${v}`))
-      return lines.join('\n')
-    }).join('\n\n')
-  }
-
-  // 对话式审查/校对:取当前编辑器内容 → /api/tasks/review|proofread → issues 回前端
-  // 不走 generate-stream 主链(秒级同步校验),不动 source-driven 生成。
-  const handleReviewProofread = async (mode: 'review' | 'proofread') => {
-    if (loading || !projectId) return
-
-    const templateData = useCreationStore.getState().editorTemplateData
-    const content = templateData
-      ? sectionsToReviewText(templateData)
-      : (projectState?.editorContent || '')
-
-    if (!content.trim()) {
-      message.warning('编辑器内容为空,请先生成工艺文件')
-      return
-    }
-
-    const domain = (projectId && localStorage.getItem(`profile_default_${projectId}`)) || 'assembly'
-    const label = mode === 'review' ? '审查' : '校对'
-
-    const userMsg: Message = {
-      role: 'user',
-      content: `[${label}] 当前编辑器中的工艺文件`,
-      timestamp: Date.now()
-    }
-    const assistantMsg: Message = {
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      isStreaming: true,
-    }
-    updateActiveMessages([...messages, userMsg, assistantMsg])
-    setLoading(true)
-
-    try {
-      const endpoint = mode === 'review' ? '/api/tasks/review' : '/api/tasks/proofread'
-      const body: Record<string, unknown> = { content, check_type: 'all', domain }
-      if (mode === 'review') body.standards = 'enterprise,safety'
-
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error(`${mode} 请求失败`)
-      const data = await res.json()
-
-      // Response may be {result:{issues}} or flat {issues}; defend both.
-      const inner = data?.result || data
-      const issues: any[] = inner?.issues || []
-      // passed: rely on error count, response may omit the passed field.
-      // review uses error/warning/info; proofread uses critical/warning — both count as fail.
-      const errors = issues.filter(i => ['error', 'critical'].includes(i?.severity)).length
-      const passed = errors === 0
-      const summary = passed
-        ? `✅ ${label}通过${issues.length > 0 ? `(含 ${issues.length} 项提示/警告)` : ''}`
-        : `❌ ${label}未通过:${errors} 个严重问题 / 共 ${issues.length} 项`
-
-      updateActiveMessages([...messages, userMsg, {
-        ...assistantMsg,
-        isStreaming: false,
-        content: summary,
-        reviewIssues: issues,
-      } as any])
-    } catch (error) {
-      console.error(`${mode} error:`, error)
-      const errMsg: Message = { ...assistantMsg, isStreaming: false, content: `[${label}] 请求失败,请检查后端服务` }
-      updateActiveMessages([...messages, userMsg, errMsg])
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -1170,23 +1079,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                   </div>
                 </div>
               )}
-              
-              {/* 审查/校对结果:issues 列表(severity 分级 + fix_hint) */}
-              {(msg as any).reviewIssues && Array.isArray((msg as any).reviewIssues) && (msg as any).reviewIssues.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  {(msg as any).reviewIssues.map((iss: any, idx: number) => {
-                    const color = iss.severity === 'error' ? '#ff4d4f' : iss.severity === 'warning' ? '#faad14' : '#1677ff'
-                    const tag = iss.severity === 'error' ? '严重' : iss.severity === 'warning' ? '警告' : '提示'
-                    return (
-                      <div key={idx} style={{ marginBottom: 8, padding: '6px 10px', borderLeft: `3px solid ${color}`, background: colors.bgPrimary, borderRadius: 4, fontSize: 12 }}>
-                        <span style={{ color, fontWeight: 600, marginRight: 8 }}>[{tag}] {iss.type || ''}</span>
-                        <span style={{ color: colors.textSecondary }}>{iss.message}</span>
-                        {iss.fix_hint && <div style={{ color: colors.textTertiary, marginTop: 2 }}>💡 {iss.fix_hint}</div>}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
 
               {/* 如果有改进方案，显示方案选择界面 */}
               {(msg as any).improvementSolutions && Array.isArray((msg as any).improvementSolutions) && (msg as any).improvementSolutions.length > 0 && (
@@ -1381,48 +1273,27 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             />
           </div>
         )}
-        {/* Mode buttons row */}
+        {/* Mode buttons row — single Fill button (merged: fill-with-no-draft
+            auto-falls-back to full generation on the backend, so one entry suffices) */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          {(!generationMode || generationMode === 'fill') && (
-            <Button
-              size="small"
-              onClick={() => {
-                setGenerationMode(generationMode === 'fill' ? null : 'fill')
-              }}
-              disabled={loading}
-              style={{
-                flex: 1,
-                borderRadius: 8,
-                background: generationMode === 'fill' ? colors.primary : 'transparent',
-                color: generationMode === 'fill' ? '#000' : colors.textSecondary,
-                borderColor: generationMode === 'fill' ? colors.primary : colors.border,
-                fontSize: 12,
-                fontWeight: generationMode === 'fill' ? 600 : 400,
-              }}
-            >
-              补齐
-            </Button>
-          )}
-          {(!generationMode || generationMode === 'generate') && (
-            <Button
-              size="small"
-              onClick={() => {
-                setGenerationMode(generationMode === 'generate' ? null : 'generate')
-              }}
-              disabled={loading}
-              style={{
-                flex: 1,
-                borderRadius: 8,
-                background: generationMode === 'generate' ? colors.primary : 'transparent',
-                color: generationMode === 'generate' ? '#000' : colors.textSecondary,
-                borderColor: generationMode === 'generate' ? colors.primary : colors.border,
-                fontSize: 12,
-                fontWeight: generationMode === 'generate' ? 600 : 400,
-              }}
-            >
-              生成
-            </Button>
-          )}
+          <Button
+            size="small"
+            className={generationMode === 'fill' ? 'mode-btn-active' : undefined}
+            onClick={() => {
+              setGenerationMode(generationMode === 'fill' ? null : 'fill')
+            }}
+            disabled={loading}
+            style={{
+              flex: 1,
+              borderRadius: 8,
+              color: generationMode === 'fill' ? undefined : colors.textSecondary,
+              borderColor: generationMode === 'fill' ? undefined : colors.border,
+              fontSize: 12,
+              fontWeight: generationMode === 'fill' ? 600 : 400,
+            }}
+          >
+            补齐
+          </Button>
         </div>
         {/* 选区引用标签（Cursor 式）— selectedText 非空时显示，× 可清除 */}
         {selectedText && (
@@ -1448,35 +1319,14 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             </Tag>
           </div>
         )}
-        {/* Review/Proofread actions — operate on current editor content, no input needed */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <Button
-            size="small"
-            onClick={() => handleReviewProofread('review')}
-            disabled={loading || !projectId}
-            style={{ flex: 1, borderRadius: 8, fontSize: 12, borderColor: colors.border, color: colors.textSecondary }}
-          >
-            审查
-          </Button>
-          <Button
-            size="small"
-            onClick={() => handleReviewProofread('proofread')}
-            disabled={loading || !projectId}
-            style={{ flex: 1, borderRadius: 8, fontSize: 12, borderColor: colors.border, color: colors.textSecondary }}
-          >
-            校对
-          </Button>
-        </div>
         {/* Input + Send row */}
         <Space.Compact style={{ width: '100%' }}>
           <TextArea
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             placeholder={
-              generationMode === 'generate'
-                ? '表格生成模式：基于知识库生成完整工艺文件（可选输入需求描述）...'
-                : generationMode === 'fill'
-                ? '补齐模式：自动检测并补充缺失章节...'
+              generationMode === 'fill'
+                ? '补齐模式：自动检测并补充缺失章节（空文档将完整生成）...'
                 : '描述你的工艺文件需求，例如：编写一份电缆装配工艺规程...'
             }
             autoSize={{ minRows: 3, maxRows: 6 }}

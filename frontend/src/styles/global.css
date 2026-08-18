@@ -527,3 +527,12 @@ input::-moz-selection {
   color: var(--color-text-secondary);
   max-width: 320px;
 }
+
+/* AIChatPanel mode button active state (2026-08-18): global .ant-btn-default
+   !important above kills the inline background, so the active fill button
+   needs its own !important rule to show the primary highlight. */
+.ant-btn.mode-btn-active {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #fff !important;
+}
