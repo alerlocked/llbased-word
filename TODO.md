@@ -28,6 +28,12 @@
 
 ## P1 · 系统完善（场景驱动 / 上线前）
 
+### 3c. G25a 工序名称前置直拼 + 工序8无编号引子提取修复（2026-08-18 用户实测报告）
+- **症状①**:每道工序 content 开头缺工序名称总起句（装前准备/安装密封圈2…）。根因:`writing_agent.py:1720` prompt 约束3 是「可点题」非「必须」,LLM 直接跳过（7-26 `d6b2aa3` 修前缀重复时引入的弱化）。**修法(用户拍板)**:工序名从 `skel[i-1]`（G19a 工艺流程图直填）**程序化前置** `f"{name}：\n"` 到 content 头,不问 LLM;`_fallback_slots` 降级路径同样拼;prompt 约束3 改「不要写总起句,系统前置工序名」
+- **症状②**:工序8 从 8.3 开始,无 8.1/8.2 无工序名。根因在 `extract_assembly_steps` 提取层（实证 dump:工序8 substeps[0] 是无编号引子文字「先试装电缆整流罩端头…」,substeps[1] 是其折行断句,真 8.1 排到第三）——源 PDF 工序8 开头有不带编号的说明段,提取器缺处理,LLM 按 8.N 顺排挤占。**修法**:提取器预处理——工序首条无 `N.M` 编号的连续行并入首工步开头（折行合并）,不独立成步。⚠ 预存问题非本次回归（贡献问题,用户判）
+- **顺手**: `extract_process_steps`（hierarchical_context.py:1667）骨架混入「阶段标记/更改标记/共1页/第1页」（G19a 签名区/页脚格子,`header_words`+过滤正则没盖住）,补过滤
+- 关联: g25a-step-numbering `d6b2aa3` / exp-g25a-step-numbering
+
 ### 3b. edit_local 对话式局部修改（dialog-task-pipeline 第5块，2026-08-12 开）
 - **方向已定**（2026-08-11 PlanMode 探索 + 用户拍）：定位=**框选 + 自然语言都要**；改的对象=**表格 cell + 段落**（上传工艺文件改某段，不止 cell）；明天拆小块 lead 循环，从"框选 cell 改"起步（定位准、复用 unify 选区思路）
 - 现状：前端 `editorTemplateData` 有 cell 坐标(chapter_code,rowIndex,columnKey)+更新路径现成，但**表格无 cell/段落选区机制**(只 hover，文本段选区 unify 已有)；后端 **`_do_edit` 整段重生成**(不能改单值)/edit_document 链路错配(跑成 proofread+review)/**无反向 cell 定位**/SSE 只全量更新

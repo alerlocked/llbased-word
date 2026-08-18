@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-18T22:17:21+08:00
-last_commit: 0be2706
+updated_at: 2026-08-18T22:17:46+08:00
+last_commit: 2cd5a4e
 status: review-pipeline running（意图准入问句闸门/四对照审查执行器/last_output快照;PLAN 0a922f2 seal,6节点;根因=23:18问句触发重写全文件+review无真实执行器LLM通识瞎评）;前序:session-continuity PR60已合/thinking-budget PR61已合
 task_state: running
 task_slug: review-pipeline
@@ -11,16 +11,16 @@ task_slug: review-pipeline
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `0be2706` refactor(ui): collapse action buttons — merge generate into fill, drop review/proofread buttons (dialog routing covers them) (0 seconds ago)
-- `5eb2afd` docs(todo): record intent-routing defects in 3b (keyword boost overrides LLM edit intent; verbose gate copy) (54 minutes ago)
-- `9f1bd1d` fix(tests): anchor csv export fixture path to file location; ignore project_state runtime dir (76 minutes ago)
+- `2cd5a4e` docs(todo): record button collapse done in 3b (0 seconds ago)
+- `0be2706` refactor(ui): collapse action buttons — merge generate into fill, drop review/proofread buttons (dialog routing covers them) (25 seconds ago)
+- `5eb2afd` docs(todo): record intent-routing defects in 3b (keyword boost overrides LLM edit intent; verbose gate copy) (55 minutes ago)
+- `9f1bd1d` fix(tests): anchor csv export fixture path to file location; ignore project_state runtime dir (77 minutes ago)
 - `6fcc7b2` docs(todo): archive #8 (fork debt cleared 08-13, audit verified 0/0) and #11 (VISION exists); add #12 workspace junk (2 hours ago)
 - `1fd409e` docs(vision): add editability axis + interaction-upgrade line (drag-selection direction, PR #63 groundwork) (2 hours ago)
 - `e7859ce` Merge pull request #62 from alerlocked/feature/review-pipeline (23 hours ago)
 - `bbb5cf4` feat(intent): insufficient-input gate — unclear turns hand back to user for clarification, never classified/routed (23 hours ago)
 - `73b0891` refactor(state): last_output -> outputs.generated typed registry (extensible for uploaded/edited slots) (35 hours ago)
 - `f9c3204` docs: review-pipeline architecture (intent gating + four-way review + last_output) and devlog running (2 days ago)
-- `76b16ca` feat(api): route review_document to four-way pipeline, edit_document to safe fallback, gated draft_complete to clarification (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
