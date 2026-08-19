@@ -257,3 +257,74 @@ class TestSingleLayerRetry:
         monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
         await _make_method(_agent(), n=1)
         assert calls["1"] == 3  # outer loop only — no 3×3 multiplication
+
+
+class TestContentNamePrefix:
+    """Programmatic "{name}：" prefix on content slots (prompt cannot hold)."""
+
+    def _make_method_with_skel(self, agent, n, skel):
+        return agent._generate_g25a_per_row_parallel(
+            base_system_msg="sys",
+            user_parts=["u"],
+            unstructured_cols=[_Col("content", "工艺内容")],
+            asm={i: {"substeps": [{"content": f"工序{i}的工步原文"}]} for i in range(1, n + 1)},
+            skel=skel,
+            chapter_code="G25a",
+        )
+
+    @staticmethod
+    def _mock_llm(monkeypatch, value_for):
+        """value_for: callable(step:int) -> content value string (or None → err)."""
+        from app.services import llm_service as ls
+
+        async def fake_gen(messages, temperature=0.7, max_tokens=2000, tier="complex", max_retries=2):
+            import re
+            step = int(re.search(r"只生成第 (\d+) 道工序", messages[0]["content"]).group(1))
+            val = value_for(step)
+            if val is None:
+                return _err()
+            return {
+                "status": "success",
+                "content": json.dumps([{"row": step, "slot": "content", "value": val}]),
+                "finish_reason": "stop",
+            }
+
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", fake_gen)
+
+    async def test_prefix_added_when_llm_omits_it(self, monkeypatch):
+        self._mock_llm(monkeypatch, lambda s: "1.1 内容")
+        content_slots, n, aux, gaps = await self._make_method_with_skel(_agent(), 1, ["工序1"])
+        assert content_slots[0]["value"] == "工序1：\n1.1 内容"
+
+    async def test_no_double_prefix_fullwidth(self, monkeypatch):
+        self._mock_llm(monkeypatch, lambda s: "工序1：\n1.1 内容")
+        content_slots, *_ = await self._make_method_with_skel(_agent(), 1, ["工序1"])
+        assert content_slots[0]["value"] == "工序1：\n1.1 内容"
+
+    async def test_no_double_prefix_halfwidth_with_whitespace(self, monkeypatch):
+        self._mock_llm(monkeypatch, lambda s: " 工序1: 1.1 内容")
+        content_slots, *_ = await self._make_method_with_skel(_agent(), 1, ["工序1"])
+        assert content_slots[0]["value"] == "工序1：\n1.1 内容"
+
+    async def test_fallback_content_gets_prefix(self, monkeypatch):
+        self._mock_llm(monkeypatch, lambda s: None if s == 2 else "内容")
+        content_slots, n, aux, gaps = await self._make_method_with_skel(
+            _agent(), 2, ["工序1", "工序2"]
+        )
+        row2 = [s for s in content_slots if s["row"] == 2][0]
+        assert row2["value"].startswith("工序2：\n")
+        assert "（原文直填，待润色）" in row2["value"]
+        assert row2.get("degraded") is True
+
+    async def test_empty_name_no_prefix(self, monkeypatch):
+        self._mock_llm(monkeypatch, lambda s: "1.1 内容")
+        content_slots, *_ = await self._make_method_with_skel(_agent(), 1, [""])
+        assert content_slots[0]["value"] == "1.1 内容"
+
+    async def test_prefix_plus_renumber_coexist(self, monkeypatch):
+        self._mock_llm(monkeypatch, lambda s: "1.1 xxx\n1.2 yyy" if s == 2 else "内容")
+        content_slots, *_ = await self._make_method_with_skel(
+            _agent(), 2, ["工序1", "工序2"]
+        )
+        row2 = [s for s in content_slots if s["row"] == 2][0]
+        assert row2["value"] == "工序2：\n2.1 xxx\n2.2 yyy"
