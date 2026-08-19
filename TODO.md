@@ -81,10 +81,10 @@
 - 现状：`writing_agent.py:1012` 拼 `## 画像强约束` 进 system_msg 不打 logger，日志无法确认是否生效
 - 建议：顺手加一行 log（做 #1 extract lead 时顺带）
 
-### 12. 工作区垃圾文件（2026-08-18 对账发现）
-- 现状：`___TEMP_OUT___`（206 页 PDF 测试残留）/ `backend/backend/`（8-13 清理后**又新生成**的误建副本）/ `backend/data/project_state/`（运行数据，.gitignore 未盖）
-- 建议：删 TEMP + backend/backend；.gitignore 补 `backend/data/project_state/`
-- 关联：project-audit 2026-08-18
+### 12. ✅ 工作区垃圾文件（2026-08-18 对账发现，2026-08-19 根治归档）
+- **exports 垃圾根治**（`361a3bb`）：根因 = `test_csv_export.py` 的 `test_output_dir` fixture 把输出锚进 git 跟踪的 `tests/fixtures/exports/`，每次全量回归重新生成 batch_export 垃圾 + 脏改跟踪的 metadata.json（无任何读方，grep 核实）。修 = fixture 改 pytest `tmp_path` + `git rm -r` 全部泄漏输出（−402 行，含 0622/0705 历史泄漏）+ .gitignore 补路径兜底。复跑 7 passed 零再生
+- `backend/data/project_state/` .gitignore 已盖（`9f1bd1d`）；`___TEMP_OUT___` / `backend/backend/` 2026-08-19 复核已不存在（记录过时）
+- 关联：project-audit 2026-08-18 / TODO 3c 收尾对账
 
 ---
 

@@ -1,25 +1,25 @@
 ---
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
-branch: feature/arch-g25a-step-prefix-fixes
-updated_at: 2026-08-19T21:18:22+08:00
-last_commit: ec62740
+branch: main
+updated_at: 2026-08-19T22:16:03+08:00
+last_commit: 361a3bb
 status: g25a-step-prefix-fixes done（TODO 3c 三缺陷+画像物料全段提取全修;PLAN c5da04b+N6重seal 39a0c2e,6节点全过;918 passed 0 failed+真实LLM冒烟过;PR #64 [architecture] 已开+多维审查过,warn已修,待admin approve merge）;前序:review-pipeline PR62已合
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `ec62740` fix(profile): extract all material segments per cell, not just the first (content-based per user principle) (0 seconds ago)
-- `39a0c2e` plan: add N6 profile material multi-segment extraction (review warn, user decision to fix in-PR) (82 seconds ago)
-- `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (60 minutes ago)
-- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (69 minutes ago)
-- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (74 minutes ago)
-- `c5da04b` plan: G25a step-name prefix + unnumbered-prologue merge + skeleton noise filter (TODO 3c, 5 nodes) (77 minutes ago)
-- `3c9f70a` docs(todo): record G25a defects 3c — step-name prefix via direct splice (no LLM), unnumbered-prologue extraction bug at step 8, skeleton noise (22 hours ago)
-- `2cd5a4e` docs(todo): record button collapse done in 3b (23 hours ago)
-- `0be2706` refactor(ui): collapse action buttons — merge generate into fill, drop review/proofread buttons (dialog routing covers them) (23 hours ago)
-- `5eb2afd` docs(todo): record intent-routing defects in 3b (keyword boost overrides LLM edit intent; verbose gate copy) (24 hours ago)
+- `361a3bb` fix(tests): csv export tests write to pytest tmp_path, drop leaked fixtures/exports outputs (0 seconds ago)
+- `a562523` Merge pull request #64 from alerlocked/feature/arch-g25a-step-prefix-fixes (20 minutes ago)
+- `c2e2b2c` docs: close g25a-step-prefix-fixes (task done, PR #64 pending admin approve) (51 minutes ago)
+- `ec62740` fix(profile): extract all material segments per cell, not just the first (content-based per user principle) (58 minutes ago)
+- `39a0c2e` plan: add N6 profile material multi-segment extraction (review warn, user decision to fix in-PR) (59 minutes ago)
+- `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (2 hours ago)
+- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (2 hours ago)
+- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (2 hours ago)
+- `c5da04b` plan: G25a step-name prefix + unnumbered-prologue merge + skeleton noise filter (TODO 3c, 5 nodes) (2 hours ago)
+- `3c9f70a` docs(todo): record G25a defects 3c — step-name prefix via direct splice (no LLM), unnumbered-prologue extraction bug at step 8, skeleton noise (23 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
