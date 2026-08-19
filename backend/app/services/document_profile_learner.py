@@ -294,17 +294,23 @@ class DocumentProfileLearner:
                 # source. Material name cleaned to strip spec suffix (e.g.
                 # "螺纹HG/T3596" → "螺纹", "密封圈φ20" → "密封圈"); r="使用" dedups
                 # via _add seen-set.
+                # Material cell may list multiple materials separated by
+                # 、/,/，— extract ALL segments (content-based, per user
+                # principle), each through the same cleaning pipeline.
                 if process:
                     mat = (sub.get("material") or "").strip()
                     if mat and len(mat) >= 2:
-                        head = mat.split("、")[0].split(",")[0].split("，")[0].strip()
-                        # Cut at first ASCII-letter/digit/slash boundary where a
-                        # spec suffix begins (keeps the CJK material name).
-                        m = re.match(r"^[^\s/]+", head)
-                        cjk = m.group(0) if m else head
-                        spec_cut = re.split(r"[A-Za-z0-9/]", cjk)
-                        mat_clean = (spec_cut[0] or cjk)[:12]
-                        _add(process, "使用", mat_clean, process=process)
+                        for seg in re.split(r"[、,，]", mat):
+                            head = seg.strip()
+                            if not head or len(head) < 2:
+                                continue
+                            # Cut at first ASCII-letter/digit/slash boundary
+                            # where a spec suffix begins (keeps the CJK name).
+                            m = re.match(r"^[^\s/]+", head)
+                            cjk = m.group(0) if m else head
+                            spec_cut = re.split(r"[A-Za-z0-9/]", cjk)
+                            mat_clean = (spec_cut[0] or cjk)[:12]
+                            _add(process, "使用", mat_clean, process=process)
         return triples
 
     def _score_and_filter(self, triples: List[Dict[str, str]]) -> List[Dict[str, str]]:
