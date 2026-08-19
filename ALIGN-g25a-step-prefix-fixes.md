@@ -17,8 +17,9 @@
   - ① `writing_agent.py` gen_one：content 编号后处理后程序化前置 `f"{name}：\n"`（`skel[i-1]` G19a 真工序名，name 非空才拼）；`_fallback_slots` 降级路径同拼；prompt 约束3 改「不要写总起句，系统已前置工序名」；防重复——拼接前 strip 掉 LLM 可能仍写的行首 `{name}[：:]`（exp-g25a-step-numbering：prompt 拉不住，程序化兜底）
   - ② `hierarchical_context.py` `extract_assembly_steps` 后处理：每道工序**开头连续的无 N.M 编号行**（含折行断句）并入首个带编号工步 content 头，不独立成步；整道工序无编号工步时保持现状（全是真实内容）
   - ③ `extract_process_steps` 过滤补 `阶段标记/更改标记` + `共N页/第N页` 模式
+  - ⑥（2026-08-19 PR 审查后用户拍板增补）`document_profile_learner.py` 物料 triple 提取改**全段提取**——材料格 `、/,/，` 多段逐段清洗入库，不再只取首段。**用户原则：画像提取针对实际内容（格子里实际用了什么提什么），不按行位置取首段；引子/材料信息是限制生成用的，旧文件不规范、生成要规范**。同时治好预存缺陷（一格多物料本来就丢）与引子合并新增路径
   - ARCHITECTURE.md 同步（架构层 PR 强制）
-  - 测试：`tests/test_hierarchical_context.py`（②③ fixture 用真实片段复现）+ `tests/test_writing_agent*.py`（①）
+  - 测试：`tests/test_hierarchical_context.py`（②③ fixture 用真实片段复现）+ `tests/test_writing_agent*.py`（①）+ `tests/test_document_profile_learner.py`（⑥）
 - 不做（显式挡 scope creep）：
   - 6cbaf30 F2 状态块注入 A/B（交接卡：3c 修完生成效果仍差才回查）
   - 意图路由两病灶 / edit_local（TODO 3b，等 PR #63 合入）

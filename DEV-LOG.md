@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/arch-g25a-step-prefix-fixes
-updated_at: 2026-08-19T20:08:54+08:00
-last_commit: f6c5d3d
+updated_at: 2026-08-19T20:18:49+08:00
+last_commit: 55deefa
 status: g25a-step-prefix-fixes running（TODO 3c 三缺陷:①工序名程序化前置 skel[i-1] 不过 LLM ②extract_assembly_steps 引子合并 ③G19a 骨架噪声过滤;PLAN c5da04b seal,5节点,feature/arch-* PR）;前序:review-pipeline PR62已合
 task_state: running
 task_slug: g25a-step-prefix-fixes
@@ -11,16 +11,16 @@ task_slug: g25a-step-prefix-fixes
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (1 second ago)
-- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (4 minutes ago)
-- `c5da04b` plan: G25a step-name prefix + unnumbered-prologue merge + skeleton noise filter (TODO 3c, 5 nodes) (8 minutes ago)
+- `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (0 seconds ago)
+- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (10 minutes ago)
+- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (14 minutes ago)
+- `c5da04b` plan: G25a step-name prefix + unnumbered-prologue merge + skeleton noise filter (TODO 3c, 5 nodes) (18 minutes ago)
 - `3c9f70a` docs(todo): record G25a defects 3c — step-name prefix via direct splice (no LLM), unnumbered-prologue extraction bug at step 8, skeleton noise (21 hours ago)
 - `2cd5a4e` docs(todo): record button collapse done in 3b (22 hours ago)
 - `0be2706` refactor(ui): collapse action buttons — merge generate into fill, drop review/proofread buttons (dialog routing covers them) (22 hours ago)
 - `5eb2afd` docs(todo): record intent-routing defects in 3b (keyword boost overrides LLM edit intent; verbose gate copy) (23 hours ago)
 - `9f1bd1d` fix(tests): anchor csv export fixture path to file location; ignore project_state runtime dir (23 hours ago)
 - `6fcc7b2` docs(todo): archive #8 (fork debt cleared 08-13, audit verified 0/0) and #11 (VISION exists); add #12 workspace junk (24 hours ago)
-- `1fd409e` docs(vision): add editability axis + interaction-upgrade line (drag-selection direction, PR #63 groundwork) (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
