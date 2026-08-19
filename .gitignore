@@ -152,3 +152,4 @@ backend/data/logs/
 
 # 运行时项目状态快照(2026-08-18 发现未盖,测试/运行产物)
 backend/data/project_state/
+backend/tests/fixtures/exports/

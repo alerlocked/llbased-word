@@ -52,9 +52,10 @@ class TestCSVExportService:
         )
 
     @pytest.fixture
-    def test_output_dir(self):
-        """测试输出目录（锚定本文件位置，防从 backend/ 内跑 pytest 时误建 backend/backend/）"""
-        output_dir = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "exports"
+    def test_output_dir(self, tmp_path):
+        """测试输出目录 — pytest 管理的临时目录（此前写到 tests/fixtures/exports/ 污染
+        git 跟踪区，每次全量回归都重新生成 batch_export/ 垃圾 + 脏改 metadata.json）"""
+        output_dir = tmp_path / "exports"
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
 
