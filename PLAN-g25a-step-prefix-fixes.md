@@ -12,6 +12,7 @@
 | N3 | 无新文件 | 全量回归门：`cd backend && python -m pytest -q` 守 853+新增 passed / 0 failed。真实 LLM 重生成冒烟**尽力探测**（后端+云端 LLM 可达则跑 documents/1 核对工序8 首列 8.1 真工步 + content 以工序名开头；不可行不阻塞，结论记 DEV-LOG，web 端验收留用户） |
 | N4 | `ARCHITECTURE.md` + `TODO.md` + `DEV-LOG.md` | 架构层 PR 文档义务（CONTRIBUTING §4.3）：:38 extract 函数 bullet 补引子合并+页码过滤，:40 G25a per-row bullet 补「工序名程序化前置」；TODO.md 勾 3c；DEV-LOG 当前状态 + task_state |
 | N5 | GitHub | push 分支（post-commit hook 自动）+ `gh pr create --title "[architecture] ..."` + `/pr-review localknowledgebase-word <pr号>` 多维审查 → 用户（admin）approve + merge |
+| N6（2026-08-19 重 seal 增补，PR 审查 warn 用户拍板本 PR 内修） | `backend/app/services/document_profile_learner.py` + `backend/tests/test_document_profile_learner.py` | 物料 triple 提取改**全段提取**：材料格按 `、/,/，` 拆段，逐段走现有清洗管线（`len>=2` 守卫 + `^[^\s/]+` + spec_cut CJK 名 + `[:12]`）+ `_add`（seen-set 去重），不再 `split("、")[0]` 只取首段。用户原则：画像提取针对实际内容，不按行位置取首段（引子/材料限制生成用，旧文件不规范、生成要规范）。测试：一格多物料（酒精、白绸布、标记笔）→ 使用 triple 全产出；单物料不回归；空段跳过。完成后重跑全量 pytest + 更新 PR body |
 
 ## 禁区
 

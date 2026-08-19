@@ -1687,6 +1687,7 @@ class HierarchicalContext:
         header_words = {
             "产品工号", "工艺流程图", "产品数字", "工艺文件编号",
             "零、部、组(整)件代号", "零、部、组(整)件名称", "小产品", "---",
+            "阶段标记", "更改标记",
         }
         steps: List[str] = []
         for line in text.split("\n"):
@@ -1700,6 +1701,11 @@ class HierarchicalContext:
                     continue
                 # short chinese (<=3 chars): 小产品 etc.
                 if re.match(r"^[一-鿿]{1,3}$", cell):
+                    continue
+                # page-footer cells: 共1页 / 第1页 (variants 共2页, 第 10 页).
+                # Anchored full-match so real step names merely CONTAINING
+                # "第1页" (e.g. 翻至第1页检查标记) are not dropped.
+                if re.match(r"^(?:共\s*\d+\s*页|第\s*\d+\s*页)$", cell):
                     continue
                 if len(cell) >= 3 and re.search(r"[一-鿿]", cell):
                     steps.append(cell)
@@ -1956,6 +1962,31 @@ class HierarchicalContext:
                     "material": _col(cells, "material"),
                     "instruments": _col(cells, "instruments"),
                 })
+
+        # Post-pass: merge leading unnumbered substeps (prologue) into the
+        # first numbered substep. Source PDFs open some 工序 with an
+        # unnumbered intro paragraph ("先试装电缆整流罩端头…") plus its folded
+        # continuation lines; the collector treats each as an independent
+        # substep, so downstream renumbering pushes real 8.1 to 8.3. The
+        # prologue is NOT an independent step — prepend its content (and any
+        # non-empty material/instruments) to the first N.M-numbered substep.
+        # If ALL substeps are unnumbered (e.g. old step 9), keep as-is —
+        # there is no numbered target to merge into.
+        num_pat = re.compile(r"^\d+\.\d+")
+        for step in steps.values():
+            subs = step.get("substeps", [])
+            k = 0
+            while k < len(subs) and not num_pat.match(subs[k]["content"]):
+                k += 1
+            if k == 0 or k >= len(subs):
+                continue
+            leadings, first = subs[:k], subs[k]
+            first["content"] = "\n".join([s["content"] for s in leadings] + [first["content"]])
+            for field in ("material", "instruments"):
+                extras = [s[field] for s in leadings if s.get(field)]
+                if extras:
+                    first[field] = f"{first[field]}、{'、'.join(extras)}" if first.get(field) else "、".join(extras)
+            step["substeps"] = subs[k:]
         return steps
 
     def extract_assembly_overview(self, doc_dir_name: str) -> str:

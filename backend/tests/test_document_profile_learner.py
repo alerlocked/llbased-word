@@ -210,6 +210,71 @@ def test_substeps_material_triple_cleaned_spec_suffix():
     assert any("HG/T" not in t["o"] for t in mat), mat
 
 
+def test_substeps_material_triple_multi_materials_all_extracted():
+    """一格多物料 (酒精、白绸布、标记笔) → 三条"使用" triple 全提。"""
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [
+            {"content": "清洁标记", "material": "酒精、白绸布、标记笔"},
+        ]},
+    }
+    skeleton = ["清洁标记"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    mat = [t for t in triples if t["r"] == "使用"]
+    assert len(mat) == 3, f"expected 3 material triples, got: {mat}"
+    objs = {t["o"] for t in mat}
+    assert objs == {"酒精", "白绸布", "标记笔"}, objs
+
+
+def test_substeps_material_triple_single_material_no_regression():
+    """单物料含规格 (密封圈20) → 仍产一条清洗后名"密封圈"（spec_cut 生效）。
+
+    Note: φ 等非 ASCII 规格字符不在原有 spec_cut 字符类内，原管线本不切。
+    """
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [
+            {"content": "安装", "material": "密封圈20"},
+        ]},
+    }
+    skeleton = ["密封圈安装"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    mat = [t for t in triples if t["r"] == "使用"]
+    assert len(mat) == 1, f"expected 1 material triple, got: {mat}"
+    assert mat[0]["o"] == "密封圈", mat
+
+
+def test_substeps_material_triple_mixed_separators_empty_segments():
+    """混合分隔符 + 空段 → 空段跳过，仍三条。"""
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [
+            {"content": "清洁标记", "material": "酒精,，白绸布、、标记笔"},
+        ]},
+    }
+    skeleton = ["清洁标记"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    mat = [t for t in triples if t["r"] == "使用"]
+    assert len(mat) == 3, f"expected 3 material triples (empty segs skipped), got: {mat}"
+    objs = {t["o"] for t in mat}
+    assert objs == {"酒精", "白绸布", "标记笔"}, objs
+
+
+def test_substeps_material_triple_duplicate_segments_deduped():
+    """重复段 (酒精、酒精) → 只一条（_add seen-set 去重幂等）。"""
+    learner = _learner()
+    asm = {
+        1: {"name": "钳", "substeps": [
+            {"content": "清洁", "material": "酒精、酒精"},
+        ]},
+    }
+    skeleton = ["清洁工序"]
+    triples = learner._extract_triples_from_substeps(asm, skeleton)
+    mat = [t for t in triples if t["r"] == "使用"]
+    assert len(mat) == 1, f"expected dedup to 1, got: {mat}"
+    assert mat[0]["o"] == "酒精", mat
+
+
 def test_substeps_material_triple_skipped_when_no_process():
     """step_no 越界 process=None → 不产物料 triple (不绑错工序)。"""
     learner = _learner()

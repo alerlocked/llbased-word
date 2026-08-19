@@ -1,32 +1,33 @@
 ---
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
-branch: main
-updated_at: 2026-08-18T23:39:22+08:00
-last_commit: 3c9f70a
-status: review-pipeline running（意图准入问句闸门/四对照审查执行器/last_output快照;PLAN 0a922f2 seal,6节点;根因=23:18问句触发重写全文件+review无真实执行器LLM通识瞎评）;前序:session-continuity PR60已合/thinking-budget PR61已合
-task_state: running
-task_slug: review-pipeline
+branch: feature/arch-g25a-step-prefix-fixes
+updated_at: 2026-08-19T21:18:22+08:00
+last_commit: ec62740
+status: g25a-step-prefix-fixes done（TODO 3c 三缺陷+画像物料全段提取全修;PLAN c5da04b+N6重seal 39a0c2e,6节点全过;918 passed 0 failed+真实LLM冒烟过;PR #64 [architecture] 已开+多维审查过,warn已修,待admin approve merge）;前序:review-pipeline PR62已合
+task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `3c9f70a` docs(todo): record G25a defects 3c — step-name prefix via direct splice (no LLM), unnumbered-prologue extraction bug at step 8, skeleton noise (0 seconds ago)
-- `2cd5a4e` docs(todo): record button collapse done in 3b (82 minutes ago)
-- `0be2706` refactor(ui): collapse action buttons — merge generate into fill, drop review/proofread buttons (dialog routing covers them) (82 minutes ago)
-- `5eb2afd` docs(todo): record intent-routing defects in 3b (keyword boost overrides LLM edit intent; verbose gate copy) (2 hours ago)
-- `9f1bd1d` fix(tests): anchor csv export fixture path to file location; ignore project_state runtime dir (3 hours ago)
-- `6fcc7b2` docs(todo): archive #8 (fork debt cleared 08-13, audit verified 0/0) and #11 (VISION exists); add #12 workspace junk (3 hours ago)
-- `1fd409e` docs(vision): add editability axis + interaction-upgrade line (drag-selection direction, PR #63 groundwork) (3 hours ago)
-- `e7859ce` Merge pull request #62 from alerlocked/feature/review-pipeline (24 hours ago)
-- `bbb5cf4` feat(intent): insufficient-input gate — unclear turns hand back to user for clarification, never classified/routed (24 hours ago)
-- `73b0891` refactor(state): last_output -> outputs.generated typed registry (extensible for uploaded/edited slots) (2 days ago)
+- `ec62740` fix(profile): extract all material segments per cell, not just the first (content-based per user principle) (0 seconds ago)
+- `39a0c2e` plan: add N6 profile material multi-segment extraction (review warn, user decision to fix in-PR) (82 seconds ago)
+- `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (60 minutes ago)
+- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (69 minutes ago)
+- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (74 minutes ago)
+- `c5da04b` plan: G25a step-name prefix + unnumbered-prologue merge + skeleton noise filter (TODO 3c, 5 nodes) (77 minutes ago)
+- `3c9f70a` docs(todo): record G25a defects 3c — step-name prefix via direct splice (no LLM), unnumbered-prologue extraction bug at step 8, skeleton noise (22 hours ago)
+- `2cd5a4e` docs(todo): record button collapse done in 3b (23 hours ago)
+- `0be2706` refactor(ui): collapse action buttons — merge generate into fill, drop review/proofread buttons (dialog routing covers them) (23 hours ago)
+- `5eb2afd` docs(todo): record intent-routing defects in 3b (keyword boost overrides LLM edit intent; verbose gate copy) (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **进行中（review-pipeline，2026-08-17 开）**: 用户实测 23:18 事故三病灶——① 问句"还需要补充吗"触发 `_detect_draft_complete` 复合 boost（补充+工艺文件→0.85 无条件覆盖）重写全文件 ② review 意图无真实执行器，LLM 通识自造"核心模块"标准瞎评 ③ "刚才生成的那篇"无产出物实体（"未找到初稿"）。用户拍板规则：**生成/补齐只从按钮触发，对话永不触发**；review 四对照一次做全；修改意图安全兜底等同事执行单元。PLAN `0a922f2`（6 节点）：N1 问句闸门+LLM prompt 审查示例+needs_clarification / N2 `_gate_draft_complete` 准入守卫（对话识别的 draft_complete 无 generation_mode → gated 澄清，绝不执行；按钮路径不变）/ N3 last_output 快照（章节摘要+警告计数进 state，渲染进接续块）/ N4 四对照审查执行器 review_pipeline.py（模板差集+DB 有据+内容质量=机器算事实清单；LLM 只做需求覆盖且只能引用清单，simple 档）/ N5 意图路由（gated/review/edit 三分支在主分支前拦截，review 纯聊天回复不碰编辑器）/ N6 收尾。**23:18 事故重放验证**：同问句在 LLM 挂掉最坏情况下不再触发 draft_complete。
+- **完成（g25a-step-prefix-fixes，2026-08-19，PLAN `c5da04b` + N6 重 seal `39a0c2e`，PR #64 待 admin approve merge）**: TODO 3c G25a 三缺陷（2026-08-18 用户实测报告，修法已拍板）：① content 开头缺工序名总起句（prompt「可点题」被 LLM 跳过）→ `skel[i-1]` 工序名**程序化前置** `f"{name}：\n"`（`_g25a_prefix_content`：gen_one 编号后处理之后 + `_fallback_slots` 降级路径 + strip 防重复，`f6c5d3d`）② 工序8 从 8.3 开始（开头无编号引子被当独立工步挤占 8.1/8.2）→ `extract_assembly_steps` 后处理引子合并 + ③ G19a 骨架「阶段标记/更改标记/共N页/第N页」过滤（`e5fb769`）④ **N6 增补**（PR 审查 warn 用户拍板本 PR 内修，`ec62740`）：画像物料 triple 改**全段提取**（`document_profile_learner` 材料格 `、/,/，` 逐段清洗入库，不再只取首段——预存缺陷一并治好。**用户原则：画像提取针对实际内容，不按行位置取首段；引子/材料限制生成用，旧文件不规范、生成要规范**）。新增单测 17 个；全量 **918 passed 0 failed**（顺带修 main 存量失败 `test_prompt_requires_step_name_prefix`，git stash 实证 HEAD 干净状态确失败）；**真实链路冒烟过**（documents/1+云端 LLM：骨架 10 步零噪声、工序6/8 引子并入 6.1/8.1、content「装前准备：\n1.1…」开头，产物 `.test-runs/g25a-step-prefix-fixes/smoke-real-llm.log`）；/pr-review 多维审查过（架构合规 + 安全零发现 + warn 已修，剩 nit 不挡）。**留**：web 端整卡重生成验收留用户部署环境（效果仍差再回查 6cbaf30 F2 A/B）；spec_cut 不切 `φ`（预存，另立项）。**task_state: done。**
+
+- **完成（review-pipeline，2026-08-17 开，PR #62 已合 `e7859ce`）**: 用户实测 23:18 事故三病灶——① 问句"还需要补充吗"触发 `_detect_draft_complete` 复合 boost（补充+工艺文件→0.85 无条件覆盖）重写全文件 ② review 意图无真实执行器，LLM 通识自造"核心模块"标准瞎评 ③ "刚才生成的那篇"无产出物实体（"未找到初稿"）。用户拍板规则：**生成/补齐只从按钮触发，对话永不触发**；review 四对照一次做全；修改意图安全兜底等同事执行单元。PLAN `0a922f2`（6 节点）：N1 问句闸门+LLM prompt 审查示例+needs_clarification / N2 `_gate_draft_complete` 准入守卫（对话识别的 draft_complete 无 generation_mode → gated 澄清，绝不执行；按钮路径不变）/ N3 last_output 快照（章节摘要+警告计数进 state，渲染进接续块）/ N4 四对照审查执行器 review_pipeline.py（模板差集+DB 有据+内容质量=机器算事实清单；LLM 只做需求覆盖且只能引用清单，simple 档）/ N5 意图路由（gated/review/edit 三分支在主分支前拦截，review 纯聊天回复不碰编辑器）/ N6 收尾。**23:18 事故重放验证**：同问句在 LLM 挂掉最坏情况下不再触发 draft_complete。
 
 - **进行中（session-continuity-local-resilience，2026-08-16 开）**: 底层架构更新第一批（同事做登录界面，本线做底层）。三包：A 会话接续（项目级 state 滚动工作状态 + memory 按项目分目录，新会话开局注入主生成链路，解决本地 Qwen3-30B-A3B 多轮上下文满 + 新会话无法接续）；B LLM 韧性层（llm_service 错误分类 + 重试退避 + 溢出裁剪）；C G25a 静默失败治理（根因：writing_agent.py:1729/1736/1762 单行失败静默 return []，治法 = 单行重试 + 完成度核对 SSE warning 上报，补 VISION"可靠"验收漏网点）。PLAN `ff191eb` seal（9 节点 2 轨道）。**进度：9/9 节点完成**——N1 llm_errors(`a569541`) / N2 llm_service 重试层(`c901813`) / N3 ProjectStateService(`4b7481e`) / N4 memory 按项目分域(`2d65586`) / N5 主链路 state 注入+写入(`4fe8d05`) / N6 WritingAgent state 注入(`140b4a1`) / N7 G25a per-row 重试+完成度(`2cecac1`) / N8 SSE warning 前后端(`c9090db`) / N9 ARCHITECTURE 更新(本 commit)。**N10 交付级降级追加（2026-08-16 用户纠偏后，`368c574`）**：N7 初版"重试+上报"是开发视角假完整——交付后 warning 平息不了用户怒火。补 Ch16 执行层内降：重试耗尽 → content 回退 sub_text 原文直填（i.N 编号行文 + （原文直填，待润色）标记），warning 改行动导向"已回退原文直填，建议人工复核"；无原文可降才真留空。救援链闭环 = 重试→降级→兜底→上报。新增单测 60 个（g25a_resilience 4→6）；最终门 853 passed 0 回归 + tsc 0 错；PR #60（14 commits）。分支 `feature/session-continuity-local-resilience`，合入走标准 PR + /pr-review（agents/** 架构层隔离强制 review）。
 

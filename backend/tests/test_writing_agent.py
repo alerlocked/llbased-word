@@ -165,8 +165,10 @@ class TestG25aContentPromptStepNamePrefix:
 
     def test_prompt_requires_step_name_prefix(self):
         src = self._prompt_source()
-        # The constraint sentence that tells the LLM to prefix each substep.
-        assert "每个工步开头写工序名前缀" in src
+        # Prefixing is now programmatic (_g25a_prefix_content post-pass); the
+        # prompt must instead tell the LLM NOT to write the prefix itself.
+        assert "_g25a_prefix_content" in src
+        assert "系统会在 content 头部自动前置" in src
 
     def test_prompt_drops_no_prefix_constraint(self):
         src = self._prompt_source()

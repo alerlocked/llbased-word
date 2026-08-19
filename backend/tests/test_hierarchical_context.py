@@ -537,10 +537,115 @@ class TestAssemblyStepsCrossPage:
         ctx = self._ctx_with(md)
         asm = ctx.extract_assembly_steps("dummy")
         contents = [s["content"] for s in asm[7]["substeps"]]
-        assert "7.1 第一步工序内容" in contents, (
+        # leading-unnumbered merge prepends the stray marker row to 7.1, so
+        # match by substring rather than exact list membership
+        assert any("7.1 第一步工序内容" in c for c in contents), (
             f"single marker wrongly opened parts-list: {contents}"
         )
-        assert "7.2 第二步工序内容" in contents
+        assert any("7.2 第二步工序内容" in c for c in contents)
+
+
+class TestLeadingUnnumberedIntro:
+    """G25a extract_assembly_steps: leading unnumbered intro substeps must be
+    merged into the first numbered substep, not kept as independent steps.
+
+    Regression for 工序8: source opens with an unnumbered prologue ("先试装
+    电缆整流罩端头…") plus its folded continuation line, so real 8.1 landed
+    third and downstream renumbering emitted it as 8.3.
+    """
+
+    @staticmethod
+    def _ctx_with(md_text):
+        """Build a HierarchicalContext whose G25a chapter reads a synthetic
+        markdown, bypassing disk I/O (same pattern as TestAssemblyStepsCrossPage)."""
+        from app.services.hierarchical_context import HierarchicalContext
+        ctx = HierarchicalContext.__new__(HierarchicalContext)
+        ctx.load_chapter_index = lambda doc: {
+            "chapters": [{"title": "装配工艺卡片", "pages": [15, 16]}]
+        }
+        ctx.get_pages_content = lambda doc, a, b, max_tokens=60000: md_text
+        return ctx
+
+    @staticmethod
+    def _card(step_rows):
+        rows = [
+            "| 车间 | 工序号 | 工序名称 | 工序内容 | 辅助材料 | 专用仪器 |",
+            "| 1 | 8 | 装配 | 总工序 | | |",
+        ] + step_rows
+        return chr(10).join(rows)
+
+    def test_prologue_merged_into_first_numbered_substep(self):
+        """Fix: prologue + folded line collapse; substeps == numbered ones only."""
+        md = self._card([
+            "| | | | 先试装电缆整流罩端头并检查外观 | 白绸布 | |",
+            "| | | | 折行断句的引子续文 | | |",
+            "| | | | 8.1 真工步一 | | |",
+            "| | | | 8.2 真工步二 | | |",
+        ])
+        asm = self._ctx_with(md).extract_assembly_steps("dummy")
+        subs = asm[8]["substeps"]
+        assert len(subs) == 2
+        assert subs[0]["content"].startswith("先试装电缆整流罩端头并检查外观")
+        assert "8.1" in subs[0]["content"]
+        assert not any(sub["content"].startswith("折行断句") for sub in subs)
+
+    def test_all_unnumbered_kept_as_is(self):
+        """Whole step without any N.M numbering (old step 9 case) stays intact."""
+        md = self._card([
+            "| | | | 无编号步骤甲 | | |",
+            "| | | | 无编号步骤乙 | | |",
+        ])
+        asm = self._ctx_with(md).extract_assembly_steps("dummy")
+        assert len(asm[8]["substeps"]) == 2
+
+    def test_first_substep_numbered_untouched(self):
+        """Step already starting with 7.1-style numbering passes through."""
+        md = self._card([
+            "| | | | 8.1 真工步一 | | |",
+            "| | | | 8.2 真工步二 | | |",
+        ])
+        asm = self._ctx_with(md).extract_assembly_steps("dummy")
+        subs = asm[8]["substeps"]
+        assert len(subs) == 2
+        assert subs[0]["content"] == "8.1 真工步一"
+
+    def test_prologue_material_merged(self):
+        """Non-empty prologue material joins the first numbered substep's material."""
+        md = self._card([
+            "| | | | 引子说明 | 白绸布 | 扭矩扳手 |",
+            "| | | | 8.1 真工步一 | 酒精 | 千分尺 |",
+        ])
+        asm = self._ctx_with(md).extract_assembly_steps("dummy")
+        subs = asm[8]["substeps"]
+        assert len(subs) == 1
+        assert subs[0]["material"] == "酒精、白绸布"
+        assert subs[0]["instruments"] == "千分尺、扭矩扳手"
+
+
+class TestProcessStepsNoise:
+    """G19a extract_process_steps: signature/footer cells (阶段标记/更改标记/
+    共1页/第1页) must be filtered from the process skeleton."""
+
+    def test_footer_noise_filtered_real_names_kept(self):
+        from app.services.hierarchical_context import HierarchicalContext
+        ctx = HierarchicalContext.__new__(HierarchicalContext)
+        text = chr(10).join([
+            "| 产品工号 | 工艺流程图 | 产品数字 | 工艺文件编号 |",
+            "| 阶段标记 | 更改标记 | 共1页 | 第1页 |",
+            "| 1 | 气密性检查 | 2 | 导线端头处理 |",
+        ])
+        steps = ctx.extract_process_steps(text=text)
+        assert steps == ["气密性检查", "导线端头处理"]
+
+    def test_page_variants_filtered_and_embedded_not_killed(self):
+        from app.services.hierarchical_context import HierarchicalContext
+        ctx = HierarchicalContext.__new__(HierarchicalContext)
+        text = chr(10).join([
+            "| 共2页 | 第 10 页 |",
+            "| 翻至第1页检查标记 |",
+        ])
+        steps = ctx.extract_process_steps(text=text)
+        assert steps == ["翻至第1页检查标记"]
 
 
 # 运行测试的入口
