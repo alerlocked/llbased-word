@@ -2,31 +2,30 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/arch-g25a-step-prefix-fixes
-updated_at: 2026-08-19T21:17:00+08:00
-last_commit: 39a0c2e
-status: g25a-step-prefix-fixes running（TODO 3c 三缺陷:①工序名程序化前置 skel[i-1] 不过 LLM ②extract_assembly_steps 引子合并 ③G19a 骨架噪声过滤;PLAN c5da04b seal,5节点,feature/arch-* PR）;前序:review-pipeline PR62已合
-task_state: running
-task_slug: g25a-step-prefix-fixes
+updated_at: 2026-08-19T21:18:22+08:00
+last_commit: ec62740
+status: g25a-step-prefix-fixes done（TODO 3c 三缺陷+画像物料全段提取全修;PLAN c5da04b+N6重seal 39a0c2e,6节点全过;918 passed 0 failed+真实LLM冒烟过;PR #64 [architecture] 已开+多维审查过,warn已修,待admin approve merge）;前序:review-pipeline PR62已合
+task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `39a0c2e` plan: add N6 profile material multi-segment extraction (review warn, user decision to fix in-PR) (0 seconds ago)
-- `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (58 minutes ago)
-- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (68 minutes ago)
-- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (73 minutes ago)
-- `c5da04b` plan: G25a step-name prefix + unnumbered-prologue merge + skeleton noise filter (TODO 3c, 5 nodes) (76 minutes ago)
+- `ec62740` fix(profile): extract all material segments per cell, not just the first (content-based per user principle) (0 seconds ago)
+- `39a0c2e` plan: add N6 profile material multi-segment extraction (review warn, user decision to fix in-PR) (82 seconds ago)
+- `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (60 minutes ago)
+- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (69 minutes ago)
+- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (74 minutes ago)
+- `c5da04b` plan: G25a step-name prefix + unnumbered-prologue merge + skeleton noise filter (TODO 3c, 5 nodes) (77 minutes ago)
 - `3c9f70a` docs(todo): record G25a defects 3c — step-name prefix via direct splice (no LLM), unnumbered-prologue extraction bug at step 8, skeleton noise (22 hours ago)
 - `2cd5a4e` docs(todo): record button collapse done in 3b (23 hours ago)
 - `0be2706` refactor(ui): collapse action buttons — merge generate into fill, drop review/proofread buttons (dialog routing covers them) (23 hours ago)
 - `5eb2afd` docs(todo): record intent-routing defects in 3b (keyword boost overrides LLM edit intent; verbose gate copy) (24 hours ago)
-- `9f1bd1d` fix(tests): anchor csv export fixture path to file location; ignore project_state runtime dir (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **进行中（g25a-step-prefix-fixes，2026-08-19 开）**: TODO 3c G25a 三缺陷（2026-08-18 用户实测报告，修法已拍板）：① content 开头缺工序名总起句（prompt「可点题」被 LLM 跳过）→ `skel[i-1]` 工序名**程序化前置** `f"{name}：\n"`（gen_one 编号后处理之后 + `_fallback_slots` 降级路径 + strip 防重复）② 工序8 从 8.3 开始（开头无编号引子被当独立工步挤占 8.1/8.2）→ `extract_assembly_steps` 后处理：工序开头连续无 `N.M` 编号行并入首个带编号工步，全无编号保持现状 ③ G19a 骨架混入「阶段标记/更改标记/共N页/第N页」→ 过滤补齐。PLAN `c5da04b` seal（5 节点）。**进度：N1-N4 完成**——N1 hierarchical_context②③+测试（`e5fb769`）/ N2 writing_agent①`_g25a_prefix_content`+测试（`f6c5d3d`，顺带修 main 存量失败 `test_prompt_requires_step_name_prefix`，git stash 实证 HEAD 干净状态确失败）/ N3 全量 **914 passed 0 failed** + 真实链路冒烟过（documents/1+云端 LLM：骨架零噪声、工序6/8 引子并入 6.1/8.1、content「装前准备：\n1.1…」开头，产物 `.test-runs/g25a-step-prefix-fixes/smoke-real-llm.log`）/ N4 ARCHITECTURE:38-40 + TODO 3c ✅（本 commit）。N5 PR 进行中。⚠ 全动架构层文件 → `[architecture]` PR 强制 review。不做：6cbaf30 F2 A/B / 意图路由病灶（3b）/ PR #63 复验（pr-watch 自动）。
+- **完成（g25a-step-prefix-fixes，2026-08-19，PLAN `c5da04b` + N6 重 seal `39a0c2e`，PR #64 待 admin approve merge）**: TODO 3c G25a 三缺陷（2026-08-18 用户实测报告，修法已拍板）：① content 开头缺工序名总起句（prompt「可点题」被 LLM 跳过）→ `skel[i-1]` 工序名**程序化前置** `f"{name}：\n"`（`_g25a_prefix_content`：gen_one 编号后处理之后 + `_fallback_slots` 降级路径 + strip 防重复，`f6c5d3d`）② 工序8 从 8.3 开始（开头无编号引子被当独立工步挤占 8.1/8.2）→ `extract_assembly_steps` 后处理引子合并 + ③ G19a 骨架「阶段标记/更改标记/共N页/第N页」过滤（`e5fb769`）④ **N6 增补**（PR 审查 warn 用户拍板本 PR 内修，`ec62740`）：画像物料 triple 改**全段提取**（`document_profile_learner` 材料格 `、/,/，` 逐段清洗入库，不再只取首段——预存缺陷一并治好。**用户原则：画像提取针对实际内容，不按行位置取首段；引子/材料限制生成用，旧文件不规范、生成要规范**）。新增单测 17 个；全量 **918 passed 0 failed**（顺带修 main 存量失败 `test_prompt_requires_step_name_prefix`，git stash 实证 HEAD 干净状态确失败）；**真实链路冒烟过**（documents/1+云端 LLM：骨架 10 步零噪声、工序6/8 引子并入 6.1/8.1、content「装前准备：\n1.1…」开头，产物 `.test-runs/g25a-step-prefix-fixes/smoke-real-llm.log`）；/pr-review 多维审查过（架构合规 + 安全零发现 + warn 已修，剩 nit 不挡）。**留**：web 端整卡重生成验收留用户部署环境（效果仍差再回查 6cbaf30 F2 A/B）；spec_cut 不切 `φ`（预存，另立项）。**task_state: done。**
 
 - **完成（review-pipeline，2026-08-17 开，PR #62 已合 `e7859ce`）**: 用户实测 23:18 事故三病灶——① 问句"还需要补充吗"触发 `_detect_draft_complete` 复合 boost（补充+工艺文件→0.85 无条件覆盖）重写全文件 ② review 意图无真实执行器，LLM 通识自造"核心模块"标准瞎评 ③ "刚才生成的那篇"无产出物实体（"未找到初稿"）。用户拍板规则：**生成/补齐只从按钮触发，对话永不触发**；review 四对照一次做全；修改意图安全兜底等同事执行单元。PLAN `0a922f2`（6 节点）：N1 问句闸门+LLM prompt 审查示例+needs_clarification / N2 `_gate_draft_complete` 准入守卫（对话识别的 draft_complete 无 generation_mode → gated 澄清，绝不执行；按钮路径不变）/ N3 last_output 快照（章节摘要+警告计数进 state，渲染进接续块）/ N4 四对照审查执行器 review_pipeline.py（模板差集+DB 有据+内容质量=机器算事实清单；LLM 只做需求覆盖且只能引用清单，simple 档）/ N5 意图路由（gated/review/edit 三分支在主分支前拦截，review 纯聊天回复不碰编辑器）/ N6 收尾。**23:18 事故重放验证**：同问句在 LLM 挂掉最坏情况下不再触发 draft_complete。
 

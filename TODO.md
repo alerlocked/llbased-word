@@ -28,9 +28,9 @@
 
 ## P1 · 系统完善（场景驱动 / 上线前）
 
-### 3c. ✅ G25a 工序名称前置直拼 + 工序8无编号引子提取修复（2026-08-18 用户实测报告，2026-08-19 修，PLAN `c5da04b`）
-- **完成**（feature/arch-g25a-step-prefix-fixes，N1 `e5fb769` + N2 `f6c5d3d`）：① `_g25a_prefix_content` 程序化前置 `f"{工序名}：\n"`（skel[i-1]，编号后处理之后 + `_fallback_slots` 降级路径 + strip 防重复）② `extract_assembly_steps` 后处理引子合并（工序开头连续无 `N.M` 行并入首带编号工步，全无编号保持现状）③ G19a 骨架过滤 `阶段标记/更改标记/共N页/第N页`。新增单测 13 个（引子合并 4 + 噪声 2 + 前缀 7）；全量 **914 passed 0 failed**（顺带修复 main 存量失败 `test_prompt_requires_step_name_prefix`——d6b2aa3 撤前缀文案后测试没跟上，实测 HEAD 干净状态确失败）；**真实链路冒烟过**（documents/1 + 云端 LLM：骨架 10 步零噪声、工序6/8 引子已并入 6.1/8.1、content 以「装前准备：\n1.1 …」开头，产物 `.test-runs/g25a-step-prefix-fixes/smoke-real-llm.log`）
-- **留**：web 端整卡重生成验收留用户部署环境（生成效果仍差再回查 6cbaf30 F2 A/B）
+### 3c. ✅ G25a 工序名称前置直拼 + 工序8无编号引子提取修复（2026-08-18 用户实测报告，2026-08-19 修，PLAN `c5da04b` + N6 重 seal `39a0c2e`）
+- **完成**（feature/arch-g25a-step-prefix-fixes，PR #64，N1 `e5fb769` + N2 `f6c5d3d` + N6 `ec62740`）：① `_g25a_prefix_content` 程序化前置 `f"{工序名}：\n"`（skel[i-1]，编号后处理之后 + `_fallback_slots` 降级路径 + strip 防重复）② `extract_assembly_steps` 后处理引子合并（工序开头连续无 `N.M` 行并入首带编号工步，全无编号保持现状）③ G19a 骨架过滤 `阶段标记/更改标记/共N页/第N页` ④（PR 审查 warn 用户拍板本 PR 修）画像物料 triple 改**全段提取**（`document_profile_learner` 材料格 `、/,/，` 逐段清洗入库，不再只取首段——预存缺陷一并治好；**用户原则：画像提取针对实际内容，不按行位置取首段**）。新增单测 17 个（引子合并 4 + 噪声 2 + 前缀 7 + 物料全段 4）；全量 **918 passed 0 failed**（顺带修复 main 存量失败 `test_prompt_requires_step_name_prefix`——d6b2aa3 撤前缀文案后测试没跟上，实测 HEAD 干净状态确失败）；**真实链路冒烟过**（documents/1 + 云端 LLM：骨架 10 步零噪声、工序6/8 引子已并入 6.1/8.1、content 以「装前准备：\n1.1 …」开头，产物 `.test-runs/g25a-step-prefix-fixes/smoke-real-llm.log`）
+- **留**：web 端整卡重生成验收留用户部署环境（生成效果仍差再回查 6cbaf30 F2 A/B）；画像清洗 spec_cut `[A-Za-z0-9/]` 不切 `φ` 希腊字母（预存行为，要支持属管线增强另立项）
 - 关联: g25a-step-numbering `d6b2aa3` / exp-g25a-step-numbering
 
 ### 3b. edit_local 对话式局部修改（dialog-task-pipeline 第5块，2026-08-12 开）
