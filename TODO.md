@@ -28,10 +28,9 @@
 
 ## P1 · 系统完善（场景驱动 / 上线前）
 
-### 3c. G25a 工序名称前置直拼 + 工序8无编号引子提取修复（2026-08-18 用户实测报告）
-- **症状①**:每道工序 content 开头缺工序名称总起句（装前准备/安装密封圈2…）。根因:`writing_agent.py:1720` prompt 约束3 是「可点题」非「必须」,LLM 直接跳过（7-26 `d6b2aa3` 修前缀重复时引入的弱化）。**修法(用户拍板)**:工序名从 `skel[i-1]`（G19a 工艺流程图直填）**程序化前置** `f"{name}：\n"` 到 content 头,不问 LLM;`_fallback_slots` 降级路径同样拼;prompt 约束3 改「不要写总起句,系统前置工序名」
-- **症状②**:工序8 从 8.3 开始,无 8.1/8.2 无工序名。根因在 `extract_assembly_steps` 提取层（实证 dump:工序8 substeps[0] 是无编号引子文字「先试装电缆整流罩端头…」,substeps[1] 是其折行断句,真 8.1 排到第三）——源 PDF 工序8 开头有不带编号的说明段,提取器缺处理,LLM 按 8.N 顺排挤占。**修法**:提取器预处理——工序首条无 `N.M` 编号的连续行并入首工步开头（折行合并）,不独立成步。⚠ 预存问题非本次回归（贡献问题,用户判）
-- **顺手**: `extract_process_steps`（hierarchical_context.py:1667）骨架混入「阶段标记/更改标记/共1页/第1页」（G19a 签名区/页脚格子,`header_words`+过滤正则没盖住）,补过滤
+### 3c. ✅ G25a 工序名称前置直拼 + 工序8无编号引子提取修复（2026-08-18 用户实测报告，2026-08-19 修，PLAN `c5da04b`）
+- **完成**（feature/arch-g25a-step-prefix-fixes，N1 `e5fb769` + N2 `f6c5d3d`）：① `_g25a_prefix_content` 程序化前置 `f"{工序名}：\n"`（skel[i-1]，编号后处理之后 + `_fallback_slots` 降级路径 + strip 防重复）② `extract_assembly_steps` 后处理引子合并（工序开头连续无 `N.M` 行并入首带编号工步，全无编号保持现状）③ G19a 骨架过滤 `阶段标记/更改标记/共N页/第N页`。新增单测 13 个（引子合并 4 + 噪声 2 + 前缀 7）；全量 **914 passed 0 failed**（顺带修复 main 存量失败 `test_prompt_requires_step_name_prefix`——d6b2aa3 撤前缀文案后测试没跟上，实测 HEAD 干净状态确失败）；**真实链路冒烟过**（documents/1 + 云端 LLM：骨架 10 步零噪声、工序6/8 引子已并入 6.1/8.1、content 以「装前准备：\n1.1 …」开头，产物 `.test-runs/g25a-step-prefix-fixes/smoke-real-llm.log`）
+- **留**：web 端整卡重生成验收留用户部署环境（生成效果仍差再回查 6cbaf30 F2 A/B）
 - 关联: g25a-step-numbering `d6b2aa3` / exp-g25a-step-numbering
 
 ### 3b. edit_local 对话式局部修改（dialog-task-pipeline 第5块，2026-08-12 开）

@@ -36,8 +36,11 @@
 - **入口**:`POST /api/agent/generate-stream`(`api/agent.py:853`)→ `orchestrator.process_intent` → SSE 事件(mode/progress/content/content_section/result/error)。
 - **source-driven 直注(真主路径)**:`extract_*`(`services/hierarchical_context.py`)抽章节 → orchestrator 注入 `task["params"]` → writing_agent `preloaded_content` 直填。
   - extract 函数:assembly_steps(G25a)/ process_steps(G19a)/ process_card_steps(G22a)/ file_references(G5a)/ doc_catalog(G4a)/ assembly_overview。
+    - **G25a 引子合并**(2026-08-19 g25a-step-prefix-fixes):`extract_assembly_steps` 后处理——工序开头连续无 `N.M` 编号的引子行(含折行断句)并入首个带编号工步 content 头(非空 material/instruments `、` 合并),不独立成步(否则 LLM 按 i.N 顺排,引子占 8.1、真内容从 8.3 起);整道工序全无编号保持现状。
+    - **G19a 骨架噪声过滤**(同上):`extract_process_steps` 过滤签名区/页脚格(`阶段标记/更改标记` + `^(?:共\s*\d+\s*页|第\s*\d+\s*页)$` 锚定全匹配,防误杀含「第1页」字样的真工序名)。
   - **G25a 相辅相成**(2026-07-24 g25a-method-aux-bind):gen_one 套用素材(`extract_reference_methods`)+辅料标准(L3.5 KG)→ LLM 同次产出工艺方法+辅料+参数 → aux 覆盖辅料列(绑定一致,substeps 直填退 fallback)。详见 `exp-g25a-cohesive-model`。
   - **G25a per-row 并行 + content 编号后处理**(2026-07-26 g25a-step-numbering):`_generate_g25a_per_row_parallel`(`writing_agent.py`)每工序一个 LLM call(Semaphore(4) 并发,避 max_tokens 截断 + 聚焦单工序质量);content slot 返回前 `re.sub` 行首 `N.M` 编号第一段强制 = 工序号 i(防 LLM 照抄原文编号——工序9 显 1.1 → 9.1;嵌套编号/无编号续行不动)。教训:LLM 结构化生成的编号/格式约束光靠 prompt 拉不住,要后处理兜底。详见 `exp-g25a-step-numbering`。
+    - **工序名程序化前置**(2026-08-19 g25a-step-prefix-fixes):编号后处理之后 `_g25a_prefix_content` 把 `f"{工序名}：\n"`(skel[i-1] G19a 真工序名)拼到 content 头,不问 LLM(prompt「可点题」被跳过的根治);strip 串首同名前缀防重复;`_fallback_slots` 降级路径同拼。
 - 倒推(`orchestrator._derive_strong_node`):G25a → G18a/G14a 等配套表;G18a 走 catalog enrich(`_enrich_names_from_catalog`,代号→名称 exact 查纠错位/填待补)。
 - 无 source 章节 / chat → HierarchicalContext 兜底。
 
