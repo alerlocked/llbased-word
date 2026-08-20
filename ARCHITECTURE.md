@@ -2,7 +2,7 @@
 
 > **单一架构源**。本文是项目架构的唯一事实源,反映代码真实状态。CLAUDE.md / DEV-LOG 不重复架构(只指针)。
 > **维护规则**:涉及架构改动(agents / 检索 / 数据 / 生成流程),lead 收尾必须更新本文;DEV-LOG「当前状态」记架构变更点(见 CLAUDE.md 文档规范)。
-> 更新:2026-07-21(arch-catalog-index,据代码实测)。
+> 更新:2026-08-20(source-scoped-knowledge:来源工作区域 filter + KG 来源前缀,据代码实测)。
 
 ## 1. 总览
 
@@ -61,6 +61,7 @@
 ### HierarchicalContext(`services/hierarchical_context.py:105`,4 层)
 - L0 元信息索引(`load_meta_index`)/ L1 表格索引(`load_table_index`)/ L2 表格 HTML(`extract_table_html`)/ L3 关键词检索(`global_keyword_search`,jieba 分词)/ **L3.5 KG**(`_search_knowledge_graph`,全局 craft_kg 辅料-标准-参数图谱,2026-07-24 加)。
 - material filter:型号(model)/ 专业(specialty)穿透。
+- **来源工作区域 filter(2026-08-20 source-scoped-knowledge)**:项目勾选素材(`CreationProject.material_ids`) = 工作区域,`_resolve_source_filters(project_id)` 解析为 `{"source_ids":[...]}` 穿透 L2/L3(`build_context`)+ L3.5 KG seed(`source_ids` 前缀过滤)+ `KnowledgeSearchService`(`source_doc.in_`)+ orchestrator G18a enrich/G25a aux(`_project_source_ids`,fail-soft)。**空 material_ids = 不过滤(兼容现状)**;漏勾→待补=正确行为(宁缺毋滥不跨源串)。`_get_all_documents` 缓存只在无 filters 时写(防污染)。豁免:`StandardClause` 公共标准不按源过滤;`get_material_status` 走共享 meta 缓存不穿(只影响提示)。
 
 ### 3 活检索路径
 | 路径 | 角色 | 用途 |
@@ -82,6 +83,7 @@
   - `MaterialCatalog.standard_code`:G18a catalog enrich exact 查键。
   - `MaterialCatalog.tech_params`(JSON,2026-07-24):辅料技术参数 `[{param_name,value,unit,standard_source}]`,in-context 先行(2a),结构化下沉(2b)。
 - **全局 craft KG**(`data/knowledge_graph.json`,networkx,2026-07-24):跨 profile 工艺知识图谱(辅料-标准-参数-工序),启动加载(`init_craft_kg`),供 L3.5 层检索。**灌数据链路**(2026-07-25 craft-kg-from-learn):「学习为画像」(`POST /api/profile/{domain}/learn` 单文件 / `learn-file` / `learn-batch` 文件夹批量 SSE)→ `DocumentProfileLearner.learn_from_content` 产 triples → `_feed_craft_kg`(`build_from_triples`→`craft_kg.merge_from` 累加幂等,`_safe_id` 跨文件同名工序去重→`save_craft_kg` per-file 增量持久化);learn-batch 端点预读 content(gen 不持 DB Session)+ SSE per-file 进度。详见 `exp-g25a-cohesive-model` / `exp-craft-kg-feed-from-learn`。
+  - **来源前缀分开录**(2026-08-20 source-scoped-knowledge):`build_from_triples(triples, source=doc_id)` 所有节点/边 id 加 `{doc_id}::` 前缀(label 不带)——跨来源同规格不同参数值**共存不覆盖**(修"后学顶掉先学"),同来源重学幂等;检索按工作区域 `source_ids` 过滤(见 §4)。learn 端点(手工粘贴)无 document_id 走无前缀路径。存量 2026-08-20 已清空重学(documents/1 → 26 nodes 全 `1::`)。
 - `data/profiles/`(assembly/welding/coating.json 画像)/ `tasks/`(任务记忆)/ `memory/`(对话记忆)。
 
 ## 6. 前端(`frontend/src`)
