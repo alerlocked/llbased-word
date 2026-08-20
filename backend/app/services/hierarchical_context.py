@@ -195,6 +195,38 @@ class HierarchicalContext:
             logger.warning(f"[上下文] 记忆服务初始化失败: {e}")
             self._memory_service = None
 
+    def _resolve_source_filters(
+        self, project_id: Optional[int],
+    ) -> Optional[Dict[str, list]]:
+        """Resolve project-scoped source filters (N1: 工作区域过滤).
+
+        The project's checked materials (CreationProject.material_ids, JSON
+        int list) define the working area — retrieval should only see those
+        documents. material_id == Material.id == documents/{id}/ dir name.
+        No caching: one lightweight PK lookup per build_context call.
+        Returns None when project_id is None, project missing, or
+        material_ids empty (= no filtering, current behavior).
+        """
+        if project_id is None:
+            return None
+        try:
+            from app.database import SessionLocal
+            from app.models.database import CreationProject
+            db = SessionLocal()
+            try:
+                project = db.query(CreationProject).filter(
+                    CreationProject.id == project_id
+                ).first()
+                material_ids = (project.material_ids if project else None) or []
+                if not material_ids:
+                    return None
+                return {"source_ids": [str(i) for i in material_ids]}
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"[上下文] 项目素材范围解析失败,不过滤: {e}")
+            return None
+
     def invalidate_cache(self):
         """Clear all caches so next query reloads from disk."""
         self._meta_cache = None
@@ -243,6 +275,10 @@ class HierarchicalContext:
                         q = q.filter(Material.specialty == filters["specialty"])
                     if filters.get("model"):
                         q = q.filter(Material.model == filters["model"])
+                    if filters.get("source_ids"):
+                        q = q.filter(Material.id.in_(
+                            [int(s) for s in filters["source_ids"]]
+                        ))
                 materials = q.order_by(Material.created_at.desc()).all()
                 for m in materials:
                     doc_dir_name = str(m.id)
@@ -275,8 +311,12 @@ class HierarchicalContext:
                 except Exception as e:
                     logger.error(f"[上下文] 读取 index.json 失败: {index_path}, {e}")
 
-        self._documents_cache = documents
-        self._documents_cache_ts = time.time()
+        # Cache write ONLY for unfiltered calls — a filtered result entering
+        # the full-list TTL cache would silently filter later unfiltered
+        # callers (cache pollution).
+        if filters is None:
+            self._documents_cache = documents
+            self._documents_cache_ts = time.time()
         logger.info(f"[上下文] 找到 {len(documents)} 个文档")
         return documents
 
@@ -672,6 +712,10 @@ class HierarchicalContext:
         mode_budgets = {"qa": 5000, "write": 15000, "review": 10000}
         mode_budget = mode_budgets.get(mode, 15000)
         effective_max_tokens = min(max_tokens, self._max_rag_tokens, mode_budget)
+
+        # Project working-area filter (N1): None = no filtering (current
+        # behavior). Applied to L2 table search + L3 keyword search.
+        src_filters = self._resolve_source_filters(project_id)
         
         context_parts = []
         used_tokens = 0
@@ -708,7 +752,7 @@ class HierarchicalContext:
         if mode != "write":
             logger.info(f"[上下文] Layer 2 跳过 (mode={mode})")
         else:
-            matched_tables = self.search_tables(query, top_k=3)
+            matched_tables = self.search_tables(query, top_k=3, filters=src_filters)
 
             for table in matched_tables:
                 # 获取文档目录名
@@ -748,7 +792,7 @@ class HierarchicalContext:
         self._last_l3_hit = False
 
         if l3_budget > 200:  # 至少要有 200 token 的预算
-            search_results = self.global_keyword_search(query, top_k=10)
+            search_results = self.global_keyword_search(query, top_k=10, filters=src_filters)
             self._last_l3_hit = bool(search_results)
 
             if search_results:

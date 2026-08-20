@@ -34,10 +34,13 @@ class KnowledgeSearchService:
         category: Optional[str] = None,
         top_k: int = 10,
         specialty: Optional[str] = None,
+        source_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """Search material catalog by name/model/standard_code (LIKE).
 
         specialty: optional 检索穿透 filter (cleanup-and-dimensions 维度).
+        source_ids: optional project working-area filter (N1) — only rows
+        whose source_doc (str doc_id) is in the list.
         """
         from app.models.database import MaterialCatalog
         like = f"%{query}%"
@@ -50,10 +53,13 @@ class KnowledgeSearchService:
             q = q.filter(MaterialCatalog.category == category)
         if specialty:
             q = q.filter(MaterialCatalog.specialty == specialty)
+        if source_ids is not None:
+            q = q.filter(MaterialCatalog.source_doc.in_(source_ids))
         return [self._material_to_dict(r) for r in q.limit(top_k).all()]
 
     def find_material_by_code(
         self, db: Session, code: str,
+        source_ids: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Exact lookup material by standard_code (zero false-match).
 
@@ -68,9 +74,12 @@ class KnowledgeSearchService:
         if not code or not str(code).strip():
             return None
         code = str(code).strip()
-        row = db.query(MaterialCatalog).filter(
+        q = db.query(MaterialCatalog).filter(
             MaterialCatalog.standard_code == code
-        ).first()
+        )
+        if source_ids is not None:
+            q = q.filter(MaterialCatalog.source_doc.in_(source_ids))
+        row = q.first()
         return self._material_to_dict(row) if row else None
 
     def search_tools_for_step(
@@ -141,9 +150,10 @@ class KnowledgeSearchService:
 
     def build_knowledge_context_text(
         self, db: Session, query: str, max_items: int = 5,
+        source_ids: Optional[List[str]] = None,
     ) -> str:
         """Build a text block suitable for injection into an LLM prompt."""
-        materials = self.search_materials(db, query, top_k=max_items)
+        materials = self.search_materials(db, query, top_k=max_items, source_ids=source_ids)
         clauses = self.search_standard_clauses(db, query, top_k=max_items)
         parts: List[str] = []
         if materials:

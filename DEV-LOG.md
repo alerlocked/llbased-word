@@ -1,25 +1,25 @@
 ---
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
-branch: main
-updated_at: 2026-08-19T22:16:29+08:00
-last_commit: 87b0dff
+branch: feature/source-scoped-knowledge
+updated_at: 2026-08-20T21:10:25+08:00
+last_commit: c2ef1ef
 status: g25a-step-prefix-fixes done（TODO 3c 三缺陷+画像物料全段提取全修;PLAN c5da04b+N6重seal 39a0c2e,6节点全过;918 passed 0 failed+真实LLM冒烟过;PR #64 [architecture] 已开+多维审查过,warn已修,待admin approve merge）;前序:review-pipeline PR62已合
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `87b0dff` docs(todo): archive #12 workspace junk (exports root-caused 361a3bb, others stale) (0 seconds ago)
-- `361a3bb` fix(tests): csv export tests write to pytest tmp_path, drop leaked fixtures/exports outputs (26 seconds ago)
-- `a562523` Merge pull request #64 from alerlocked/feature/arch-g25a-step-prefix-fixes (20 minutes ago)
-- `c2e2b2c` docs: close g25a-step-prefix-fixes (task done, PR #64 pending admin approve) (51 minutes ago)
-- `ec62740` fix(profile): extract all material segments per cell, not just the first (content-based per user principle) (58 minutes ago)
-- `39a0c2e` plan: add N6 profile material multi-segment extraction (review warn, user decision to fix in-PR) (59 minutes ago)
-- `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (2 hours ago)
-- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (2 hours ago)
-- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (2 hours ago)
-- `c5da04b` plan: G25a step-name prefix + unnumbered-prologue merge + skeleton noise filter (TODO 3c, 5 nodes) (2 hours ago)
+- `c2ef1ef` plan: source-scoped knowledge (project workspace materials + KG source prefix, 5 nodes) (1 second ago)
+- `87b0dff` docs(todo): archive #12 workspace junk (exports root-caused 361a3bb, others stale) (23 hours ago)
+- `361a3bb` fix(tests): csv export tests write to pytest tmp_path, drop leaked fixtures/exports outputs (23 hours ago)
+- `a562523` Merge pull request #64 from alerlocked/feature/arch-g25a-step-prefix-fixes (23 hours ago)
+- `c2e2b2c` docs: close g25a-step-prefix-fixes (task done, PR #64 pending admin approve) (24 hours ago)
+- `ec62740` fix(profile): extract all material segments per cell, not just the first (content-based per user principle) (24 hours ago)
+- `39a0c2e` plan: add N6 profile material multi-segment extraction (review warn, user decision to fix in-PR) (24 hours ago)
+- `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (25 hours ago)
+- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (25 hours ago)
+- `e5fb769` fix(g25a): merge unnumbered prologue into first numbered substep + filter skeleton noise (TODO 3c-2/3) (25 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
