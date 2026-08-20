@@ -2,8 +2,8 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/source-scoped-knowledge
-updated_at: 2026-08-20T21:14:49+08:00
-last_commit: 0dcdc49
+updated_at: 2026-08-20T21:17:36+08:00
+last_commit: bf07c54
 status: source-scoped-knowledge running（来源维度落地:工作区域=CreationProject.material_ids+KG前缀分开录;PLAN c2ef1ef seal 5节点;方向=来源替代型号维度,用户拍板）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: running
 task_slug: source-scoped-knowledge
@@ -11,8 +11,9 @@ task_slug: source-scoped-knowledge
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `0dcdc49` feat(retrieval): project source_ids filter + fix _documents_cache pollution (N1) (0 seconds ago)
-- `c2ef1ef` plan: source-scoped knowledge (project workspace materials + KG source prefix, 5 nodes) (4 minutes ago)
+- `bf07c54` feat(kg): source-prefixed node ids + source-scoped extract dedup (N2) (1 second ago)
+- `0dcdc49` feat(retrieval): project source_ids filter + fix _documents_cache pollution (N1) (3 minutes ago)
+- `c2ef1ef` plan: source-scoped knowledge (project workspace materials + KG source prefix, 5 nodes) (7 minutes ago)
 - `87b0dff` docs(todo): archive #12 workspace junk (exports root-caused 361a3bb, others stale) (23 hours ago)
 - `361a3bb` fix(tests): csv export tests write to pytest tmp_path, drop leaked fixtures/exports outputs (23 hours ago)
 - `a562523` Merge pull request #64 from alerlocked/feature/arch-g25a-step-prefix-fixes (23 hours ago)
@@ -20,13 +21,12 @@ task_slug: source-scoped-knowledge
 - `ec62740` fix(profile): extract all material segments per cell, not just the first (content-based per user principle) (24 hours ago)
 - `39a0c2e` plan: add N6 profile material multi-segment extraction (review warn, user decision to fix in-PR) (24 hours ago)
 - `55deefa` docs: sync ARCHITECTURE for arch PR (prologue merge / skeleton noise / step-name prefix) + close TODO 3c (25 hours ago)
-- `f6c5d3d` feat(g25a): programmatically prefix step name onto content slot (TODO 3c-1) (25 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
-- **在做（source-scoped-knowledge，2026-08-20 开，PLAN `c2ef1ef` seal，分支 `feature/source-scoped-knowledge`）**: 数据库治理·来源维度落地。2026-08-20 评估发现三处多型号扩展隐患（MaterialCatalog.model 存的是规格非产品型号→代号 enrich 无来源过滤会跨型号串名 / craft KG 参数值跨来源覆盖或丢弃 / specialty NULL 50行），用户拍板：**不建型号维度（素材无明确型号，来源=素材文件作一等维度，型号判断交给工艺员勾选）**。核心设计：工作区域正源 = `CreationProject.material_ids`（生成请求已带 project_id 后端自读，空列表=不过滤兼容现状）；KG 节点 id 加 `{doc_id}::` 前缀分开录（跨来源不合并、同来源重学幂等、label 不带前缀 seed 匹配不受影响）；存量 craft_kg 清空重学（用户同意，全来自 documents/1）。5 节点：N1 检索基础设施（source filters + **修 _documents_cache 污染 bug** + knowledge_search source_ids）/ N2 录入侧（build_from_triples 前缀 + _feed_craft_kg 带 doc_id + extract_and_save 去重改源内）/ N3 生成链路穿透（orchestrator _project_source_ids + G18a enrich + G25a aux + agent.py L0/多轮检索）/ N4 工作区域 API+前端（DELETE 移除端点 + MaterialDrawer 勾选徽标 + AddMaterialDialog 文件夹级）/ N5 存量重学+删空壳 DB+ARCHITECTURE+全量回归（基线 918）。显式豁免：StandardClause 公共标准不按源过滤；漏勾→待补=正确行为非 bug（用户拍板）。N1-N3 触架构层→独立 PR+/pr-review。**进度：0/5，开始 N1。**
+- **在做（source-scoped-knowledge，2026-08-20 开，PLAN `c2ef1ef` seal，分支 `feature/source-scoped-knowledge`）**: 数据库治理·来源维度落地。2026-08-20 评估发现三处多型号扩展隐患（MaterialCatalog.model 存的是规格非产品型号→代号 enrich 无来源过滤会跨型号串名 / craft KG 参数值跨来源覆盖或丢弃 / specialty NULL 50行），用户拍板：**不建型号维度（素材无明确型号，来源=素材文件作一等维度，型号判断交给工艺员勾选）**。核心设计：工作区域正源 = `CreationProject.material_ids`（生成请求已带 project_id 后端自读，空列表=不过滤兼容现状）；KG 节点 id 加 `{doc_id}::` 前缀分开录（跨来源不合并、同来源重学幂等、label 不带前缀 seed 匹配不受影响）；存量 craft_kg 清空重学（用户同意，全来自 documents/1）。5 节点：N1 检索基础设施（source filters + **修 _documents_cache 污染 bug** + knowledge_search source_ids）/ N2 录入侧（build_from_triples 前缀 + _feed_craft_kg 带 doc_id + extract_and_save 去重改源内）/ N3 生成链路穿透（orchestrator _project_source_ids + G18a enrich + G25a aux + agent.py L0/多轮检索）/ N4 工作区域 API+前端（DELETE 移除端点 + MaterialDrawer 勾选徽标 + AddMaterialDialog 文件夹级）/ N5 存量重学+删空壳 DB+ARCHITECTURE+全量回归（基线 918）。显式豁免：StandardClause 公共标准不按源过滤；漏勾→待补=正确行为非 bug（用户拍板）。N1-N3 触架构层→独立 PR+/pr-review。**进度：1/5（N1 ✅ `0dcdc49`：_resolve_source_filters + L2/L3 filters 下传 + Material.id.in_ 过滤 + 缓存污染修复（顺带治好既有 specialty/model 过滤污染全量缓存的 bug）+ knowledge_search source_ids，新增 test_source_scoped 12 用例，节点测试 37 passed），开始 N2。**
 
 - **完成（g25a-step-prefix-fixes，2026-08-19，PLAN `c5da04b` + N6 重 seal `39a0c2e`，PR #64 已合 `a562523`）**: TODO 3c G25a 三缺陷（2026-08-18 用户实测报告，修法已拍板）：① content 开头缺工序名总起句（prompt「可点题」被 LLM 跳过）→ `skel[i-1]` 工序名**程序化前置** `f"{name}：\n"`（`_g25a_prefix_content`：gen_one 编号后处理之后 + `_fallback_slots` 降级路径 + strip 防重复，`f6c5d3d`）② 工序8 从 8.3 开始（开头无编号引子被当独立工步挤占 8.1/8.2）→ `extract_assembly_steps` 后处理引子合并 + ③ G19a 骨架「阶段标记/更改标记/共N页/第N页」过滤（`e5fb769`）④ **N6 增补**（PR 审查 warn 用户拍板本 PR 内修，`ec62740`）：画像物料 triple 改**全段提取**（`document_profile_learner` 材料格 `、/,/，` 逐段清洗入库，不再只取首段——预存缺陷一并治好。**用户原则：画像提取针对实际内容，不按行位置取首段；引子/材料限制生成用，旧文件不规范、生成要规范**）。新增单测 17 个；全量 **918 passed 0 failed**（顺带修 main 存量失败 `test_prompt_requires_step_name_prefix`，git stash 实证 HEAD 干净状态确失败）；**真实链路冒烟过**（documents/1+云端 LLM：骨架 10 步零噪声、工序6/8 引子并入 6.1/8.1、content「装前准备：\n1.1…」开头，产物 `.test-runs/g25a-step-prefix-fixes/smoke-real-llm.log`）；/pr-review 多维审查过（架构合规 + 安全零发现 + warn 已修，剩 nit 不挡）。**留**：web 端整卡重生成验收留用户部署环境（效果仍差再回查 6cbaf30 F2 A/B）；spec_cut 不切 `φ`（预存，另立项）。**task_state: done。**
 

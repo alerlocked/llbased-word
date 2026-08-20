@@ -79,7 +79,7 @@ class TestEnrichNamesFromCatalog:
 
         monkeypatch.setattr("app.database.SessionLocal", fake_sessionlocal)
 
-        def fake_find(self_, db, code):
+        def fake_find(self_, db, code, source_ids=None):
             name = code_to_name.get(code)
             return {"name": name} if name else None
 

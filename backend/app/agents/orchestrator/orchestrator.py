@@ -59,22 +59,29 @@ from app.agents.functional import discover_agents
 logger = get_logger(__name__)
 
 
-def _inject_g25a_aux_context(task: dict, skeleton_names: list) -> None:
+def _inject_g25a_aux_context(
+    task: dict, skeleton_names: list,
+    source_ids: Optional[List[str]] = None,
+) -> None:
     """G25a 套用素材 + 辅料标准注入 (N4). 模块级, 两处 G25a 注入点共用。
 
     reference_methods: 同类工序现成工艺方法段落 (extract_reference_methods, N2)
     aux_standards: 辅料-标准参数 (KG + knowledge_search, N3)
     KG/DB 空时静默跳过 (in-context 先行)。
+    source_ids: project working-area filter (N3) — None = unfiltered.
     """
     from app.services.hierarchical_context import hierarchical_context as hc
     try:
         skel = [s for s in (skeleton_names or []) if s]
         if not skel:
             return
-        ref = hc.extract_reference_methods(skel, top_k=2)
+        ref = hc.extract_reference_methods(
+            skel, top_k=2,
+            filters={"source_ids": source_ids} if source_ids else None,
+        )
         if ref:
             task.setdefault("params", {})["reference_methods"] = ref
-        aux = hc._search_knowledge_graph(" ".join(skel[:5]), 1200)
+        aux = hc._search_knowledge_graph(" ".join(skel[:5]), 1200, source_ids=source_ids)
         if aux:
             task.setdefault("params", {})["aux_standards"] = aux
         logger.info("g25a_aux_injected", ref_count=len(ref), has_aux=bool(aux))
@@ -299,6 +306,10 @@ class ProcessOrchestrator:
 
         # 当前收集的信息缓存
         self._collected_info: Dict[str, Any] = {}
+
+        # Project working-area source ids cache (N3): (project_id, ids) tuple,
+        # re-queried when project_id changes.
+        self._source_ids_cache: Optional[tuple] = None
 
         # 迭代管理器
         self._iteration_manager = IterationManager(
@@ -1021,6 +1032,40 @@ class ProcessOrchestrator:
                         row[key] = "待补"
         return merged
 
+    def _project_source_ids(self) -> Optional[List[str]]:
+        """Project working-area source ids (N3): CreationProject.material_ids
+        from the current generation context, as ["{id}", ...] for retrieval
+        filters. Returns None (no filtering) when project_id is absent, the
+        project has no materials, or the DB lookup fails (fail-soft — DB
+        hiccups must never break generation).
+        Cached per (project_id, ids); project_id change re-queries.
+        """
+        project_id = (self._collected_info.get("context") or {}).get("project_id")
+        if project_id is None:
+            return None
+        if self._source_ids_cache and self._source_ids_cache[0] == project_id:
+            return self._source_ids_cache[1]
+        ids: Optional[List[str]] = None
+        try:
+            from app.database import SessionLocal
+            from app.models.database import CreationProject
+
+            db = SessionLocal()
+            try:
+                project = db.query(CreationProject).filter(
+                    CreationProject.id == project_id
+                ).first()
+                material_ids = (project.material_ids if project else None) or []
+                if material_ids:
+                    ids = [str(i) for i in material_ids]
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning("project_source_ids_lookup_failed", error=str(e))
+            ids = None
+        self._source_ids_cache = (project_id, ids)
+        return ids
+
     def _enrich_names_from_catalog(
         self,
         rows: List[Dict[str, Any]],
@@ -1047,6 +1092,7 @@ class ProcessOrchestrator:
             from app.database import SessionLocal
             from app.services.knowledge_search import KnowledgeSearchService
 
+            source_ids = self._project_source_ids()
             db = SessionLocal()
             try:
                 svc = KnowledgeSearchService()
@@ -1055,7 +1101,10 @@ class ProcessOrchestrator:
                     code = (row.get(code_key) or "").strip()
                     if not code or code == "待补":
                         continue
-                    mat = svc.find_material_by_code(db, code)
+                    # N3: project working-area filter. Intentional: a scoped
+                    # miss keeps the original name (待补 later) — no fallback
+                    # bypass, so out-of-area catalog rows never leak in.
+                    mat = svc.find_material_by_code(db, code, source_ids=source_ids)
                     if mat and mat.get("name"):
                         row[name_key] = mat["name"]
                         name_hits += 1
@@ -2840,7 +2889,10 @@ class ProcessOrchestrator:
                                 if _ov:
                                     task["params"]["assembly_overview"] = _ov
                                 # N4: 套用素材 + 辅料标准注入 (reference_methods/aux_standards)
-                                _inject_g25a_aux_context(task, task["params"].get("skeleton_steps", []))
+                                _inject_g25a_aux_context(
+                                    task, task["params"].get("skeleton_steps", []),
+                                    source_ids=self._project_source_ids(),
+                                )
                             except Exception as e:
                                 logger.warning("g25a_assembly_steps_failed", error=str(e))
 
@@ -2960,6 +3012,7 @@ class ProcessOrchestrator:
                             _inject_g25a_aux_context(
                                 tasks[idx],
                                 (tasks[idx].get("inherited_context") or {}).get("step_names", []),
+                                source_ids=self._project_source_ids(),
                             )
                     except Exception as e:
                         logger.warning("g25a_assembly_steps_failed", error=str(e))

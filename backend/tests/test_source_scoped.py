@@ -123,3 +123,103 @@ class TestKnowledgeSearchSourceFilter:
         svc = KnowledgeSearchService()
         with catalog() as db:
             assert svc.find_material_by_code(db, "GB2") is not None
+
+
+class TestProjectSourceIds:
+    """ProcessOrchestrator._project_source_ids three states (N3)."""
+
+    @staticmethod
+    def _bare_orchestrator():
+        # Skip heavy __init__ (agent discovery); only the attrs the method
+        # touches are needed.
+        from app.agents.orchestrator.orchestrator import ProcessOrchestrator
+
+        orch = ProcessOrchestrator.__new__(ProcessOrchestrator)
+        orch._collected_info = {}
+        orch._source_ids_cache = None
+        return orch
+
+    def test_no_project_id_returns_none(self):
+        orch = self._bare_orchestrator()
+        assert orch._project_source_ids() is None
+
+    def test_empty_material_ids_returns_none(self, mem_db):
+        with mem_db() as db:
+            db.add(CreationProject(id=10, name="p", material_ids=[]))
+            db.commit()
+        orch = self._bare_orchestrator()
+        orch._collected_info = {"context": {"project_id": 10}}
+        assert orch._project_source_ids() is None
+
+    def test_populated_material_ids_returns_strs(self, mem_db):
+        with mem_db() as db:
+            db.add(CreationProject(id=11, name="p", material_ids=[1, 3]))
+            db.commit()
+        orch = self._bare_orchestrator()
+        orch._collected_info = {"context": {"project_id": 11}}
+        assert orch._project_source_ids() == ["1", "3"]
+
+    def test_cached_until_project_changes(self, mem_db):
+        with mem_db() as db:
+            db.add(CreationProject(id=11, name="p", material_ids=[1]))
+            db.add(CreationProject(id=12, name="q", material_ids=[2]))
+            db.commit()
+        orch = self._bare_orchestrator()
+        orch._collected_info = {"context": {"project_id": 11}}
+        assert orch._project_source_ids() == ["1"]
+        # Same project_id hits the cache (drop rows, still served from cache).
+        with mem_db() as db:
+            db.query(CreationProject).filter(CreationProject.id == 11).delete()
+            db.commit()
+        assert orch._project_source_ids() == ["1"]
+        # Different project_id re-queries.
+        orch._collected_info = {"context": {"project_id": 12}}
+        assert orch._project_source_ids() == ["2"]
+
+    def test_db_failure_fails_soft(self, monkeypatch):
+        import app.database as db_mod
+
+        def boom():
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(db_mod, "SessionLocal", boom)
+        orch = self._bare_orchestrator()
+        orch._collected_info = {"context": {"project_id": 11}}
+        assert orch._project_source_ids() is None
+
+
+class TestSearchKnowledgeGraphSourceFilter:
+    """_search_knowledge_graph seed filtering by "{doc_id}::" prefix (N3)."""
+
+    @pytest.fixture
+    def fake_kg(self, monkeypatch, hc):
+        import types
+        import app.services.knowledge_graph as kg_mod
+        import app.services.hierarchical_context as hc_mod
+
+        graph = types.SimpleNamespace(nodes={
+            "1::辅料A": {"label": "辅料A", "type": "material"},
+            "2::辅料A": {"label": "辅料A", "type": "material"},
+            "辅料B": {"label": "辅料B", "type": "material"},  # legacy no prefix
+        })
+        kg = types.SimpleNamespace(
+            node_count=3, _graph=graph,
+            to_context_text=lambda seed_node_ids, max_tokens: "KGTEXT",
+        )
+        monkeypatch.setattr(kg_mod, "craft_kg", kg)
+        # Deterministic keyword extraction matching the labels above.
+        monkeypatch.setattr(hc_mod, "extract_keywords", lambda text: ["辅料A"])
+        return kg
+
+    def test_seed_filtered_to_selected_source(self, hc, fake_kg):
+        text = hc._search_knowledge_graph("辅料A", 1200, source_ids=["1"])
+        assert "KGTEXT" in text
+
+    def test_seed_excluded_when_source_not_selected(self, hc, fake_kg):
+        # "辅料A" exists only under docs 1/2; scoping to doc 9 leaves no seed.
+        text = hc._search_knowledge_graph("辅料A", 1200, source_ids=["9"])
+        assert "KGTEXT" not in text
+
+    def test_no_filter_matches_all(self, hc, fake_kg):
+        text = hc._search_knowledge_graph("辅料A", 1200)
+        assert "KGTEXT" in text

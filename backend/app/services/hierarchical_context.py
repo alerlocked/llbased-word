@@ -554,19 +554,25 @@ class HierarchicalContext:
         logger.info(f"[上下文] 表格搜索完成: query={query[:30]}, 找到 {len(result)} 个匹配")
         return result
     
-    def search_meta_info(self, query: str) -> Optional[str]:
+    def search_meta_info(
+        self, query: str, filters: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
         """查询元信息（文档页数、材料列表等）
-        
+
         适用于：
         - "XX文档有多少页"
         - "有哪些材料"
         - "XX表格在哪个文档"
         - "工艺卡片在哪"
-        
+
+        Args:
+            query: 用户查询
+            filters: optional source/model/specialty filter (N3 透传)
+
         Returns:
             快速回答字符串，如果没有匹配则返回 None
         """
-        documents = self._get_all_documents()
+        documents = self._get_all_documents(filters)
         query_lower = query.lower()
         
         # 检测查询类型
@@ -1001,6 +1007,7 @@ class HierarchicalContext:
         step_names: List[str],
         top_k: int = 2,
         context_chars: int = 400,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """按工序名召回同类工艺文件的「工序工艺方法段落」（套用素材，N2）。
 
@@ -1014,7 +1021,7 @@ class HierarchicalContext:
         for step_name in step_names or []:
             if not step_name or len(step_name) < 2:
                 continue
-            hits = self.global_keyword_search(step_name, top_k=top_k)
+            hits = self.global_keyword_search(step_name, top_k=top_k, filters=filters)
             for hit in hits:
                 snippet = hit.get("snippet", "")
                 segment = self._extract_step_segment(snippet, step_name, context_chars)
@@ -1058,11 +1065,17 @@ class HierarchicalContext:
                 break
         return segment.strip()
 
-    def _search_knowledge_graph(self, query: str, max_tokens: int) -> str:
+    def _search_knowledge_graph(
+        self, query: str, max_tokens: int,
+        source_ids: Optional[List[str]] = None,
+    ) -> str:
         """L3.5 KG 层：辅料-标准-参数图谱检索 (N3)。
 
         实体提取 → craft_kg expand(辅料-参数-工序) + KnowledgeSearchService(物料/标准条款)
         → 组合注入文本。KG/DB 空时返回 ""(in-context 先行, 数据下沉后自动启用)。
+        source_ids: project working-area filter (N3) — seed nodes whose
+        "{doc_id}::" prefix is not in source_ids are skipped; legacy nodes
+        without the prefix are skipped too (配合 N5 清空重学)。None = no filter.
         """
         from app.services.knowledge_graph import craft_kg
         parts: List[str] = []
@@ -1073,6 +1086,10 @@ class HierarchicalContext:
             seed_ids: List[str] = []
             for kw in keywords[:5]:
                 for nid in list(craft_kg._graph.nodes):
+                    if source_ids is not None and nid.split("::", 1)[0] not in source_ids:
+                        # Node doc prefix not in the project working area (or a
+                        # legacy unprefixed node) — skip (N3, paired with N5 reset).
+                        continue
                     if kw in (craft_kg._graph.nodes[nid].get("label", "") or ""):
                         seed_ids.append(nid)
                         break
