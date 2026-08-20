@@ -16,6 +16,7 @@ interface MaterialRecord {
   type: string
   content_length: number
   created_at: string
+  folder_id: number | null
 }
 
 interface AddMaterialDialogProps {
@@ -44,6 +45,33 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [searchText, setSearchText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // N4: folder id -> name map for grouping + group-select
+  const [folderNames, setFolderNames] = useState<Record<number, string>>({})
+
+  // Load folder tree and flatten to id -> name
+  const loadFolderNames = async () => {
+    interface FolderNode {
+      id: number
+      name: string
+      children?: FolderNode[]
+    }
+    const flatten = (nodes: FolderNode[], map: Record<number, string>) => {
+      nodes.forEach(n => {
+        map[n.id] = n.name
+        if (n.children) flatten(n.children, map)
+      })
+    }
+    try {
+      const resp = await fetch('http://localhost:8000/api/creation/material-folders')
+      if (resp.ok) {
+        const map: Record<number, string> = {}
+        flatten((await resp.json()) as FolderNode[], map)
+        setFolderNames(map)
+      }
+    } catch {
+      console.error('获取文件夹失败')
+    }
+  }
 
   // 判断使用哪种模式
   const isCallbackMode = !!onConfirm
@@ -53,6 +81,7 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({
   useEffect(() => {
     if (visible) {
       fetchMaterials()
+      loadFolderNames()
       setSelectedRowKeys([])
     }
   }, [visible])
@@ -127,6 +156,25 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({
       key: 'type',
       width: 100,
       render: getTypeTag
+    },
+    {
+      title: '文件夹',
+      dataIndex: 'folder_id',
+      key: 'folder_id',
+      width: 150,
+      render: (folderId: number | null) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>{folderId != null ? (folderNames[folderId] || `#${folderId}`) : '未分组'}</span>
+          <Button
+            size="small"
+            type="link"
+            style={{ padding: 0 }}
+            onClick={() => handleSelectFolder(folderId)}
+          >
+            全选
+          </Button>
+        </div>
+      )
     },
     {
       title: '大小',
@@ -210,6 +258,24 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // N4: select every (still-selectable) material of one folder
+  const handleSelectFolder = (folderId: number | null) => {
+    const groupIds = filteredData
+      .filter(item => item.folder_id === folderId)
+      .filter(item => !existingMaterialIds.includes(item.id))
+      .map(item => item.id)
+    if (groupIds.length === 0) {
+      message.warning('该文件夹无可选素材')
+      return
+    }
+    setSelectedRowKeys(prev => {
+      const current = new Set(prev as number[])
+      groupIds.forEach(id => current.add(id))
+      return Array.from(current)
+    })
+    message.success(`已选择该文件夹 ${groupIds.length} 个素材`)
   }
 
   // 筛选数据
