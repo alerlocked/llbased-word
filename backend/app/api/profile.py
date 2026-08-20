@@ -221,9 +221,11 @@ def reset_profile(domain: str) -> Dict[str, Any]:
     return {"status": "ok", "message": "Profile reset to default", "profile": default.to_dict()}
 
 
-def _feed_craft_kg(triples: List[Dict[str, str]]) -> int:
+def _feed_craft_kg(triples: List[Dict[str, str]], doc_id: Optional[str] = None) -> int:
     """Build a KG from learned triples, merge into the global craft_kg, persist.
 
+    doc_id: source prefix for node ids — same spec from different docs keeps
+    both param nodes ("后学顶掉先学" fix); same doc re-learn is idempotent.
     Returns the merged global craft_kg node count. Fail-soft: any error logs
     a warning and returns the current node_count — KG feed never blocks learning
     (craft-kg-from-learn: closes g25a-method-aux-bind N1 gap, N3 needs data).
@@ -231,7 +233,9 @@ def _feed_craft_kg(triples: List[Dict[str, str]]) -> int:
     if not triples:
         return craft_kg.node_count
     try:
-        local = KnowledgeGraph.build_from_triples(triples)
+        local = KnowledgeGraph.build_from_triples(
+            triples, source=str(doc_id) if doc_id else None
+        )
         craft_kg.merge_from(local)
         save_craft_kg(craft_kg)
     except Exception as e:
@@ -257,7 +261,7 @@ async def learn_from_content(domain: str, req: LearnRequest) -> Dict[str, Any]:
     _save_profile(updated)
 
     # Feed global craft KG (learn→triples→craft_kg, closes N3 empty-aux gap)
-    kg_nodes = _feed_craft_kg(features.get("triples", []))
+    kg_nodes = _feed_craft_kg(features.get("triples", []), doc_id=req.document_id)
 
     return {
         "status": "ok",
@@ -327,7 +331,7 @@ async def learn_from_file(domain: str, req: LearnFileRequest) -> Dict[str, Any]:
     _save_profile(updated)
 
     # Feed global craft KG (same as learn endpoint)
-    kg_nodes = _feed_craft_kg(features.get("triples", []))
+    kg_nodes = _feed_craft_kg(features.get("triples", []), doc_id=doc_id)
 
     return {
         "status": "ok",
@@ -423,7 +427,7 @@ async def learn_from_batch(
                 merged = learner.merge_features_to_profile(profile.to_dict(), features)
                 updated = Profile.from_dict(merged)
                 _save_profile(updated)
-                kg_nodes = _feed_craft_kg(features.get("triples", []))
+                kg_nodes = _feed_craft_kg(features.get("triples", []), doc_id=fid)
                 ok += 1
                 yield _sse({
                     "type": "progress", "current": idx, "total": total,
