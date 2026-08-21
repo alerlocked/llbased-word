@@ -356,10 +356,15 @@ class KnowledgeExtractor:
             if _m:
                 mat_specialty = _m.specialty
 
-        # Deduplicate & insert materials + tools (both go to material_catalog)
+        # Deduplicate & insert materials + tools (both go to material_catalog).
+        # Dedup is source-scoped: same (name, model) from a different doc is a
+        # separate row (N1 source_doc.in_ retrieval recalls all); same doc
+        # re-extract stays idempotent.
         existing = {
             (m.name, m.model) for m in
-            db_session.query(MaterialCatalog.name, MaterialCatalog.model).all()
+            db_session.query(MaterialCatalog.name, MaterialCatalog.model).filter(
+                MaterialCatalog.source_doc == str(doc_id)
+            ).all()
         }
         for item in data["materials"] + data["tools"]:
             key = (item["name"], item.get("model"))

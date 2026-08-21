@@ -290,8 +290,12 @@ async def get_available_materials(db: Session = Depends(get_db)):
                 "id": material.id,
                 "name": material.name,
                 "type": material.material_type,
-                "content_length": len(material.content) if material.content else 0,
-                "created_at": material.created_at.isoformat()
+                # content_length dropped with the content column — the fake 0
+                # rendered as "0 B" for every material in the UI (N6 fix-7)
+                "created_at": material.created_at.isoformat(),
+                "folder_id": material.folder_id,
+                "model": material.model,
+                "specialty": material.specialty,
             })
 
         logger.info(f"✅ 获取可用素材列表,共{len(items)}个")
@@ -373,12 +377,19 @@ async def get_project_materials(
         素材列表
     """
     try:
-        # Return all materials globally (shared across projects)
+        # Return all materials globally (shared across projects).
+        # selected_material_ids lets the frontend mark the project's working
+        # area (N4). Project may not exist (e.g. legacy /projects/0 calls) —
+        # fall back to an empty selection instead of 404.
         materials = db.query(Material).order_by(Material.created_at.desc()).all()
+        project = db.query(CreationProject).filter(
+            CreationProject.id == project_id
+        ).first()
 
         result = {
             "searches": [],
-            "documents": []
+            "documents": [],
+            "selected_material_ids": list(project.material_ids) if project and project.material_ids else []
         }
 
         pdf_manager = get_pdf_queue_manager()
@@ -613,11 +624,9 @@ async def remove_material_from_project(
         # 检查素材是否在项目的 material_ids 中
         material_ids = list(project.material_ids) if project.material_ids else []
 
+        # Not in list = idempotent success (N4 workspace management)
         if material_id not in material_ids:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="素材不在该项目中"
-            )
+            return {"message": "移除成功", "removed": False}
 
         # 从项目的 material_ids 中移除该素材ID（创建新列表，确保SQLAlchemy检测到变化）
         new_material_ids = [mid for mid in material_ids if mid != material_id]
@@ -631,8 +640,10 @@ async def remove_material_from_project(
 
         logger.info(f"✅ 已从项目{project_id}移除素材{material_id}")
 
-        return {"message": "移除成功"}
+        return {"message": "移除成功", "removed": True}
 
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"❌ 移除素材失败: {str(e)}")

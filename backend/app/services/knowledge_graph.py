@@ -241,28 +241,42 @@ class KnowledgeGraph:
     # ========================================
 
     @classmethod
-    def build_from_triples(cls, triples: List[Dict[str, str]]) -> "KnowledgeGraph":
-        """Build graph from legacy triple format {s, r, o}."""
+    def build_from_triples(
+        cls, triples: List[Dict[str, str]], source: Optional[str] = None
+    ) -> "KnowledgeGraph":
+        """Build graph from legacy triple format {s, r, o}.
+
+        source: when non-empty, all node/edge ids get a "{source}::" prefix so
+        the same spec learned from different documents never overwrites the
+        earlier one (different ids → cross-source merge keeps both; same
+        source re-learn → same ids → merge_from skips, idempotent). Labels
+        stay unprefixed so display/seed matching is unaffected. source=None
+        keeps legacy behavior exactly.
+        """
         kg = cls()
+
+        def _sid(text: str) -> str:
+            return f"{source}::{_safe_id(text)}" if source else _safe_id(text)
+
         for t in triples:
             s, r, o = t.get("s", ""), t.get("r", ""), t.get("o", "")
             if not s or not o:
                 continue
 
             if r == "下一步":
-                kg.add_node(_safe_id(s), NODE_PROCESS_STEP, s)
-                kg.add_node(_safe_id(o), NODE_PROCESS_STEP, o)
-                kg.add_edge(_safe_id(s), _safe_id(o), EDGE_SEQUENTIAL)
+                kg.add_node(_sid(s), NODE_PROCESS_STEP, s)
+                kg.add_node(_sid(o), NODE_PROCESS_STEP, o)
+                kg.add_edge(_sid(s), _sid(o), EDGE_SEQUENTIAL)
             elif r == "使用":
-                kg.add_node(_safe_id(s), NODE_PROCESS_STEP, s)
+                kg.add_node(_sid(s), NODE_PROCESS_STEP, s)
                 # Classify: tool or material
                 tool_keywords = ("扳手", "量具", "工具", "设备", "仪器", "焊机", "卡尺")
                 ntype = NODE_TOOL if any(kw in o for kw in tool_keywords) else NODE_MATERIAL
-                kg.add_node(_safe_id(o), ntype, o)
-                kg.add_edge(_safe_id(s), _safe_id(o), EDGE_REQUIRES)
+                kg.add_node(_sid(o), ntype, o)
+                kg.add_edge(_sid(s), _sid(o), EDGE_REQUIRES)
             elif r in ("温度", "力矩", "压力", "时间", "速度", "公差", "硬度"):
-                spec_id = _safe_id(s)
-                param_id = _safe_id(f"{s}_{r}")
+                spec_id = _sid(s)
+                param_id = _sid(f"{s}_{r}")
                 is_spec = _is_spec(s)
                 # 规格 subject 建 NODE_SPEC（若非规格退化为 PROCESS_STEP，向后兼容）
                 spec_type = NODE_SPEC if is_spec else NODE_PROCESS_STEP
@@ -273,16 +287,16 @@ class KnowledgeGraph:
                 if is_spec:
                     proc = t.get("process")
                     if proc:
-                        proc_id = _safe_id(proc)
+                        proc_id = _sid(proc)
                         kg.add_node(proc_id, NODE_PROCESS_STEP, proc)
                         kg.add_edge(proc_id, spec_id, EDGE_USED_IN, relation=s)
             elif r == "标准":
-                kg.add_node(_safe_id(s), NODE_PROCESS_STEP, s)
-                kg.add_node(_safe_id(o), NODE_MATERIAL, o)  # Standards treated as material nodes
-                kg.add_edge(_safe_id(s), _safe_id(o), EDGE_REFERENCES)
+                kg.add_node(_sid(s), NODE_PROCESS_STEP, s)
+                kg.add_node(_sid(o), NODE_MATERIAL, o)  # Standards treated as material nodes
+                kg.add_edge(_sid(s), _sid(o), EDGE_REFERENCES)
             elif r == "禁止":
                 # Safety constraint — store as node property on the process step
-                sid = _safe_id(s)
+                sid = _sid(s)
                 kg.add_node(sid, NODE_PROCESS_STEP, s)
                 existing = kg._graph.nodes[sid].get("prohibitions", "")
                 if existing:
@@ -291,9 +305,9 @@ class KnowledgeGraph:
                     kg._graph.nodes[sid]["prohibitions"] = o
             else:
                 # Generic: source → target
-                kg.add_node(_safe_id(s), NODE_PROCESS_STEP, s)
-                kg.add_node(_safe_id(o), NODE_MATERIAL, o)
-                kg.add_edge(_safe_id(s), _safe_id(o), EDGE_REQUIRES, relation=r)
+                kg.add_node(_sid(s), NODE_PROCESS_STEP, s)
+                kg.add_node(_sid(o), NODE_MATERIAL, o)
+                kg.add_edge(_sid(s), _sid(o), EDGE_REQUIRES, relation=r)
 
         return kg
 

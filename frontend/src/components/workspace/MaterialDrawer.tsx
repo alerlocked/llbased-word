@@ -77,6 +77,9 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   // profile learning state
   const [learningFileId, setLearningFileId] = useState<number | null>(null)
 
+  // N4 workspace selection: material ids in the project working area
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<number>>(new Set())
+
   // upload state
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -258,9 +261,12 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   const fetchMaterials = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/projects/0/materials`)
+      // Use the real project when available so selected_material_ids
+      // reflects its working area; legacy /projects/0 returns [] selection.
+      const response = await fetch(`${API_BASE}/projects/${projectId ?? 0}/materials`)
       if (response.ok) {
         const data = await response.json()
+        setSelectedMaterialIds(new Set(data.selected_material_ids || []))
         const files: MaterialFile[] = []
         if (data.documents) {
           data.documents.forEach((doc: Record<string, unknown>) => {
@@ -395,6 +401,92 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
       }
     } catch {
       message.error('移动失败')
+    }
+  }
+
+  // N4: toggle a single material in/out of the project working area.
+  // POST /materials is append-semantics (backend skips ids already present),
+  // so we only send the delta. Removal only drops the reference.
+  const handleToggleMaterialSelect = async (file: MaterialFile) => {
+    if (!projectId) return
+    const isSelected = selectedMaterialIds.has(file.id)
+    // optimistic update
+    setSelectedMaterialIds(prev => {
+      const next = new Set(prev)
+      if (isSelected) {
+        next.delete(file.id)
+      } else {
+        next.add(file.id)
+      }
+      return next
+    })
+    try {
+      if (isSelected) {
+        const resp = await fetch(`${API_BASE}/projects/${projectId}/materials/${file.id}`, {
+          method: 'DELETE',
+        })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      } else {
+        const resp = await fetch(`${API_BASE}/projects/${projectId}/materials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: projectId, material_ids: [file.id] }),
+        })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      }
+    } catch {
+      message.error(isSelected ? '移出工作区域失败' : '加入工作区域失败')
+      fetchMaterials()
+    }
+  }
+
+  // N4: toggle all files of a folder (root = files without a folder) as a group
+  const handleToggleFolderSelect = async (folderKey: string) => {
+    if (!projectId) return
+    const folderFiles = materials.filter(m =>
+      folderKey === 'root' ? !m.folderId : m.folderId === folderKey
+    )
+    if (folderFiles.length === 0) {
+      message.warning('该文件夹无文件')
+      return
+    }
+    const allSelected = folderFiles.every(m => selectedMaterialIds.has(m.id))
+    const targets = allSelected
+      ? folderFiles.filter(m => selectedMaterialIds.has(m.id))
+      : folderFiles.filter(m => !selectedMaterialIds.has(m.id))
+
+    setSelectedMaterialIds(prev => {
+      const next = new Set(prev)
+      targets.forEach(m => {
+        if (allSelected) {
+          next.delete(m.id)
+        } else {
+          next.add(m.id)
+        }
+      })
+      return next
+    })
+
+    try {
+      if (allSelected) {
+        await Promise.all(targets.map(m =>
+          fetch(`${API_BASE}/projects/${projectId}/materials/${m.id}`, { method: 'DELETE' })
+            .then(resp => {
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+            })
+        ))
+      } else {
+        const resp = await fetch(`${API_BASE}/projects/${projectId}/materials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: projectId, material_ids: targets.map(m => m.id) }),
+        })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      }
+      message.success(allSelected ? '整组已移出工作区域' : `已加入工作区域 ${targets.length} 个文件`)
+    } catch {
+      message.error('整组操作失败')
+      fetchMaterials()
     }
   }
 
@@ -668,10 +760,28 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
-              <span style={{ color: colors.textSecondary, fontSize: 13 }}>
-                {selectedFolder === 'root' ? '全部文件' :
-                  folders.find(f => f.key === selectedFolder)?.title || '文件'}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ color: colors.textSecondary, fontSize: 13 }}>
+                  {selectedFolder === 'root' ? '全部文件' :
+                    folders.find(f => f.key === selectedFolder)?.title || '文件'}
+                </span>
+                {projectId != null && (
+                  <Button
+                    size="small"
+                    onClick={() => handleToggleFolderSelect(selectedFolder)}
+                    title="整组加入/移出当前项目的工作区域"
+                  >
+                    {(() => {
+                      const folderFiles = materials.filter(m =>
+                        selectedFolder === 'root' ? !m.folderId : m.folderId === selectedFolder
+                      )
+                      const allSelected = folderFiles.length > 0 &&
+                        folderFiles.every(m => selectedMaterialIds.has(m.id))
+                      return allSelected ? '整组移出' : '整组勾选'
+                    })()}
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* file list */}
@@ -709,6 +819,8 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
                 onDelete={handleFileDelete}
                 onMove={handleFileMove}
                 folders={getFlatFolders()}
+                selectedIds={projectId != null ? selectedMaterialIds : undefined}
+                onToggleSelect={projectId != null ? handleToggleMaterialSelect : undefined}
               />
             </div>
           </div>

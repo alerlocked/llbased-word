@@ -1469,12 +1469,16 @@ def _build_orchestrator_context(
             project_id=request.project_id,
         )
 
+        # N3: project working-area source filter, shared by the retrieval
+        # calls below (build_context resolves it internally for its own calls).
+        src_filters = hierarchical_context.resolve_source_filters(request.project_id)
+
         # Multi-pass retrieval for craft file mode
         if request.uploaded_file_content:
-            doc_context = _multi_pass_retrieval(hierarchical_context, doc_context)
+            doc_context = _multi_pass_retrieval(hierarchical_context, doc_context, filters=src_filters)
 
         # Meta info quick query
-        meta_answer = hierarchical_context.search_meta_info(user_input)
+        meta_answer = hierarchical_context.search_meta_info(user_input, filters=src_filters)
         if meta_answer:
             logger.info(f"[AI助手] 元信息查询命中: {meta_answer}")
             doc_context = f"# 快速参考\n\n{meta_answer}\n\n---\n\n{doc_context}"
@@ -1584,8 +1588,14 @@ def _build_orchestrator_context(
     return ctx
 
 
-def _multi_pass_retrieval(hierarchical_context: Any, base_context: str) -> str:
-    """Run targeted per-module searches for craft file completion tasks."""
+def _multi_pass_retrieval(
+    hierarchical_context: Any, base_context: str,
+    filters: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Run targeted per-module searches for craft file completion tasks.
+
+    filters: optional project working-area source filter (N3 透传).
+    """
     module_queries = [
         "工艺装备明细表 专用装备",
         "工具量具明细表 专用工具 量具",
@@ -1600,7 +1610,7 @@ def _multi_pass_retrieval(hierarchical_context: Any, base_context: str) -> str:
     seen_snippets: set[str] = set()
 
     for mq in module_queries:
-        results = hierarchical_context.global_keyword_search(query=mq, top_k=3)
+        results = hierarchical_context.global_keyword_search(query=mq, top_k=3, filters=filters)
         for r in results:
             snippet = r.get("snippet", "")
             doc_name = r.get("doc_name", "")

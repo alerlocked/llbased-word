@@ -195,6 +195,56 @@ class HierarchicalContext:
             logger.warning(f"[上下文] 记忆服务初始化失败: {e}")
             self._memory_service = None
 
+    def resolve_source_filters(
+        self, project_id: Optional[int],
+    ) -> Optional[Dict[str, list]]:
+        """Resolve project-scoped source filters (N1: 工作区域过滤).
+
+        SINGLE SOURCE OF TRUTH for material_ids → source filter (N6 fix-4):
+        orchestrator / agent.py / build_context all go through here or
+        get_project_source_ids below — do not re-implement the lookup.
+
+        The project's checked materials (CreationProject.material_ids, JSON
+        int list) define the working area — retrieval should only see those
+        documents. material_id == Material.id == documents/{id}/ dir name.
+        No caching: one lightweight PK lookup per build_context call.
+        Returns None when project_id is None, project missing, or
+        material_ids empty (= no filtering, current behavior — 空=不过滤
+        is the user-approved convention; downstream `source_ids is not None`
+        consumers must therefore never receive an empty list from us).
+        """
+        if project_id is None:
+            return None
+        try:
+            from app.database import SessionLocal
+            from app.models.database import CreationProject
+            db = SessionLocal()
+            try:
+                project = db.query(CreationProject).filter(
+                    CreationProject.id == project_id
+                ).first()
+                material_ids = (project.material_ids if project else None) or []
+                if not material_ids:
+                    return None
+                return {"source_ids": [str(i) for i in material_ids]}
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"[上下文] 项目素材范围解析失败,不过滤: {e}")
+            return None
+
+    def get_project_source_ids(
+        self, project_id: Optional[int],
+    ) -> Optional[List[str]]:
+        """Project working-area source ids as a bare list (N6 fix-4).
+
+        Thin wrapper over resolve_source_filters for callers that need the
+        raw ["{id}", ...] shape (orchestrator enrichment, agent task params,
+        _search_knowledge_graph). None = no filtering (same convention).
+        """
+        filters = self.resolve_source_filters(project_id)
+        return filters.get("source_ids") if filters else None
+
     def invalidate_cache(self):
         """Clear all caches so next query reloads from disk."""
         self._meta_cache = None
@@ -243,6 +293,10 @@ class HierarchicalContext:
                         q = q.filter(Material.specialty == filters["specialty"])
                     if filters.get("model"):
                         q = q.filter(Material.model == filters["model"])
+                    if filters.get("source_ids"):
+                        q = q.filter(Material.id.in_(
+                            [int(s) for s in filters["source_ids"]]
+                        ))
                 materials = q.order_by(Material.created_at.desc()).all()
                 for m in materials:
                     doc_dir_name = str(m.id)
@@ -258,8 +312,11 @@ class HierarchicalContext:
         except Exception as e:
             logger.warning(f"[上下文] materials 查询失败，回退文件扫描: {e}")
 
-        # Fallback path: scan index.json (legacy/standard docs, DB-less envs)
-        if self.data_dir.exists():
+        # Fallback path: scan index.json (legacy/standard docs, DB-less envs).
+        # Skipped when filters are set: legacy dirs have no Material row, so
+        # they can never satisfy a source_ids/model/specialty filter —
+        # scanning would leak them past the filter (N6 fix-1).
+        if filters is None and self.data_dir.exists():
             for doc_dir in self.data_dir.iterdir():
                 if not doc_dir.is_dir() or doc_dir.name in seen_dirs:
                     continue
@@ -275,8 +332,12 @@ class HierarchicalContext:
                 except Exception as e:
                     logger.error(f"[上下文] 读取 index.json 失败: {index_path}, {e}")
 
-        self._documents_cache = documents
-        self._documents_cache_ts = time.time()
+        # Cache write ONLY for unfiltered calls — a filtered result entering
+        # the full-list TTL cache would silently filter later unfiltered
+        # callers (cache pollution).
+        if filters is None:
+            self._documents_cache = documents
+            self._documents_cache_ts = time.time()
         logger.info(f"[上下文] 找到 {len(documents)} 个文档")
         return documents
 
@@ -514,19 +575,25 @@ class HierarchicalContext:
         logger.info(f"[上下文] 表格搜索完成: query={query[:30]}, 找到 {len(result)} 个匹配")
         return result
     
-    def search_meta_info(self, query: str) -> Optional[str]:
+    def search_meta_info(
+        self, query: str, filters: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
         """查询元信息（文档页数、材料列表等）
-        
+
         适用于：
         - "XX文档有多少页"
         - "有哪些材料"
         - "XX表格在哪个文档"
         - "工艺卡片在哪"
-        
+
+        Args:
+            query: 用户查询
+            filters: optional source/model/specialty filter (N3 透传)
+
         Returns:
             快速回答字符串，如果没有匹配则返回 None
         """
-        documents = self._get_all_documents()
+        documents = self._get_all_documents(filters)
         query_lower = query.lower()
         
         # 检测查询类型
@@ -672,6 +739,10 @@ class HierarchicalContext:
         mode_budgets = {"qa": 5000, "write": 15000, "review": 10000}
         mode_budget = mode_budgets.get(mode, 15000)
         effective_max_tokens = min(max_tokens, self._max_rag_tokens, mode_budget)
+
+        # Project working-area filter (N1): None = no filtering (current
+        # behavior). Applied to L2 table search + L3 keyword search.
+        src_filters = self.resolve_source_filters(project_id)
         
         context_parts = []
         used_tokens = 0
@@ -708,7 +779,7 @@ class HierarchicalContext:
         if mode != "write":
             logger.info(f"[上下文] Layer 2 跳过 (mode={mode})")
         else:
-            matched_tables = self.search_tables(query, top_k=3)
+            matched_tables = self.search_tables(query, top_k=3, filters=src_filters)
 
             for table in matched_tables:
                 # 获取文档目录名
@@ -748,7 +819,7 @@ class HierarchicalContext:
         self._last_l3_hit = False
 
         if l3_budget > 200:  # 至少要有 200 token 的预算
-            search_results = self.global_keyword_search(query, top_k=10)
+            search_results = self.global_keyword_search(query, top_k=10, filters=src_filters)
             self._last_l3_hit = bool(search_results)
 
             if search_results:
@@ -783,7 +854,10 @@ class HierarchicalContext:
         kg_budget = min(1500, int(kg_remaining * 0.5))  # 留一半给 L4 memory
         if kg_budget > 200:
             try:
-                kg_context = self._search_knowledge_graph(query, kg_budget)
+                kg_context = self._search_knowledge_graph(
+                    query, kg_budget,
+                    source_ids=(src_filters or {}).get("source_ids"),
+                )
                 if kg_context:
                     layer35_tokens = self._estimate_tokens(kg_context)
                     context_parts.append(kg_context)
@@ -957,6 +1031,7 @@ class HierarchicalContext:
         step_names: List[str],
         top_k: int = 2,
         context_chars: int = 400,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """按工序名召回同类工艺文件的「工序工艺方法段落」（套用素材，N2）。
 
@@ -970,7 +1045,7 @@ class HierarchicalContext:
         for step_name in step_names or []:
             if not step_name or len(step_name) < 2:
                 continue
-            hits = self.global_keyword_search(step_name, top_k=top_k)
+            hits = self.global_keyword_search(step_name, top_k=top_k, filters=filters)
             for hit in hits:
                 snippet = hit.get("snippet", "")
                 segment = self._extract_step_segment(snippet, step_name, context_chars)
@@ -1014,11 +1089,17 @@ class HierarchicalContext:
                 break
         return segment.strip()
 
-    def _search_knowledge_graph(self, query: str, max_tokens: int) -> str:
+    def _search_knowledge_graph(
+        self, query: str, max_tokens: int,
+        source_ids: Optional[List[str]] = None,
+    ) -> str:
         """L3.5 KG 层：辅料-标准-参数图谱检索 (N3)。
 
         实体提取 → craft_kg expand(辅料-参数-工序) + KnowledgeSearchService(物料/标准条款)
         → 组合注入文本。KG/DB 空时返回 ""(in-context 先行, 数据下沉后自动启用)。
+        source_ids: project working-area filter (N3) — seed nodes whose
+        "{doc_id}::" prefix is not in source_ids are skipped; legacy nodes
+        without the prefix are skipped too (配合 N5 清空重学)。None = no filter.
         """
         from app.services.knowledge_graph import craft_kg
         parts: List[str] = []
@@ -1029,6 +1110,10 @@ class HierarchicalContext:
             seed_ids: List[str] = []
             for kw in keywords[:5]:
                 for nid in list(craft_kg._graph.nodes):
+                    if source_ids is not None and nid.split("::", 1)[0] not in source_ids:
+                        # Node doc prefix not in the project working area (or a
+                        # legacy unprefixed node) — skip (N3, paired with N5 reset).
+                        continue
                     if kw in (craft_kg._graph.nodes[nid].get("label", "") or ""):
                         seed_ids.append(nid)
                         break
@@ -1048,7 +1133,9 @@ class HierarchicalContext:
             db = SessionLocal()
             try:
                 ks = KnowledgeSearchService()
-                ks_text = ks.build_knowledge_context_text(db, query, max_items=4)
+                ks_text = ks.build_knowledge_context_text(
+                    db, query, max_items=4, source_ids=source_ids,
+                )
                 if ks_text:
                     parts.append("## 结构化知识(物料/标准条款)\n" + ks_text)
             finally:

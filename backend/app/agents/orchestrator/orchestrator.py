@@ -59,22 +59,29 @@ from app.agents.functional import discover_agents
 logger = get_logger(__name__)
 
 
-def _inject_g25a_aux_context(task: dict, skeleton_names: list) -> None:
+def _inject_g25a_aux_context(
+    task: dict, skeleton_names: list,
+    source_ids: Optional[List[str]] = None,
+) -> None:
     """G25a 套用素材 + 辅料标准注入 (N4). 模块级, 两处 G25a 注入点共用。
 
     reference_methods: 同类工序现成工艺方法段落 (extract_reference_methods, N2)
     aux_standards: 辅料-标准参数 (KG + knowledge_search, N3)
     KG/DB 空时静默跳过 (in-context 先行)。
+    source_ids: project working-area filter (N3) — None = unfiltered.
     """
     from app.services.hierarchical_context import hierarchical_context as hc
     try:
         skel = [s for s in (skeleton_names or []) if s]
         if not skel:
             return
-        ref = hc.extract_reference_methods(skel, top_k=2)
+        ref = hc.extract_reference_methods(
+            skel, top_k=2,
+            filters={"source_ids": source_ids} if source_ids else None,
+        )
         if ref:
             task.setdefault("params", {})["reference_methods"] = ref
-        aux = hc._search_knowledge_graph(" ".join(skel[:5]), 1200)
+        aux = hc._search_knowledge_graph(" ".join(skel[:5]), 1200, source_ids=source_ids)
         if aux:
             task.setdefault("params", {})["aux_standards"] = aux
         logger.info("g25a_aux_injected", ref_count=len(ref), has_aux=bool(aux))
@@ -722,6 +729,17 @@ class ProcessOrchestrator:
         """
         task_type = task.get("type")
 
+        # N6 fix-3: single injection point for the project working-area scope
+        # so every functional agent's own retrieval (writing/review catalog &
+        # keyword search) can consume task["params"]["source_ids"] — None or
+        # missing = no filtering (legacy behavior preserved).
+        try:
+            task.setdefault("params", {}).setdefault(
+                "source_ids", self._project_source_ids()
+            )
+        except Exception as e:
+            logger.warning("dispatch_source_ids_inject_failed", error=str(e))
+
         # 新的任务类型映射到功能Agent
         agent_mapping = {
             "writing": "writing",
@@ -1021,6 +1039,17 @@ class ProcessOrchestrator:
                         row[key] = "待补"
         return merged
 
+    def _project_source_ids(self) -> Optional[List[str]]:
+        """Project working-area source ids (N3), as ["{id}", ...] for
+        retrieval filters. Thin shell over hc.get_project_source_ids —
+        the single source of truth for material_ids → source filter
+        (N6 fix-4: was a full copy of the lookup with its own instance
+        cache; one rule, one implementation). None = no filtering.
+        """
+        from app.services.hierarchical_context import hierarchical_context as hc
+        project_id = (self._collected_info.get("context") or {}).get("project_id")
+        return hc.get_project_source_ids(project_id)
+
     def _enrich_names_from_catalog(
         self,
         rows: List[Dict[str, Any]],
@@ -1047,6 +1076,7 @@ class ProcessOrchestrator:
             from app.database import SessionLocal
             from app.services.knowledge_search import KnowledgeSearchService
 
+            source_ids = self._project_source_ids()
             db = SessionLocal()
             try:
                 svc = KnowledgeSearchService()
@@ -1055,7 +1085,10 @@ class ProcessOrchestrator:
                     code = (row.get(code_key) or "").strip()
                     if not code or code == "待补":
                         continue
-                    mat = svc.find_material_by_code(db, code)
+                    # N3: project working-area filter. Intentional: a scoped
+                    # miss keeps the original name (待补 later) — no fallback
+                    # bypass, so out-of-area catalog rows never leak in.
+                    mat = svc.find_material_by_code(db, code, source_ids=source_ids)
                     if mat and mat.get("name"):
                         row[name_key] = mat["name"]
                         name_hits += 1
@@ -2840,7 +2873,10 @@ class ProcessOrchestrator:
                                 if _ov:
                                     task["params"]["assembly_overview"] = _ov
                                 # N4: 套用素材 + 辅料标准注入 (reference_methods/aux_standards)
-                                _inject_g25a_aux_context(task, task["params"].get("skeleton_steps", []))
+                                _inject_g25a_aux_context(
+                                    task, task["params"].get("skeleton_steps", []),
+                                    source_ids=self._project_source_ids(),
+                                )
                             except Exception as e:
                                 logger.warning("g25a_assembly_steps_failed", error=str(e))
 
@@ -2960,6 +2996,7 @@ class ProcessOrchestrator:
                             _inject_g25a_aux_context(
                                 tasks[idx],
                                 (tasks[idx].get("inherited_context") or {}).get("step_names", []),
+                                source_ids=self._project_source_ids(),
                             )
                     except Exception as e:
                         logger.warning("g25a_assembly_steps_failed", error=str(e))

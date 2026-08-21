@@ -49,6 +49,10 @@ interface FileListProps {
   onDelete?: (fileId: number) => void
   onMove?: (fileId: number, folderId: string) => void
   folders: { key: string; title: string }[]
+  /** N4 workspace: ids currently in the project working area */
+  selectedIds?: Set<number>
+  /** N4 workspace: toggle one file in/out of the working area */
+  onToggleSelect?: (file: MaterialFile) => void
 }
 
 // 获取文件图标
@@ -127,7 +131,9 @@ const FileList: React.FC<FileListProps> = ({
   onLearnProfile,
   onDelete,
   onMove,
-  folders
+  folders,
+  selectedIds,
+  onToggleSelect
 }) => {
   const [contextMenuFile, setContextMenuFile] = useState<MaterialFile | null>(null)
 
@@ -305,6 +311,18 @@ const FileList: React.FC<FileListProps> = ({
                     title="添加引用到编辑栏"
                     style={{ color: colors.primary }}
                   />
+                  {onToggleSelect && selectedIds && (
+                    <Tag
+                      color={selectedIds.has(item.id) ? 'blue' : 'default'}
+                      style={{ cursor: 'pointer', marginInlineEnd: 0 }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onToggleSelect(item)
+                      }}
+                    >
+                      {selectedIds.has(item.id) ? '已选' : '未选'}
+                    </Tag>
+                  )}
                   {onLearnProfile && (
                     <Tooltip title="学习为画像">
                       <Button
