@@ -1,7 +1,7 @@
 """Unit tests for N1 source-scoped retrieval (project working-area filter).
 
 Covers:
-- HierarchicalContext._resolve_source_filters three states
+- HierarchicalContext.resolve_source_filters three states
 - _get_all_documents source_ids filter + cache non-pollution by filtered calls
 - KnowledgeSearchService search_materials / find_material_by_code source_ids
 
@@ -48,22 +48,22 @@ def hc(tmp_path, mem_db):
 
 class TestResolveSourceFilters:
     def test_no_project_id_returns_none(self, hc):
-        assert hc._resolve_source_filters(None) is None
+        assert hc.resolve_source_filters(None) is None
 
     def test_missing_project_returns_none(self, hc, mem_db):
-        assert hc._resolve_source_filters(999) is None
+        assert hc.resolve_source_filters(999) is None
 
     def test_empty_material_ids_returns_none(self, hc, mem_db):
         with mem_db() as db:
             db.add(CreationProject(id=1, name="p1", material_ids=[]))
             db.commit()
-        assert hc._resolve_source_filters(1) is None
+        assert hc.resolve_source_filters(1) is None
 
     def test_populated_returns_source_ids(self, hc, mem_db):
         with mem_db() as db:
             db.add(CreationProject(id=2, name="p2", material_ids=[1, 3]))
             db.commit()
-        assert hc._resolve_source_filters(2) == {"source_ids": ["1", "3"]}
+        assert hc.resolve_source_filters(2) == {"source_ids": ["1", "3"]}
 
 
 class TestGetAllDocumentsSourceFilter:
@@ -90,6 +90,24 @@ class TestGetAllDocumentsSourceFilter:
         assert len(full) == 3
         filtered = hc._get_all_documents({"source_ids": ["2"]})
         assert [d["_doc_dir"] for d in filtered] == ["2"]
+
+    def test_filtered_call_skips_legacy_dir_fallback(self, hc, tmp_path):
+        # N6 fix-1: a legacy dir (index.json, no Material row) must NOT leak
+        # past a source_ids filter via the file-scan fallback — but it IS
+        # visible to unfiltered calls (legacy/DB-less behavior preserved).
+        import json as _json
+
+        legacy = tmp_path / "9"
+        legacy.mkdir()
+        (legacy / "index.json").write_text(
+            _json.dumps({"name": "legacy-doc", "_doc_dir": "9"}), encoding="utf-8"
+        )
+
+        filtered = hc._get_all_documents({"source_ids": ["1"]})
+        assert [d["_doc_dir"] for d in filtered] == ["1"]
+
+        unfiltered = hc._get_all_documents()
+        assert sorted(d["_doc_dir"] for d in unfiltered) == ["1", "2", "3", "9"]
 
 
 class TestKnowledgeSearchSourceFilter:
@@ -136,7 +154,6 @@ class TestProjectSourceIds:
 
         orch = ProcessOrchestrator.__new__(ProcessOrchestrator)
         orch._collected_info = {}
-        orch._source_ids_cache = None
         return orch
 
     def test_no_project_id_returns_none(self):
@@ -159,22 +176,20 @@ class TestProjectSourceIds:
         orch._collected_info = {"context": {"project_id": 11}}
         assert orch._project_source_ids() == ["1", "3"]
 
-    def test_cached_until_project_changes(self, mem_db):
+    def test_live_query_no_stale_cache(self, mem_db):
+        # N6 fix-4: the per-instance cache is gone — the helper is a live
+        # query through hc, so a mid-session material_ids edit is reflected
+        # on the very next call.
         with mem_db() as db:
             db.add(CreationProject(id=11, name="p", material_ids=[1]))
-            db.add(CreationProject(id=12, name="q", material_ids=[2]))
             db.commit()
         orch = self._bare_orchestrator()
         orch._collected_info = {"context": {"project_id": 11}}
         assert orch._project_source_ids() == ["1"]
-        # Same project_id hits the cache (drop rows, still served from cache).
         with mem_db() as db:
             db.query(CreationProject).filter(CreationProject.id == 11).delete()
             db.commit()
-        assert orch._project_source_ids() == ["1"]
-        # Different project_id re-queries.
-        orch._collected_info = {"context": {"project_id": 12}}
-        assert orch._project_source_ids() == ["2"]
+        assert orch._project_source_ids() is None
 
     def test_db_failure_fails_soft(self, monkeypatch):
         import app.database as db_mod

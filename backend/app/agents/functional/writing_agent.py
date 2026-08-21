@@ -111,6 +111,11 @@ class WritingAgent(BaseAgent):
         try:
             action = task.get("action", "edit")
 
+            # N6 fix-3: project working-area scope injected by orchestrator
+            # dispatch (task.params.source_ids); consumed by our retrieval
+            # helpers. None = no filtering (legacy behavior).
+            self._task_source_ids = (task.get("params") or {}).get("source_ids")
+
             if action not in self.ACTION_TYPES:
                 return {
                     "success": False,
@@ -1933,7 +1938,11 @@ class WritingAgent(BaseAgent):
             db = SessionLocal()
             try:
                 svc = KnowledgeSearchService()
-                return svc.build_knowledge_context_text(db, query, max_items=5)
+                # N6 fix-3: scope catalog retrieval to the project working area
+                source_ids = getattr(self, "_task_source_ids", None)
+                return svc.build_knowledge_context_text(
+                    db, query, max_items=5, source_ids=source_ids,
+                )
             finally:
                 db.close()
         except Exception as e:
@@ -1961,7 +1970,12 @@ class WritingAgent(BaseAgent):
             from app.services.hierarchical_context import hierarchical_context
 
             hc_results = hierarchical_context.global_keyword_search(
-                query=query, top_k=5
+                query=query, top_k=5,
+                filters=(
+                    {"source_ids": self._task_source_ids}
+                    if getattr(self, "_task_source_ids", None)
+                    else None
+                ),
             )
             for r in hc_results:
                 if r.get("score", 0) >= 2:

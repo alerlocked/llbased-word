@@ -1471,7 +1471,7 @@ def _build_orchestrator_context(
 
         # N3: project working-area source filter, shared by the retrieval
         # calls below (build_context resolves it internally for its own calls).
-        src_filters = hierarchical_context._resolve_source_filters(request.project_id)
+        src_filters = hierarchical_context.resolve_source_filters(request.project_id)
 
         # Multi-pass retrieval for craft file mode
         if request.uploaded_file_content:

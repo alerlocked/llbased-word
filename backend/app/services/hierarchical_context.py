@@ -195,17 +195,23 @@ class HierarchicalContext:
             logger.warning(f"[上下文] 记忆服务初始化失败: {e}")
             self._memory_service = None
 
-    def _resolve_source_filters(
+    def resolve_source_filters(
         self, project_id: Optional[int],
     ) -> Optional[Dict[str, list]]:
         """Resolve project-scoped source filters (N1: 工作区域过滤).
+
+        SINGLE SOURCE OF TRUTH for material_ids → source filter (N6 fix-4):
+        orchestrator / agent.py / build_context all go through here or
+        get_project_source_ids below — do not re-implement the lookup.
 
         The project's checked materials (CreationProject.material_ids, JSON
         int list) define the working area — retrieval should only see those
         documents. material_id == Material.id == documents/{id}/ dir name.
         No caching: one lightweight PK lookup per build_context call.
         Returns None when project_id is None, project missing, or
-        material_ids empty (= no filtering, current behavior).
+        material_ids empty (= no filtering, current behavior — 空=不过滤
+        is the user-approved convention; downstream `source_ids is not None`
+        consumers must therefore never receive an empty list from us).
         """
         if project_id is None:
             return None
@@ -226,6 +232,18 @@ class HierarchicalContext:
         except Exception as e:
             logger.warning(f"[上下文] 项目素材范围解析失败,不过滤: {e}")
             return None
+
+    def get_project_source_ids(
+        self, project_id: Optional[int],
+    ) -> Optional[List[str]]:
+        """Project working-area source ids as a bare list (N6 fix-4).
+
+        Thin wrapper over resolve_source_filters for callers that need the
+        raw ["{id}", ...] shape (orchestrator enrichment, agent task params,
+        _search_knowledge_graph). None = no filtering (same convention).
+        """
+        filters = self.resolve_source_filters(project_id)
+        return filters.get("source_ids") if filters else None
 
     def invalidate_cache(self):
         """Clear all caches so next query reloads from disk."""
@@ -294,8 +312,11 @@ class HierarchicalContext:
         except Exception as e:
             logger.warning(f"[上下文] materials 查询失败，回退文件扫描: {e}")
 
-        # Fallback path: scan index.json (legacy/standard docs, DB-less envs)
-        if self.data_dir.exists():
+        # Fallback path: scan index.json (legacy/standard docs, DB-less envs).
+        # Skipped when filters are set: legacy dirs have no Material row, so
+        # they can never satisfy a source_ids/model/specialty filter —
+        # scanning would leak them past the filter (N6 fix-1).
+        if filters is None and self.data_dir.exists():
             for doc_dir in self.data_dir.iterdir():
                 if not doc_dir.is_dir() or doc_dir.name in seen_dirs:
                     continue
@@ -721,7 +742,7 @@ class HierarchicalContext:
 
         # Project working-area filter (N1): None = no filtering (current
         # behavior). Applied to L2 table search + L3 keyword search.
-        src_filters = self._resolve_source_filters(project_id)
+        src_filters = self.resolve_source_filters(project_id)
         
         context_parts = []
         used_tokens = 0
@@ -833,7 +854,10 @@ class HierarchicalContext:
         kg_budget = min(1500, int(kg_remaining * 0.5))  # 留一半给 L4 memory
         if kg_budget > 200:
             try:
-                kg_context = self._search_knowledge_graph(query, kg_budget)
+                kg_context = self._search_knowledge_graph(
+                    query, kg_budget,
+                    source_ids=(src_filters or {}).get("source_ids"),
+                )
                 if kg_context:
                     layer35_tokens = self._estimate_tokens(kg_context)
                     context_parts.append(kg_context)
@@ -1109,7 +1133,9 @@ class HierarchicalContext:
             db = SessionLocal()
             try:
                 ks = KnowledgeSearchService()
-                ks_text = ks.build_knowledge_context_text(db, query, max_items=4)
+                ks_text = ks.build_knowledge_context_text(
+                    db, query, max_items=4, source_ids=source_ids,
+                )
                 if ks_text:
                     parts.append("## 结构化知识(物料/标准条款)\n" + ks_text)
             finally:

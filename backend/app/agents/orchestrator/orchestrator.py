@@ -307,10 +307,6 @@ class ProcessOrchestrator:
         # 当前收集的信息缓存
         self._collected_info: Dict[str, Any] = {}
 
-        # Project working-area source ids cache (N3): (project_id, ids) tuple,
-        # re-queried when project_id changes.
-        self._source_ids_cache: Optional[tuple] = None
-
         # 迭代管理器
         self._iteration_manager = IterationManager(
             max_iterations=self.config.get("max_iterations", 3)
@@ -733,6 +729,17 @@ class ProcessOrchestrator:
         """
         task_type = task.get("type")
 
+        # N6 fix-3: single injection point for the project working-area scope
+        # so every functional agent's own retrieval (writing/review catalog &
+        # keyword search) can consume task["params"]["source_ids"] — None or
+        # missing = no filtering (legacy behavior preserved).
+        try:
+            task.setdefault("params", {}).setdefault(
+                "source_ids", self._project_source_ids()
+            )
+        except Exception as e:
+            logger.warning("dispatch_source_ids_inject_failed", error=str(e))
+
         # 新的任务类型映射到功能Agent
         agent_mapping = {
             "writing": "writing",
@@ -1033,38 +1040,15 @@ class ProcessOrchestrator:
         return merged
 
     def _project_source_ids(self) -> Optional[List[str]]:
-        """Project working-area source ids (N3): CreationProject.material_ids
-        from the current generation context, as ["{id}", ...] for retrieval
-        filters. Returns None (no filtering) when project_id is absent, the
-        project has no materials, or the DB lookup fails (fail-soft — DB
-        hiccups must never break generation).
-        Cached per (project_id, ids); project_id change re-queries.
+        """Project working-area source ids (N3), as ["{id}", ...] for
+        retrieval filters. Thin shell over hc.get_project_source_ids —
+        the single source of truth for material_ids → source filter
+        (N6 fix-4: was a full copy of the lookup with its own instance
+        cache; one rule, one implementation). None = no filtering.
         """
+        from app.services.hierarchical_context import hierarchical_context as hc
         project_id = (self._collected_info.get("context") or {}).get("project_id")
-        if project_id is None:
-            return None
-        if self._source_ids_cache and self._source_ids_cache[0] == project_id:
-            return self._source_ids_cache[1]
-        ids: Optional[List[str]] = None
-        try:
-            from app.database import SessionLocal
-            from app.models.database import CreationProject
-
-            db = SessionLocal()
-            try:
-                project = db.query(CreationProject).filter(
-                    CreationProject.id == project_id
-                ).first()
-                material_ids = (project.material_ids if project else None) or []
-                if material_ids:
-                    ids = [str(i) for i in material_ids]
-            finally:
-                db.close()
-        except Exception as e:
-            logger.warning("project_source_ids_lookup_failed", error=str(e))
-            ids = None
-        self._source_ids_cache = (project_id, ids)
-        return ids
+        return hc.get_project_source_ids(project_id)
 
     def _enrich_names_from_catalog(
         self,

@@ -71,8 +71,15 @@ class ReviewAgent(BaseAgent):
         try:
             from app.services.hierarchical_context import hierarchical_context
 
+            # N6 fix-3: scope keyword search to the project working area
+            # (set in run() from task.params.source_ids; None = unfiltered).
             hc_results = hierarchical_context.global_keyword_search(
-                query=query, top_k=5
+                query=query, top_k=5,
+                filters=(
+                    {"source_ids": self._task_source_ids}
+                    if getattr(self, "_task_source_ids", None)
+                    else None
+                ),
             )
             results = []
             for r in hc_results:
@@ -138,6 +145,11 @@ class ReviewAgent(BaseAgent):
             check_type = task.get("check_type", "all")
             standards = task.get("standards", self.default_standards)
             profile_data = task.get("profile")
+
+            # N6 fix-3: project working-area scope injected by orchestrator
+            # dispatch (task.params.source_ids); consumed by _search_standards.
+            # None = no filtering (legacy behavior).
+            self._task_source_ids = (task.get("params") or {}).get("source_ids")
 
             if not content:
                 return {
