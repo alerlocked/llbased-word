@@ -88,6 +88,13 @@ export interface TemplateSection {
   source: string
 }
 
+/** Identifies a specific cell in the template editor for selection tracking. */
+export interface CellInfo {
+  sectionIndex: number
+  rowIndex: number
+  colKey: string
+}
+
 /** A vertical cell merge range within a single column. */
 export interface CellMerge {
   /** First row index of the merge (0-based, within data rows). */
