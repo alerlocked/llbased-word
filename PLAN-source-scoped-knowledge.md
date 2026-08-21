@@ -47,6 +47,20 @@
 | `backend/data/craftdoc.db`、`backend/data/database.db` | 删两个 0 字节空壳（已 grep 确认零引用，真库 data/database/craftdoc.db） |
 | `ARCHITECTURE.md` | §4 检索 + §5 数据存储补"来源工作区域"机制（lead 收尾规范） |
 
+### N6 · PR 审查修复（2026-08-21 /pr-review warn 用户拍板本 PR 内修）
+> 来源：PR #65 多维审查报告（无 blocker，warn #1/#2/#3/#4/#5/#7 拍板修，#6 重复行配额留下轮）。
+
+| # | 文件 | 改什么 |
+|---|------|--------|
+| fix-1 | `hierarchical_context.py` `_get_all_documents` | fallback index.json 扫描加 `filters is None` 守卫——legacy 无-Material-行目录绕过 source_ids 泄漏（docstring 已承诺 skip 未实现）；补回归单测 |
+| fix-2 | `hierarchical_context.py` | `build_context` L3.5 KG 调用传 `source_ids`（主链路穿透遗漏）+ `_search_knowledge_graph` 内 `build_knowledge_context_text` 透传 `source_ids` |
+| fix-3 | `orchestrator.py` `_dispatch_to_sub_agent` + `writing_agent.py` + `review_agent.py` | dispatch 入口统一注入 `task.params.source_ids`；两 agent run 入口存 `self._task_source_ids`，检索方法消费（agent 层跨源泄漏第三入口） |
+| fix-4 | `hierarchical_context.py` + `orchestrator.py` + `agent.py` | 收敛三份 material_ids→source_ids 副本：hc `_resolve_source_filters` 转公共 + 加 `get_project_source_ids` 薄包装（单一真相源）；orchestrator `_project_source_ids` 薄壳化（删 DB 查询副本与实例缓存）；agent.py 改调公共方法 |
+| fix-5 | `local_search.py` | 存量暴露：`material.content` 列已删 → 改读 `DOCUMENTS_DIR/{id}/content.json`（fail-soft 跳过） |
+| fix-7 | `creation.py` + `AddMaterialDialog.tsx` | 删 `content_length: 0` 死字段 + 前端"大小"列与接口字段（全素材显示 0 B 误导） |
+
+验证：补 fix-1 回归单测 + 全量 pytest（基线 950）+ 前端 tsc。
+
 ## 禁区
 
 - **不碰生成主链语义**：draft_complete 准入守卫 / gated / review_pipeline / intent 路由（review-pipeline 成果，零改动）

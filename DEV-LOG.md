@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/source-scoped-knowledge
-updated_at: 2026-08-20T21:44:42+08:00
-last_commit: d9dc602
+updated_at: 2026-08-20T21:45:48+08:00
+last_commit: d8eaca1
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `d9dc602` docs: close source-scoped-knowledge (5/5 nodes done, 950 passed, ARCHITECTURE updated) (0 seconds ago)
-- `ea60291` feat(workspace): material working-area selection UI + remove endpoint (N4) (8 minutes ago)
-- `89e3135` feat(orchestrator): thread project source_ids through retrieval call sites (N3) (13 minutes ago)
-- `bf07c54` feat(kg): source-prefixed node ids + source-scoped extract dedup (N2) (27 minutes ago)
-- `0dcdc49` feat(retrieval): project source_ids filter + fix _documents_cache pollution (N1) (30 minutes ago)
-- `c2ef1ef` plan: source-scoped knowledge (project workspace materials + KG source prefix, 5 nodes) (34 minutes ago)
+- `d8eaca1` docs: devlog final state after PR #65 (0 seconds ago)
+- `d9dc602` docs: close source-scoped-knowledge (5/5 nodes done, 950 passed, ARCHITECTURE updated) (66 seconds ago)
+- `ea60291` feat(workspace): material working-area selection UI + remove endpoint (N4) (9 minutes ago)
+- `89e3135` feat(orchestrator): thread project source_ids through retrieval call sites (N3) (15 minutes ago)
+- `bf07c54` feat(kg): source-prefixed node ids + source-scoped extract dedup (N2) (28 minutes ago)
+- `0dcdc49` feat(retrieval): project source_ids filter + fix _documents_cache pollution (N1) (31 minutes ago)
+- `c2ef1ef` plan: source-scoped knowledge (project workspace materials + KG source prefix, 5 nodes) (35 minutes ago)
 - `87b0dff` docs(todo): archive #12 workspace junk (exports root-caused 361a3bb, others stale) (23 hours ago)
-- `361a3bb` fix(tests): csv export tests write to pytest tmp_path, drop leaked fixtures/exports outputs (23 hours ago)
+- `361a3bb` fix(tests): csv export tests write to pytest tmp_path, drop leaked fixtures/exports outputs (24 hours ago)
 - `a562523` Merge pull request #64 from alerlocked/feature/arch-g25a-step-prefix-fixes (24 hours ago)
-- `c2e2b2c` docs: close g25a-step-prefix-fixes (task done, PR #64 pending admin approve) (24 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
