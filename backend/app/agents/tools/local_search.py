@@ -72,12 +72,23 @@ class LocalSearchTool:
                 results = []
 
                 for material in materials:
-                    if not material.content:
+                    # Material.content column was dropped — parsed content now
+                    # lives at DOCUMENTS_DIR/{id}/content.json (N6 fix-5, the
+                    # old attribute access raised AttributeError).
+                    from app.config import settings
+                    content_path = (
+                        settings.DOCUMENTS_DIR / str(material.id) / "content.json"
+                    )
+                    try:
+                        with open(content_path, "r", encoding="utf-8") as f:
+                            content = (json.load(f) or {}).get("content", "")
+                    except Exception:
+                        continue
+                    if not content:
                         continue
 
                     # 搜索匹配的内容
                     matched_segments = []
-                    content = material.content
 
                     # 检查是否包含任何关键词
                     for keyword in keyword_list:

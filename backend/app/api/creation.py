@@ -290,8 +290,8 @@ async def get_available_materials(db: Session = Depends(get_db)):
                 "id": material.id,
                 "name": material.name,
                 "type": material.material_type,
-                # content column was dropped; length no longer tracked here
-                "content_length": 0,
+                # content_length dropped with the content column — the fake 0
+                # rendered as "0 B" for every material in the UI (N6 fix-7)
                 "created_at": material.created_at.isoformat(),
                 "folder_id": material.folder_id,
                 "model": material.model,

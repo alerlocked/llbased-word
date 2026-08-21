@@ -14,7 +14,6 @@ interface MaterialRecord {
   id: number
   name: string
   type: string
-  content_length: number
   created_at: string
   folder_id: number | null
 }
@@ -104,14 +103,6 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({
     }
   }
 
-  // 格式化文件大小
-  const formatSize = (bytes: number) => {
-    if (!bytes) return '-'
-    if (bytes < 1024) return `${bytes}B`
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
-    return `${(bytes / 1024 / 1024).toFixed(1)}MB`
-  }
-
   // 格式化日期
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('zh-CN')
@@ -175,13 +166,6 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({
           </Button>
         </div>
       )
-    },
-    {
-      title: '大小',
-      dataIndex: 'content_length',
-      key: 'content_length',
-      width: 100,
-      render: formatSize
     },
     {
       title: '创建时间',
