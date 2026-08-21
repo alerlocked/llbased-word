@@ -147,9 +147,13 @@ class ReviewAgent(BaseAgent):
             profile_data = task.get("profile")
 
             # N6 fix-3: project working-area scope injected by orchestrator
-            # dispatch (task.params.source_ids); consumed by _search_standards.
-            # None = no filtering (legacy behavior).
-            self._task_source_ids = (task.get("params") or {}).get("source_ids")
+            # dispatch. NOTE: dispatch flattens task.params into the agent
+            # task (**task.get("params")), so source_ids arrives TOP-LEVEL;
+            # the params read is a fallback for direct callers. None = no
+            # filtering (legacy behavior).
+            self._task_source_ids = task.get("source_ids") or (
+                (task.get("params") or {}).get("source_ids")
+            )
 
             if not content:
                 return {

@@ -238,3 +238,42 @@ class TestSearchKnowledgeGraphSourceFilter:
     def test_no_filter_matches_all(self, hc, fake_kg):
         text = hc._search_knowledge_graph("辅料A", 1200)
         assert "KGTEXT" in text
+
+
+class TestAgentScopeThreading:
+    """N6 fix-3 regression: dispatch injects source_ids then FLATTENS
+    task.params into the agent task (**task.get("params")) — source_ids
+    arrives TOP-LEVEL. The first cut read task["params"]["source_ids"]
+    in the agents, which the flattening makes always-None (dead code)."""
+
+    def test_dispatch_flattens_source_ids_to_top_level(self, mem_db):
+        import asyncio
+
+        with mem_db() as db:
+            db.add(CreationProject(id=21, name="p", material_ids=[2]))
+            db.commit()
+
+        from app.agents.orchestrator.orchestrator import ProcessOrchestrator
+
+        orch = ProcessOrchestrator.__new__(ProcessOrchestrator)
+        orch._collected_info = {"context": {"project_id": 21}}
+        captured: dict = {}
+
+        class FakeAgent:
+            async def process(self, agent_task):
+                captured.update(agent_task)
+                return {"success": True}
+
+        orch._agents = {"writing": FakeAgent()}
+        task = {"type": "writing", "params": {"skeleton_steps": []}}
+        result = asyncio.run(orch._dispatch_to_sub_agent(task))
+        assert result["result"]["success"] is True
+
+        # Flattened shape: source_ids is top-level, no params key survives.
+        assert captured.get("source_ids") == ["2"]
+        assert "params" not in captured
+        # Agent-side read expression matches the flattened shape.
+        assert (
+            captured.get("source_ids")
+            or (captured.get("params") or {}).get("source_ids")
+        ) == ["2"]

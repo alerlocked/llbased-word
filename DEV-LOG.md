@@ -2,16 +2,17 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/source-scoped-knowledge
-updated_at: 2026-08-21T17:59:12+08:00
-last_commit: 7ebdcb6
+updated_at: 2026-08-21T17:59:25+08:00
+last_commit: 2e2ff65
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `7ebdcb6` fix(retrieval): close source-scope leaks found in PR review (N6 fix-1..4) (1 second ago)
-- `0c496b1` plan: add N6 PR-review fixes (fallback leak / L3.5 threading / agent scope / helper dedup / local_search / content_length) (12 minutes ago)
+- `2e2ff65` fix(tools): local_search reads content.json (content col dropped); drop fake content_length field (N6 fix-5/7) (0 seconds ago)
+- `7ebdcb6` fix(retrieval): close source-scope leaks found in PR review (N6 fix-1..4) (13 seconds ago)
+- `0c496b1` plan: add N6 PR-review fixes (fallback leak / L3.5 threading / agent scope / helper dedup / local_search / content_length) (13 minutes ago)
 - `d8eaca1` docs: devlog final state after PR #65 (20 hours ago)
 - `d9dc602` docs: close source-scoped-knowledge (5/5 nodes done, 950 passed, ARCHITECTURE updated) (20 hours ago)
 - `ea60291` feat(workspace): material working-area selection UI + remove endpoint (N4) (20 hours ago)
@@ -19,7 +20,6 @@ task_state: done
 - `bf07c54` feat(kg): source-prefixed node ids + source-scoped extract dedup (N2) (21 hours ago)
 - `0dcdc49` feat(retrieval): project source_ids filter + fix _documents_cache pollution (N1) (21 hours ago)
 - `c2ef1ef` plan: source-scoped knowledge (project workspace materials + KG source prefix, 5 nodes) (21 hours ago)
-- `87b0dff` docs(todo): archive #12 workspace junk (exports root-caused 361a3bb, others stale) (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
