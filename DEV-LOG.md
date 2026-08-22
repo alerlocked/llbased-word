@@ -1,25 +1,25 @@
 ---
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
-branch: feat/source-visibility
-updated_at: 2026-08-22T20:59:36+08:00
-last_commit: 4534652
+branch: feat/source-gate
+updated_at: 2026-08-22T23:13:31+08:00
+last_commit: 30a4894
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `4534652` feat(editor): render plain-text REF appendix chapters read-only (N4) (1 second ago)
-- `d428e0a` chore(data): profile relearn with per-triple source tags (N3) (5 minutes ago)
-- `16106fc` feat(generate): append plain-text reference appendix of working-area materials (N2) (6 minutes ago)
-- `83f5ef9` feat(profile): tag triples with source_doc at learn time (N1) (14 minutes ago)
-- `b750d1b` plan: source-visibility — profile source tagging + reference appendix (sealed) (16 minutes ago)
-- `77f5cbf` docs(todo): profile-system semantics decision (cross-material experience, domain-split + source-tagged, learning frozen) (70 minutes ago)
-- `8478cb2` Merge pull request #68 from alerlocked/fix/template-driven-skeleton (2 hours ago)
-- `ddfe0e7` feat(orchestrator): template-driven chapter skeleton — material index never contributes chapters (2 hours ago)
-- `5456a53` Merge pull request #67 from alerlocked/fix/source-inject-isolation (3 hours ago)
-- `3c192d8` fix(orchestrator): source-inject isolation — doc_dir must be inside working area (3 hours ago)
+- `30a4894` plan: source-gate — data-source gate before generation (sealed) (0 seconds ago)
+- `a8f9d16` Merge pull request #70 from alerlocked/fix/project-delete-keep-materials (2 hours ago)
+- `d444799` fix(creation): project delete no longer shreds shared materials (2 hours ago)
+- `57b2367` Merge pull request #69 from alerlocked/feat/source-visibility (2 hours ago)
+- `2c0061e` docs: devlog done for source-visibility (4/4 nodes) (2 hours ago)
+- `4534652` feat(editor): render plain-text REF appendix chapters read-only (N4) (2 hours ago)
+- `d428e0a` chore(data): profile relearn with per-triple source tags (N3) (2 hours ago)
+- `16106fc` feat(generate): append plain-text reference appendix of working-area materials (N2) (2 hours ago)
+- `83f5ef9` feat(profile): tag triples with source_doc at learn time (N1) (2 hours ago)
+- `b750d1b` plan: source-visibility — profile source tagging + reference appendix (sealed) (3 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

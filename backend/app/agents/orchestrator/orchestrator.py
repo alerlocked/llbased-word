@@ -2106,7 +2106,14 @@ class ProcessOrchestrator:
                 "modification_plan": modification_plan,
                 "material_status": material_status,
                 "missing_chapters": [
-                    {"title": mc.get("title", ""), "reason": mc.get("reason", "")}
+                    # _doc_dir passed through so the API layer can gate on
+                    # source availability (source-gate: empty = no working-
+                    # area data source → must pause and ask the user)
+                    {
+                        "title": mc.get("title", ""),
+                        "reason": mc.get("reason", ""),
+                        "_doc_dir": mc.get("_doc_dir", ""),
+                    }
                     for mc in missing_chapters
                 ],
                 "confirm_options": [
