@@ -312,3 +312,21 @@ class TestAgentScopeThreading:
             captured.get("source_ids")
             or (captured.get("params") or {}).get("source_ids")
         ) == ["2"]
+
+
+class TestMissingChaptersDocDirPassthrough:
+    """source-gate N1: the requires_response payload must carry _doc_dir so
+    the API layer can gate on source availability. Empty string = sourceless."""
+
+    def test_doc_dir_passed_through(self):
+        from app.agents.orchestrator.orchestrator import ProcessOrchestrator
+        orch = ProcessOrchestrator.__new__(ProcessOrchestrator)
+        # call the dict-building through a minimal harness: emulate the return
+        # comprehension semantics by exercising the real method is heavy; the
+        # contract is tested at the integration level (agent gate). Here we
+        # pin the comprehension shape via the source to avoid drift.
+        import inspect
+        src = inspect.getsource(ProcessOrchestrator._handle_draft_complete)
+        assert '"_doc_dir": mc.get("_doc_dir", "")' in src, (
+            "missing_chapters payload must pass _doc_dir through (source-gate N1)"
+        )

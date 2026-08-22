@@ -345,6 +345,7 @@ class GenerateStreamRequest(BaseModel):
     uploaded_file_content: Optional[str] = Field(None, description="临时上传文件解析后的纯文本内容")
     uploaded_file_name: Optional[str] = Field(None, description="临时上传文件名")
     generation_mode: Optional[str] = Field(None, description="生成模式: 'generate' 全部生成, 'fill' 补齐缺失章节")
+    confirmed_missing: bool = Field(False, description="source-gate: 用户已确认在缺数据源章节以【待补】占位的情况下继续生成")
 
 
 class SelectSolutionRequest(BaseModel):
@@ -1063,37 +1064,77 @@ async def generate_stream(request: GenerateStreamRequest):
                         mat_msg = f"素材状态：充足（{doc_count} 个文档）"
                     yield f"data: {json.dumps({'type': 'progress', 'message': mat_msg}, ensure_ascii=False)}\n\n"
 
-                # Build structured analysis report as chat content
+                # Build structured analysis report as chat content.
+                # source-gate (user decision 2026-08-22): chapters are split
+                # into sourced (working-area material has data for them) vs
+                # sourceless. Sourceless chapters NEVER get AI-fabricated
+                # content — the flow must PAUSE and ask the user first.
+                sourceless = [
+                    ch for ch in missing_chapters
+                    if isinstance(ch, dict) and not ch.get("_doc_dir")
+                ]
+                sourced = [
+                    ch for ch in missing_chapters
+                    if isinstance(ch, dict) and ch.get("_doc_dir")
+                ]
+
                 analysis_lines = ["**初稿分析报告**", ""]
                 if missing_chapters:
                     analysis_lines.append(
-                        f"与知识库文档对比后，发现初稿缺失以下 {len(missing_chapters)} 个章节："
+                        f"与模板章节对比后，需补齐 {len(missing_chapters)} 个章节："
                     )
-                    for i, ch in enumerate(missing_chapters, 1):
-                        if isinstance(ch, dict):
-                            title = ch.get("title", "")
-                            reason = ch.get("reason", "")
-                            analysis_lines.append(f"{i}. {title}（{reason}）" if reason else f"{i}. {title}")
-                        else:
-                            analysis_lines.append(f"{i}. {ch}")
-                    # Material status note
-                    if material_status and material_status.get("has_documents"):
+                    if sourced:
                         analysis_lines.append("")
-                        analysis_lines.append(f"当前知识库有 {material_status.get('document_count', 0)} 个参考文档，可直接用于生成。无需补充新材料。")
-                    elif material_status and not material_status.get("has_documents"):
+                        analysis_lines.append(f"✅ 有数据源章节 {len(sourced)} 个（将从所选素材提取原文生成）：")
+                        for i, ch in enumerate(sourced, 1):
+                            analysis_lines.append(f"  {i}. {ch.get('title', '')}")
+                    if sourceless:
                         analysis_lines.append("")
-                        if missing_chapters:
-                            analysis_lines.append(f"未选择额外参考素材，将基于知识库已解析文档生成 {len(missing_chapters)} 个章节。")
+                        if len(sourceless) == len(missing_chapters):
+                            analysis_lines.append("⚠️ 全部章节在所选素材中都没有数据源。")
                         else:
-                            analysis_lines.append("⚠ 知识库暂无可用文档，生成内容可能不够准确。建议先上传相关标准文档到素材库。")
-                    # Implementation plan
-                    analysis_lines.append("")
-                    analysis_lines.append(f"**实施计划**：将逐章从知识库原文中提取对应内容，并行生成 {len(missing_chapters)} 个缺失章节，确保参数、代号、材料名称与原文一致。")
+                            analysis_lines.append(f"⚠️ 无数据源章节 {len(sourceless)} 个（所选素材中没有对应内容）：")
+                        for i, ch in enumerate(sourceless, 1):
+                            analysis_lines.append(f"  {i}. {ch.get('title', '')}")
+                        analysis_lines.append("")
+                        analysis_lines.append(
+                            "继续生成时，无数据源章节将以【待补】占位，内容不会由 AI 编写。"
+                            "如需完整内容，请先在素材库上传并勾选包含这些章节的素材。"
+                        )
+                    # Implementation plan (only honest for sourced chapters)
+                    if sourced and not sourceless:
+                        analysis_lines.append("")
+                        analysis_lines.append(f"**实施计划**：逐章从所选素材原文提取，并行生成 {len(sourced)} 个章节。")
+                    elif sourced and sourceless:
+                        analysis_lines.append("")
+                        analysis_lines.append(f"**实施计划**：{len(sourced)} 个有源章节从素材原文提取；{len(sourceless)} 个无源章节【待补】。")
                 else:
                     analysis_lines.append("初稿章节基本完整，将进行内容优化。")
 
                 yield f"data: {json.dumps({'type': 'content', 'content': chr(10).join(analysis_lines)}, ensure_ascii=False)}\n\n"
-                logger.info(f"[draft_complete] 分析报告已发送, missing_chapters={len(missing_chapters)}")
+                logger.info(
+                    f"[draft_complete] 分析报告已发送, missing={len(missing_chapters)}, "
+                    f"sourced={len(sourced)}, sourceless={len(sourceless)}, confirmed={request.confirmed_missing}",
+                )
+
+                # source-gate: sourceless chapters and no user confirmation yet
+                # → STOP. Never auto-confirm (the 2026-05-23 auto-confirm
+                # short-circuit shredded this gate for three months).
+                if sourceless and not request.confirmed_missing:
+                    yield f"data: {json.dumps({
+                        'type': 'confirm_request',
+                        'interaction': 'missing_source_confirm',
+                        'sourceless_chapters': [ch.get('title', '') for ch in sourceless],
+                        'sourced_count': len(sourced),
+                        'confirm_action': 'resend_with_confirmed_missing',
+                    }, ensure_ascii=False)}\n\n"
+                    _persist_turn(
+                        session_id, request.project_id, user_input,
+                        content=chr(10).join(analysis_lines),
+                        intent_type=intent_type,
+                    )
+                    logger.info("[draft_complete] source-gate 停车：无数据源章节待用户确认")
+                    return
 
                 # Signal a new message section before execution starts
                 yield f"data: {json.dumps({'type': 'content_section'}, ensure_ascii=False)}\n\n"

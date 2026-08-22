@@ -42,6 +42,7 @@
   - **G25a per-row 并行 + content 编号后处理**(2026-07-26 g25a-step-numbering):`_generate_g25a_per_row_parallel`(`writing_agent.py`)每工序一个 LLM call(Semaphore(4) 并发,避 max_tokens 截断 + 聚焦单工序质量);content slot 返回前 `re.sub` 行首 `N.M` 编号第一段强制 = 工序号 i(防 LLM 照抄原文编号——工序9 显 1.1 → 9.1;嵌套编号/无编号续行不动)。教训:LLM 结构化生成的编号/格式约束光靠 prompt 拉不住,要后处理兜底。详见 `exp-g25a-step-numbering`。
     - **工序名程序化前置**(2026-08-19 g25a-step-prefix-fixes):编号后处理之后 `_g25a_prefix_content` 把 `f"{工序名}：\n"`(skel[i-1] G19a 真工序名)拼到 content 头,不问 LLM(prompt「可点题」被跳过的根治);strip 串首同名前缀防重复;`_fallback_slots` 降级路径同拼。
 - 倒推(`orchestrator._derive_strong_node`):G25a → G18a/G14a 等配套表;G18a 走 catalog enrich(`_enrich_names_from_catalog`,代号→名称 exact 查纠错位/填待补)。
+- **数据源门控 source-gate**(2026-08-22,替代 2026-05-23 auto-confirm 短路):draft_complete 分析后按 `_doc_dir` 分栏——存在无数据源章节且请求未带 `confirmed_missing` → 发如实报告 + `confirm_request` SSE 后**停车**(不调 continue_conversation,零生成);前端确认卡片重发原 body+`confirmed_missing=true` 才执行。无源章节 task 带 `source_missing`(params 展平穿透 dispatch 白名单)→ writing_agent 路由早退,全槽【待补】占位,**零 LLM 调用**(宁缺毋滥,用户定)。数据源齐全 → 直通无确认。
 - 无 source 章节 / chat → HierarchicalContext 兜底。
 
 ## 4. 上下文 + 检索

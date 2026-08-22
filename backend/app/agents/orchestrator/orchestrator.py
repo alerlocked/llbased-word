@@ -775,7 +775,7 @@ class ProcessOrchestrator:
 
                 # Pass template fields for structured JSON output
                 for key in ("template_slots", "chapter_code", "chapter_type",
-                            "chapter_title", "ai_guidance"):
+                            "chapter_title", "ai_guidance", "source_missing"):
                     if key in task:
                         agent_task[key] = task[key]
 
@@ -2106,7 +2106,14 @@ class ProcessOrchestrator:
                 "modification_plan": modification_plan,
                 "material_status": material_status,
                 "missing_chapters": [
-                    {"title": mc.get("title", ""), "reason": mc.get("reason", "")}
+                    # _doc_dir passed through so the API layer can gate on
+                    # source availability (source-gate: empty = no working-
+                    # area data source → must pause and ask the user)
+                    {
+                        "title": mc.get("title", ""),
+                        "reason": mc.get("reason", ""),
+                        "_doc_dir": mc.get("_doc_dir", ""),
+                    }
                     for mc in missing_chapters
                 ],
                 "confirm_options": [
@@ -2885,6 +2892,21 @@ class ProcessOrchestrator:
                     },
                     "generate_doc": False,
                 }
+
+                # source-gate N3: a chapter with NO working-area data source
+                # is never AI-fabricated. Tag it — WritingAgent short-circuits
+                # to a 待补 placeholder (zero LLM). The gate upstream already
+                # made the user confirm this outcome explicitly.
+                _mc_doc_dir = ""
+                for _mc in self._collected_info.get("missing_chapters", []):
+                    if _mc.get("title") == title:
+                        _mc_doc_dir = _mc.get("_doc_dir", "")
+                        break
+                if not _mc_doc_dir:
+                    # Top-level AND params: dispatch whitelists keys, params
+                    # get flattened — belt and braces so the flag survives.
+                    task["source_missing"] = True
+                    task.setdefault("params", {})["source_missing"] = True
 
                 # Inject template slots for structured JSON output
                 tmpl_info = (chapter_template_map or {}).get(title)

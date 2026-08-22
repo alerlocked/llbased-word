@@ -1,28 +1,31 @@
 ---
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
-branch: feat/source-visibility
-updated_at: 2026-08-22T20:59:36+08:00
-last_commit: 4534652
+branch: feat/source-gate
+updated_at: 2026-08-22T23:52:23+08:00
+last_commit: e86b55b
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `4534652` feat(editor): render plain-text REF appendix chapters read-only (N4) (1 second ago)
-- `d428e0a` chore(data): profile relearn with per-triple source tags (N3) (5 minutes ago)
-- `16106fc` feat(generate): append plain-text reference appendix of working-area materials (N2) (6 minutes ago)
-- `83f5ef9` feat(profile): tag triples with source_doc at learn time (N1) (14 minutes ago)
-- `b750d1b` plan: source-visibility — profile source tagging + reference appendix (sealed) (16 minutes ago)
-- `77f5cbf` docs(todo): profile-system semantics decision (cross-material experience, domain-split + source-tagged, learning frozen) (70 minutes ago)
-- `8478cb2` Merge pull request #68 from alerlocked/fix/template-driven-skeleton (2 hours ago)
-- `ddfe0e7` feat(orchestrator): template-driven chapter skeleton — material index never contributes chapters (2 hours ago)
-- `5456a53` Merge pull request #67 from alerlocked/fix/source-inject-isolation (3 hours ago)
-- `3c192d8` fix(orchestrator): source-inject isolation — doc_dir must be inside working area (3 hours ago)
+- `e86b55b` fix(gate): source_missing flag survives dispatch (params flatten + whitelist key) (0 seconds ago)
+- `0b97927` feat(ui): source-gate confirm card — continue (sourceless→待补) or cancel (N4) (30 minutes ago)
+- `57fe3fc` feat(generate): sourceless chapters become 待补 placeholders, zero LLM (N3) (34 minutes ago)
+- `5864746` feat(agent): source-gate — pause and ask before generating sourceless chapters (N2) (36 minutes ago)
+- `70e120b` feat(orchestrator): pass _doc_dir through in draft_complete payload (N1) (37 minutes ago)
+- `30a4894` plan: source-gate — data-source gate before generation (sealed) (39 minutes ago)
+- `a8f9d16` Merge pull request #70 from alerlocked/fix/project-delete-keep-materials (2 hours ago)
+- `d444799` fix(creation): project delete no longer shreds shared materials (2 hours ago)
+- `57b2367` Merge pull request #69 from alerlocked/feat/source-visibility (3 hours ago)
+- `2c0061e` docs: devlog done for source-visibility (4/4 nodes) (3 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+
+- **完成（source-gate，2026-08-22 开 23 日凌晨收，PLAN `30a4894` seal，分支 feat/source-gate）**: 生成前数据源门控——2026-05-23 `07b060e` 的 auto-confirm 短路（当时前端无确认交互）被拆，恢复状态机"停车等确认"本意。用户拍板：素材不齐（模板章节工作区无源）必须停+反馈用户；确认后无源章节全【待补】零 LLM（宁缺毋滥）；齐全直通。5 节点：N1 ✅ `70e120b` _doc_dir 透传；N2 ✅ `5864746` agent.py 门控分流（sourceless 未确认→confirm_request+return 零生成；报告如实分栏 有源N/无源M）+ `confirmed_missing` 字段；N3 ✅ `57fe3fc` task 打 source_missing + writing_agent 早退待补（+e86b55b dispatch 白名单丢键修复——路2实测抓到 G25a 仍编造，flag 双放 params+顶层）；N4 ✅ `0b97927` 前端确认卡片（缓存 body 重发自包含+取消）；N5 ✅ ARCHITECTURE §3 门控节。**验证**：962 passed 0 回归 + tsc 0 错 + 真实三路——路1 勾摩托车素材 generate=10 章全无源→停车 confirm_request 清单完整零生成 ✓；路2 confirmed 重发=10 章全待补零编造 ✓；路3 有源直通=弹体素材解析恢复后补验（素材1的解析产物在修复部署前窗口被旧删除逻辑连坐删，从 `data/process_docs` 底件重传恢复为 material 3，重学归位）。**task_state: done。**
+
 
 - **完成（source-visibility，2026-08-22 开/收，PLAN `b750d1b` seal，分支 feat/source-visibility）**: 画像来源标注 + 生成产物附参考资料。用户拍板语义：画像=跨素材通用经验（取用不过滤、来源仅溯源）/ 参考资料纯文字不走模板 / 存量清空重学。4 节点：N1 ✅ `83f5ef9` learn_from_content 组装层统一给 triples 打 `source_doc`（+2 测试，穿透提取函数的最小路径）；N2 ✅ `16106fc` agent.py 三条产物组装路径（no-md template / template+md / 纯 md）末尾附 REF 参考资料章节（工作区素材名文字块，空区不附 fail-soft）；N3 ✅ `d428e0a` 画像清空重学（29 条 triples 来源归位：弹体 23 / 摩托车 6，principles 11 条保留）；N4 ✅ `4534652` 前端 text 渲染分支——**Explore 推断的挂点（ChapterTableEditor）不是真分发点，Playwright 实测发现走 ProcessTableEditor"暂无数据"空态，实证后加对位置**。验证：全量 958 passed 0 回归 + tsc 0 错 + 真实生成（project 3 勾素材 2）产物含 REF 章节素材名正确 + 前端 DOM 渲染确认（截图 .test-runs/source-visibility/）。**task_state: done。**
 
