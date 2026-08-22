@@ -203,6 +203,41 @@ class TestProjectSourceIds:
         assert orch._project_source_ids() is None
 
 
+class TestDocDirWorkingAreaGuard:
+    """source-inject-isolation (2026-08-22): every source-driven injection
+    point must only consume a doc_dir inside the project working area —
+    no silent cross-material borrowing (missile steps into a motorcycle
+    project)."""
+
+    @staticmethod
+    def _bare_orchestrator():
+        from app.agents.orchestrator.orchestrator import ProcessOrchestrator
+
+        orch = ProcessOrchestrator.__new__(ProcessOrchestrator)
+        orch._collected_info = {}
+        return orch
+
+    def test_no_filter_allows_any_doc(self):
+        orch = self._bare_orchestrator()
+        assert orch._doc_dir_in_working_area("1") is True
+
+    def test_outside_working_area_rejected(self, mem_db):
+        with mem_db() as db:
+            db.add(CreationProject(id=30, name="p", material_ids=[2]))
+            db.commit()
+        orch = self._bare_orchestrator()
+        orch._collected_info = {"context": {"project_id": 30}}
+        assert orch._doc_dir_in_working_area("1") is False  # cross-source borrow
+        assert orch._doc_dir_in_working_area("2") is True
+        assert orch._doc_dir_in_working_area("") is False
+
+    def test_missing_project_falls_back_open(self):
+        # project not found → None filter → open (documented convention)
+        orch = self._bare_orchestrator()
+        orch._collected_info = {"context": {"project_id": 999}}
+        assert orch._doc_dir_in_working_area("1") is True
+
+
 class TestSearchKnowledgeGraphSourceFilter:
     """_search_knowledge_graph seed filtering by "{doc_id}::" prefix (N3)."""
 
