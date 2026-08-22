@@ -112,6 +112,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   const [originalInput, setOriginalInput] = useState<string>('')
   // 当前模式（qa 或 write）- 使用 useRef 避免异步更新问题
   const currentModeRef = useRef<'qa' | 'write'>('write')
+
+  // source-gate (2026-08-22): cache the last generate-stream body so the
+  // "continue anyway" button can RESEND it verbatim + confirmed_missing —
+  // the confirm round must be self-contained (same draft/upload/mode).
+  const lastGenerateBodyRef = useRef<Record<string, unknown> | null>(null)
+  const sourceGateConfirmResendRef = useRef(false)
+  const [sourceGateDismissed, setSourceGateDismissed] = useState<Set<Message>>(new Set())
   // Editor content from AI response (content after ---EDITOR--- marker)
   const editorContentRef = useRef<string>('')
   
@@ -461,12 +468,15 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
       return
     }
 
-    if ((!inputText.trim() && !generationMode) || !projectId) return
+    // source-gate 确认重发：绕过空输入检查（确认文案在 ref 路径里，state 尚未刷新）
+    const isGateResend = sourceGateConfirmResendRef.current
+
+    if (!isGateResend && ((!inputText.trim() && !generationMode) || !projectId)) return
 
     // 选区引用拼装：非 generate/fill 模式时，把选区作为引用块并入 user_input（Cursor 式）
     // generate/fill 模式语义是全量生成/补齐，选区无意义，不拼（守卫）
     const isSelectionMode = generationMode !== 'generate' && generationMode !== 'fill'
-    const rawInput = inputText.trim()
+    const rawInput = isGateResend ? '确认继续生成（缺源章节将待补）' : inputText.trim()
     let userInput = rawInput
     if (selectedText && isSelectionMode) {
       const quoted = selectedText.slice(0, 2000)
@@ -523,10 +533,18 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
         }
       }
       
-      const response = await fetch('http://localhost:8000/api/agent/generate-stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // source-gate: confirm round replays the cached body verbatim with
+      // confirmed_missing=true (self-contained resend); normal round caches.
+      let generateBody: Record<string, unknown>
+      if (sourceGateConfirmResendRef.current) {
+        generateBody = {
+          ...(lastGenerateBodyRef.current || {}),
+          confirmed_missing: true,
+          user_input: userInput,
+        }
+        sourceGateConfirmResendRef.current = false
+      } else {
+        generateBody = {
           user_input: userInput,
           user_id: 1,
           project_id: projectId,
@@ -550,7 +568,14 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             role: m.role,
             content: typeof m.content === 'string' ? m.content.slice(0, 500) : '',
           }))  // 注入最近10条对话历史
-        }),
+        }
+        lastGenerateBodyRef.current = generateBody
+      }
+
+      const response = await fetch('http://localhost:8000/api/agent/generate-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(generateBody),
         signal: controller.signal  // 支持取消请求
       })
 
@@ -678,6 +703,22 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                 updateActiveMessages([...messages, userMsg, updatedAssistant])
                 setLoading(false)
                 return // 暂停，等待用户回复
+              } else if (data.type === 'confirm_request' && data.interaction === 'missing_source_confirm') {
+                // source-gate: sourceless chapters exist — pause for user
+                // confirmation. NO generation happens until the user picks
+                // 继续（缺源章节将以【待补】占位）.
+                const updatedAssistant: Message = {
+                  ...assistantMsg,
+                  content: contentAccumulator,
+                  isStreaming: false,
+                  sourceGateConfirm: {
+                    chapters: Array.isArray(data.sourceless_chapters) ? data.sourceless_chapters : [],
+                    sourcedCount: typeof data.sourced_count === 'number' ? data.sourced_count : 0,
+                  },
+                } as any
+                updateActiveMessages([...messages, userMsg, updatedAssistant])
+                setLoading(false)
+                return
               } else if (data.type === 'plan_options') {
                 // 收到计划选项，显示计划选项列表
                 const options = Array.isArray(data.plan_options) ? data.plan_options : []
@@ -1178,6 +1219,41 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
                       }
                     }}
                   />
+                </div>
+              )}
+              {/* source-gate 确认卡片：无数据源章节存在，等用户决定（绝不自动生成） */}
+              {(msg as any).sourceGateConfirm && !sourceGateDismissed.has(msg) && (
+                <div style={{
+                  marginTop: 16, padding: 16, borderRadius: 12,
+                  border: '1px solid #faad14', background: '#fffbe6',
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                    ⚠️ {(msg as any).sourceGateConfirm.chapters.length} 个章节在所选素材中没有数据源
+                  </div>
+                  <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 12 }}>
+                    继续生成时这些章节将以【待补】占位（内容不由 AI 编写）；
+                    {(msg as any).sourceGateConfirm.sourcedCount > 0
+                      ? `其余 ${(msg as any).sourceGateConfirm.sourcedCount} 个有源章节正常从素材提取。`
+                      : '如需完整内容，请先在素材库上传并勾选对应素材。'}
+                  </div>
+                  <Space>
+                    <Button
+                      type="primary"
+                      size="small"
+                      onClick={() => {
+                        sourceGateConfirmResendRef.current = true
+                        setInputText('确认继续生成（缺源章节将待补）')
+                        handleGenerate()
+                      }}
+                    >
+                      继续生成（缺源章节将待补）
+                    </Button>
+                    <Button size="small" onClick={() => {
+                      setSourceGateDismissed(prev => new Set(prev).add(msg))
+                    }}>
+                      取消
+                    </Button>
+                  </Space>
                 </div>
               )}
               {/* 如果有计划选项，显示计划选项列表 */}
