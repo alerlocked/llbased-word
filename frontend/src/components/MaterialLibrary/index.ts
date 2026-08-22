@@ -6,5 +6,3 @@ export type { FolderNode } from './FolderTree'
 
 export { default as FileList } from './FileList'
 export type { MaterialFile } from './FileList'
-
-export { default as KnowledgeScopeSelector } from './KnowledgeScopeSelector'

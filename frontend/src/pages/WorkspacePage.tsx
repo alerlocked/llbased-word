@@ -100,6 +100,26 @@ const WorkspacePage: React.FC = () => {
   const [leftSidePanel, setLeftSidePanel] = useState<string | null>(null)
   const [materialDrawerTab, setMaterialDrawerTab] = useState<string | undefined>(undefined)
 
+  // Working-area size for the current project (N6 gate: empty → AI input locked).
+  // Refreshed on project switch and after MaterialDrawer toggles.
+  const [workingAreaCount, setWorkingAreaCount] = useState<number>(0)
+  const fetchWorkingAreaCount = useCallback(async () => {
+    if (!currentProjectId) return
+    try {
+      const resp = await fetch(`http://localhost:8000/api/creation/projects/${currentProjectId}/materials`)
+      if (resp.ok) {
+        const data = await resp.json()
+        setWorkingAreaCount((data.selected_material_ids || []).length)
+      }
+    } catch {
+      // fail-open: backend unreachable shouldn't lock the input box
+    }
+  }, [currentProjectId])
+
+  useEffect(() => {
+    fetchWorkingAreaCount()
+  }, [fetchWorkingAreaCount])
+
   // AI交互状态
   const [_selectedText, _setSelectedText] = useState('')
 
@@ -760,6 +780,7 @@ const WorkspacePage: React.FC = () => {
             onInsert={handleInsertToEditor}
             defaultTab={materialDrawerTab}
             inline={true}
+            onWorkingAreaChange={fetchWorkingAreaCount}
           />
         )}
         {leftSidePanel === 'settings' && (
@@ -937,6 +958,8 @@ const WorkspacePage: React.FC = () => {
               onDirectInsert={handleDirectInsert}
               onPreviewContent={handlePreviewContent}
               onClearSelectedText={() => _setSelectedText('')}
+              workingAreaEmpty={currentProjectId != null && workingAreaCount === 0}
+              onOpenMaterials={() => setLeftSidePanel('materials')}
             />
           </div>
         </div>

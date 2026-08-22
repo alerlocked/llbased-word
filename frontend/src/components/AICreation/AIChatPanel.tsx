@@ -4,7 +4,7 @@
  * 温暖黄色系视觉风格
  */
 import { useState, useEffect, useRef } from 'react'
-import { Input, Button, Space, message, Spin, Drawer, List, Typography, Popconfirm, Collapse, Upload, Tag } from 'antd'
+import { Input, Button, Space, message, Spin, Drawer, List, Typography, Popconfirm, Collapse, Upload, Tag, Modal } from 'antd'
 import { CopyOutlined, PlusOutlined, RocketOutlined, HistoryOutlined, DeleteOutlined, MenuFoldOutlined, MessageOutlined, StopOutlined, PaperClipOutlined, CloseOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useCreationStore, Message } from '../../stores/creationStore'
 import { colors } from '../../styles/design-tokens'
@@ -37,6 +37,11 @@ interface AIChatPanelProps {
   }>
   /** 清除选区引用（点引用标签 × 时调用） */
   onClearSelectedText?: () => void
+  /** N6 gate: true when the project working area has no material selected —
+   *  AI input is locked until the user picks materials (no silent full retrieval) */
+  workingAreaEmpty?: boolean
+  /** Open the material library panel (used by the gate modal's CTA) */
+  onOpenMaterials?: () => void
 }
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({
@@ -48,6 +53,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
   onClose,
   selectedMaterials = [],
   onClearSelectedText,
+  workingAreaEmpty = false,
+  onOpenMaterials,
 }) => {
   const { 
     getProjectState, 
@@ -66,6 +73,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
 
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
+  // N6 gate modal: shown when the user tries to type/send with an empty working area
+  const [gateModalOpen, setGateModalOpen] = useState(false)
   // 'fill' = fill missing chapters (empty doc auto-falls-back to full generation on the
   // backend), null = free chat. 'generate' union kept for backend contract compat.
   const [generationMode, setGenerationMode] = useState<'generate' | 'fill' | null>(null)
@@ -1280,6 +1289,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             size="small"
             className={generationMode === 'fill' ? 'mode-btn-active' : undefined}
             onClick={() => {
+              if (workingAreaEmpty) {
+                setGateModalOpen(true)
+                return
+              }
               setGenerationMode(generationMode === 'fill' ? null : 'fill')
             }}
             disabled={loading}
@@ -1319,27 +1332,47 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
             </Tag>
           </div>
         )}
-        {/* Input + Send row */}
-        <Space.Compact style={{ width: '100%' }}>
+        {/* Input + Send row — locked when the working area is empty (N6 gate:
+            no silent full-knowledge retrieval; click explains and points to materials).
+            readOnly (not disabled) so the click still lands and opens the modal. */}
+        <Space.Compact
+          style={{ width: '100%', ...(workingAreaEmpty ? { opacity: 0.6, cursor: 'pointer' } : {}) }}
+        >
           <TextArea
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             placeholder={
-              generationMode === 'fill'
-                ? '补齐模式：自动检测并补充缺失章节（空文档将完整生成）...'
-                : '描述你的工艺文件需求，例如：编写一份电缆装配工艺规程...'
+              workingAreaEmpty
+                ? '请先在素材库勾选素材，再输入工艺需求...'
+                : generationMode === 'fill'
+                  ? '补齐模式：自动检测并补充缺失章节（空文档将完整生成）...'
+                  : '描述你的工艺文件需求，例如：编写一份电缆装配工艺规程...'
             }
             autoSize={{ minRows: 3, maxRows: 6 }}
+            readOnly={workingAreaEmpty}
+            onClick={() => workingAreaEmpty && setGateModalOpen(true)}
             onPressEnter={e => {
-              if (e.ctrlKey || e.metaKey) handleGenerate()
+              if (e.ctrlKey || e.metaKey) {
+                if (workingAreaEmpty) {
+                  setGateModalOpen(true)
+                  return
+                }
+                handleGenerate()
+              }
             }}
-            style={{ borderRadius: '12px 0 0 12px' }}
+            style={{ borderRadius: '12px 0 0 12px', ...(workingAreaEmpty ? { cursor: 'pointer' } : {}) }}
           />
           <Button
             type="primary"
             loading={loading && !streamController}
-            onClick={handleGenerate}
-            disabled={(!inputText.trim() && !generationMode && !loading) || !projectId}
+            onClick={() => {
+              if (workingAreaEmpty) {
+                setGateModalOpen(true)
+                return
+              }
+              handleGenerate()
+            }}
+            disabled={workingAreaEmpty || (!inputText.trim() && !generationMode && !loading) || !projectId}
             danger={loading}
             style={{
               height: 'auto',
@@ -1356,6 +1389,33 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({
           按 Ctrl+Enter 快捷发送
         </div>
       </div>
+
+      {/* N6 gate modal: empty working area → must pick materials first */}
+      <Modal
+        open={gateModalOpen}
+        onCancel={() => setGateModalOpen(false)}
+        title="请先勾选素材"
+        footer={[
+          <Button key="cancel" onClick={() => setGateModalOpen(false)}>
+            稍后再说
+          </Button>,
+          <Button
+            key="go"
+            type="primary"
+            onClick={() => {
+              setGateModalOpen(false)
+              onOpenMaterials?.()
+            }}
+          >
+            去素材库勾选
+          </Button>,
+        ]}
+      >
+        <p style={{ margin: 0, lineHeight: 1.8 }}>
+          当前项目的工作区域还没有勾选任何素材。为避免检索范围不清、生成内容来源不明，
+          请先在左侧素材库勾选本次工作要用的素材（可单个勾选或整组勾选），勾选完成后即可输入需求生成。
+        </p>
+      </Modal>
 
       {/* 历史记录抽屉 */}
       <Drawer
