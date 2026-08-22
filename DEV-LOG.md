@@ -1,25 +1,25 @@
 ---
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
-branch: main
-updated_at: 2026-08-22T19:49:34+08:00
-last_commit: 77f5cbf
+branch: feat/source-visibility
+updated_at: 2026-08-22T20:43:33+08:00
+last_commit: b750d1b
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `77f5cbf` docs(todo): profile-system semantics decision (cross-material experience, domain-split + source-tagged, learning frozen) (0 seconds ago)
-- `8478cb2` Merge pull request #68 from alerlocked/fix/template-driven-skeleton (56 minutes ago)
-- `ddfe0e7` feat(orchestrator): template-driven chapter skeleton — material index never contributes chapters (56 minutes ago)
-- `5456a53` Merge pull request #67 from alerlocked/fix/source-inject-isolation (84 minutes ago)
-- `3c192d8` fix(orchestrator): source-inject isolation — doc_dir must be inside working area (84 minutes ago)
-- `4cd7f83` docs(todo): 8-22 evening findings — dual-instance root cause, deleted-project request leak, result-extract chain break (2 hours ago)
-- `632ab83` docs: devlog sync point (3 hours ago)
-- `34a464a` chore(data): clean profile relearn — drop test-data KG leftovers, keep seed principles (3 hours ago)
-- `7c812fa` docs: devlog refresh (4 hours ago)
-- `e16b647` chore(data): devlog refresh + assembly profile after motorcycle material learn (4 hours ago)
+- `b750d1b` plan: source-visibility — profile source tagging + reference appendix (sealed) (0 seconds ago)
+- `77f5cbf` docs(todo): profile-system semantics decision (cross-material experience, domain-split + source-tagged, learning frozen) (54 minutes ago)
+- `8478cb2` Merge pull request #68 from alerlocked/fix/template-driven-skeleton (2 hours ago)
+- `ddfe0e7` feat(orchestrator): template-driven chapter skeleton — material index never contributes chapters (2 hours ago)
+- `5456a53` Merge pull request #67 from alerlocked/fix/source-inject-isolation (2 hours ago)
+- `3c192d8` fix(orchestrator): source-inject isolation — doc_dir must be inside working area (2 hours ago)
+- `4cd7f83` docs(todo): 8-22 evening findings — dual-instance root cause, deleted-project request leak, result-extract chain break (3 hours ago)
+- `632ab83` docs: devlog sync point (4 hours ago)
+- `34a464a` chore(data): clean profile relearn — drop test-data KG leftovers, keep seed principles (4 hours ago)
+- `7c812fa` docs: devlog refresh (5 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

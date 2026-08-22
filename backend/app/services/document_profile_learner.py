@@ -96,6 +96,12 @@ class DocumentProfileLearner:
             )
         if not skip_llm_validate:
             _triples = await self._llm_validate_triples(_triples)
+        # source-visibility: tag every triple with its origin material. Profile
+        # entries are cross-material shared experience (user decision); the
+        # tag is for provenance/management only, never a retrieval filter.
+        if document_id:
+            for t in _triples:
+                t.setdefault("source_doc", document_id)
         features["triples"] = _triples
 
         # 2. Extract term frequency (supplementary)
