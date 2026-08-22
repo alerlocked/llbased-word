@@ -3,7 +3,7 @@
  * Integrated upload, file management, and knowledge scope
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Drawer, Upload, Button, message, Tabs, Divider, Modal, Spin, Tag, Progress, Alert } from 'antd'
+import { Drawer, Upload, Button, message, Tabs, Modal, Spin, Progress, Alert } from 'antd'
 import {
   CloudUploadOutlined,
   DatabaseOutlined,
@@ -17,12 +17,10 @@ import type { UploadProps } from 'antd'
 import { colors } from '../../styles/design-tokens'
 import FolderTree, { FolderNode } from '../MaterialLibrary/FolderTree'
 import FileList, { MaterialFile } from '../MaterialLibrary/FileList'
-import KnowledgeScopeSelector from '../MaterialLibrary/KnowledgeScopeSelector'
 
 const { Dragger } = Upload
 
 const API_BASE = 'http://localhost:8000/api/creation'
-const SCOPE_STORAGE_KEY = 'knowledge_scope_selection'
 const POLL_INTERVAL = 2000
 
 interface MaterialDrawerProps {
@@ -34,6 +32,8 @@ interface MaterialDrawerProps {
   defaultTab?: string
   /** When true, render as inline panel instead of floating Drawer */
   inline?: boolean
+  /** Notify parent after a working-area toggle succeeded (N6: gate AI input) */
+  onWorkingAreaChange?: () => void
 }
 
 // Convert flat API folder tree to FolderNode[] for FolderTree component
@@ -59,13 +59,13 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
   projectId,
   onInsert,
   defaultTab,
-  inline = false
+  inline = false,
+  onWorkingAreaChange,
 }) => {
   const [materials, setMaterials] = useState<MaterialFile[]>([])
   const [loading, setLoading] = useState(false)
   const [folders, setFolders] = useState<FolderNode[]>([])
   const [selectedFolder, setSelectedFolder] = useState<string>('root')
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState(defaultTab || 'files')
 
   // preview state
@@ -109,7 +109,6 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     if (visible) {
       loadFolders()
       fetchMaterials()
-      loadSelectedScopes()
     }
   }, [visible])
 
@@ -241,19 +240,6 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     if (!resp.ok) throw new Error('删除失败')
     await loadFolders()
     await fetchMaterials()
-  }
-
-  // --- Knowledge scope ---
-
-  const loadSelectedScopes = () => {
-    const saved = localStorage.getItem(SCOPE_STORAGE_KEY)
-    if (saved) {
-      try {
-        setSelectedScopes(JSON.parse(saved))
-      } catch {
-        // use default
-      }
-    }
   }
 
   // --- Materials ---
@@ -434,6 +420,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
         })
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       }
+      onWorkingAreaChange?.()
     } catch {
       message.error(isSelected ? '移出工作区域失败' : '加入工作区域失败')
       fetchMaterials()
@@ -484,6 +471,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       }
       message.success(allSelected ? '整组已移出工作区域' : `已加入工作区域 ${targets.length} 个文件`)
+      onWorkingAreaChange?.()
     } catch {
       message.error('整组操作失败')
       fetchMaterials()
@@ -616,19 +604,6 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
     }
     traverse(folders)
     return result
-  }
-
-  const getScopeFolders = () => {
-    return folders.map(f => ({
-      key: f.key,
-      title: f.title,
-      count: materials.filter(m => m.folderId === f.key).length,
-      children: f.children?.map(c => ({
-        key: c.key,
-        title: c.title,
-        count: materials.filter(m => m.folderId === c.key).length
-      }))
-    }))
   }
 
   const formatRemainingTime = (seconds: number): string => {
@@ -836,49 +811,6 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
         </span>
       ),
       children: uploadTabContent
-    },
-    {
-      key: 'scope',
-      label: (
-        <span>
-          <DatabaseOutlined />
-          知识库范围
-        </span>
-      ),
-      children: (
-        <div style={{ padding: 16 }}>
-          <p style={{
-            color: colors.textSecondary,
-            marginBottom: 16,
-            fontSize: 13
-          }}>
-            选择 AI 检索时使用的知识库范围。只有选中的文件夹中的内容会被用于检索。
-          </p>
-          <KnowledgeScopeSelector
-            folders={getScopeFolders()}
-            selectedScopes={selectedScopes}
-            onChange={(scopes) => {
-              setSelectedScopes(scopes)
-              localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(scopes))
-            }}
-          />
-          <Divider />
-          <div style={{
-            padding: 12,
-            background: colors.bgTertiary,
-            borderRadius: 8,
-            fontSize: 12,
-            color: colors.textSecondary
-          }}>
-            <strong style={{ color: colors.textPrimary }}>使用提示：</strong>
-            <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
-              <li>选择需要检索的文件夹</li>
-              <li>AI 对话时只会从选中的知识库中检索</li>
-              <li>选择越精确，检索结果越准确</li>
-            </ul>
-          </div>
-        </div>
-      )
     }
   ]
 
