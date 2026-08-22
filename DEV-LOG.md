@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feature/workspace-empty-gate
-updated_at: 2026-08-22T14:15:51+08:00
-last_commit: 629d83d
+updated_at: 2026-08-22T15:15:50+08:00
+last_commit: a60dfa9
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `629d83d` feat(ui): remove fake knowledge-scope tab + gate AI input on empty working area (0 seconds ago)
-- `c6ce06a` Merge pull request #65 from alerlocked/feature/source-scoped-knowledge (20 hours ago)
-- `77a16b7` fix(agents): read source_ids top-level — dispatch flattens params (N6 fix-3 follow-up) (20 hours ago)
-- `2e2ff65` fix(tools): local_search reads content.json (content col dropped); drop fake content_length field (N6 fix-5/7) (20 hours ago)
-- `7ebdcb6` fix(retrieval): close source-scope leaks found in PR review (N6 fix-1..4) (20 hours ago)
-- `0c496b1` plan: add N6 PR-review fixes (fallback leak / L3.5 threading / agent scope / helper dedup / local_search / content_length) (20 hours ago)
+- `a60dfa9` fix(materials): carry specialty in project materials list so profile learning lands in the right domain (0 seconds ago)
+- `629d83d` feat(ui): remove fake knowledge-scope tab + gate AI input on empty working area (60 minutes ago)
+- `c6ce06a` Merge pull request #65 from alerlocked/feature/source-scoped-knowledge (21 hours ago)
+- `77a16b7` fix(agents): read source_ids top-level — dispatch flattens params (N6 fix-3 follow-up) (21 hours ago)
+- `2e2ff65` fix(tools): local_search reads content.json (content col dropped); drop fake content_length field (N6 fix-5/7) (21 hours ago)
+- `7ebdcb6` fix(retrieval): close source-scope leaks found in PR review (N6 fix-1..4) (21 hours ago)
+- `0c496b1` plan: add N6 PR-review fixes (fallback leak / L3.5 threading / agent scope / helper dedup / local_search / content_length) (21 hours ago)
 - `d8eaca1` docs: devlog final state after PR #65 (2 days ago)
 - `d9dc602` docs: close source-scoped-knowledge (5/5 nodes done, 950 passed, ARCHITECTURE updated) (2 days ago)
 - `ea60291` feat(workspace): material working-area selection UI + remove endpoint (N4) (2 days ago)
-- `89e3135` feat(orchestrator): thread project source_ids through retrieval call sites (N3) (2 days ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
