@@ -32,6 +32,12 @@
 - **完成**：`GET /projects/{id}/materials` documents 补传 `specialty`（上传时 LLM 推断、库里已有但接口漏传）→ 前端 `file.domain` 接上 → "学习为画像"（单文件+文件夹批量）按素材专业进对应域库，不再一律写死装配库。+1 回归测试（字段存在性）。生成侧本就按 domain 选库（`orchestrator.py:353`），至此"上传→自动分流入库→按模板点亮对应域"整链通
 - **留**：`WorkspacePage:340` learn-feedback（保存时 diff 反馈学习）仍写死 assembly——打通需 CreationProject 加项目级专业字段，接入第二个专业时一并做
 
+### 3e. ⚠ 双型号验收现场发现（2026-08-22 晚，待排查）
+- **project=2 消失**（15:32 前后，删除者不明）：其 15317 字符编辑器内容随删除丢失（7 月装配卡验收存量）。`delete_project` 是 clean chain——**连带删除项目勾选的所有素材**（DB 行+documents/uploads/materials 文件），危险默认；本次素材 1 因当时未勾选幸免。待用户确认是否本人操作；后续应改"删项目前强制确认勾选素材将一并删除"或素材只解绑不删
+- **craft_kg.json 曾被回退**：N5（8-21）学的 26 个 `1::` 节点被覆盖回 6 月旧数据（11 个无前缀节点，写入路径不明，疑某 learn 调用 `source=None`）。已重学恢复 `1::`=26；残留 11 个无前缀旧节点待清；learn（非 learn-file）端点的 doc_id 链路待排查
+- ✅ 已同轮修完：假 scope tab / 空工作区 gate / specialty 断链（PR #66）；检索双向隔离验证通过（勾 doc1 摩托车内容零泄漏 / 勾 doc2 导弹内容零泄漏 / 无过滤全量）
+- 素材 2（装配技术规范_摩托车整车型.pdf，specialty=assembly，条款型文档）已入库+解析+学习；条款型文档走 LLM 提取仅 1 条 triple（工序卡抽取器吃不动条款格式，预期内，检索层主力不受影响）
+
 ### 3c. ✅ G25a 工序名称前置直拼 + 工序8无编号引子提取修复（2026-08-18 用户实测报告，2026-08-19 修，PLAN `c5da04b` + N6 重 seal `39a0c2e`）
 - **完成**（feature/arch-g25a-step-prefix-fixes，PR #64，N1 `e5fb769` + N2 `f6c5d3d` + N6 `ec62740`）：① `_g25a_prefix_content` 程序化前置 `f"{工序名}：\n"`（skel[i-1]，编号后处理之后 + `_fallback_slots` 降级路径 + strip 防重复）② `extract_assembly_steps` 后处理引子合并（工序开头连续无 `N.M` 行并入首带编号工步，全无编号保持现状）③ G19a 骨架过滤 `阶段标记/更改标记/共N页/第N页` ④（PR 审查 warn 用户拍板本 PR 修）画像物料 triple 改**全段提取**（`document_profile_learner` 材料格 `、/,/，` 逐段清洗入库，不再只取首段——预存缺陷一并治好；**用户原则：画像提取针对实际内容，不按行位置取首段**）。新增单测 17 个（引子合并 4 + 噪声 2 + 前缀 7 + 物料全段 4）；全量 **918 passed 0 failed**（顺带修复 main 存量失败 `test_prompt_requires_step_name_prefix`——d6b2aa3 撤前缀文案后测试没跟上，实测 HEAD 干净状态确失败）；**真实链路冒烟过**（documents/1 + 云端 LLM：骨架 10 步零噪声、工序6/8 引子已并入 6.1/8.1、content 以「装前准备：\n1.1 …」开头，产物 `.test-runs/g25a-step-prefix-fixes/smoke-real-llm.log`）
 - **留**：web 端整卡重生成验收留用户部署环境（生成效果仍差再回查 6cbaf30 F2 A/B）；画像清洗 spec_cut `[A-Za-z0-9/]` 不切 `φ` 希腊字母（预存行为，要支持属管线增强另立项）
