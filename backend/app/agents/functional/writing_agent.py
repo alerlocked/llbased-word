@@ -410,6 +410,31 @@ class WritingAgent(BaseAgent):
         Returns:
             生成结果
         """
+        # source-gate N3: chapters with NO working-area data source are never
+        # AI-fabricated (user decision 2026-08-22 — 宁缺毋滥). The gate
+        # upstream already made the user confirm this outcome. Zero LLM calls.
+        if task.get("source_missing"):
+            title = task.get("target") or task.get("chapter_title") or "该章节"
+            if task.get("template_slots"):
+                slots = task.get("template_slots") or []
+                keys = [s.get("key", "") for s in slots if isinstance(s, dict)]
+                if keys:
+                    filled_row = {k: "待补" for k in keys}
+                    return {
+                        "success": True,
+                        "chapter_code": task.get("chapter_code", ""),
+                        "chapter_title": title,
+                        "table_type": task.get("chapter_type", ""),
+                        "filled_data": [filled_row],
+                        "fill_sources": {"structured": keys, "unstructured": []},
+                        "source_missing_placeholder": True,
+                    }
+            return {
+                "success": True,
+                "content": f"【待补】「{title}」在所选素材中无数据源，未生成内容。请上传并勾选包含该章节的素材后重新生成。",
+                "source_missing_placeholder": True,
+            }
+
         # Template-driven fill route: structured JSON output
         if task.get("template_slots"):
             return await self._do_template_fill(task, knowledge, context)

@@ -174,3 +174,45 @@ class TestG25aContentPromptStepNamePrefix:
         src = self._prompt_source()
         # The reverted N2 constraint must no longer be present.
         assert "不要带「钳：」「机：」前缀" not in src
+
+
+class TestSourceMissingPlaceholder:
+    """source-gate N3: sourceless chapters get 待补 placeholders, zero LLM."""
+
+    @pytest.mark.asyncio
+    async def test_template_chapter_all_slots_placeholder(self, monkeypatch):
+        from app.agents.functional.writing_agent import WritingAgent
+        agent = WritingAgent()
+        # tripwire: any LLM call fails the test
+        async def boom(*a, **k):
+            raise AssertionError("LLM must not be called for source_missing chapters")
+        import app.services.llm_service as ls
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", boom)
+
+        task = {
+            "type": "writing", "action": "generate", "target": "装配工艺卡片",
+            "chapter_code": "G25a", "chapter_type": "assembly_card",
+            "template_slots": [{"key": "step_name"}, {"key": "content"}],
+            "source_missing": True,
+        }
+        result = await agent._do_generate(task, knowledge=None, context={})
+        assert result["success"] is True
+        assert result["filled_data"] == [{"step_name": "待补", "content": "待补"}]
+        assert result.get("source_missing_placeholder") is True
+
+    @pytest.mark.asyncio
+    async def test_markdown_chapter_placeholder(self, monkeypatch):
+        from app.agents.functional.writing_agent import WritingAgent
+        agent = WritingAgent()
+        import app.services.llm_service as ls
+        async def boom(*a, **k):
+            raise AssertionError("LLM must not be called")
+        monkeypatch.setattr(ls.llm_service, "generate_with_messages", boom)
+
+        result = await agent._do_generate(
+            {"type": "writing", "action": "generate", "target": "工艺总方案",
+             "source_missing": True},
+            knowledge=None, context={},
+        )
+        assert result["success"] is True
+        assert "【待补】" in result["content"]

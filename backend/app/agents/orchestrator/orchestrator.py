@@ -2893,6 +2893,18 @@ class ProcessOrchestrator:
                     "generate_doc": False,
                 }
 
+                # source-gate N3: a chapter with NO working-area data source
+                # is never AI-fabricated. Tag it — WritingAgent short-circuits
+                # to a 待补 placeholder (zero LLM). The gate upstream already
+                # made the user confirm this outcome explicitly.
+                _mc_doc_dir = ""
+                for _mc in self._collected_info.get("missing_chapters", []):
+                    if _mc.get("title") == title:
+                        _mc_doc_dir = _mc.get("_doc_dir", "")
+                        break
+                if not _mc_doc_dir:
+                    task["source_missing"] = True
+
                 # Inject template slots for structured JSON output
                 tmpl_info = (chapter_template_map or {}).get(title)
                 if tmpl_info and tmpl_info.get("template_slots"):

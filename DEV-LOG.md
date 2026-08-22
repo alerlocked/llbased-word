@@ -2,16 +2,17 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feat/source-gate
-updated_at: 2026-08-22T23:15:18+08:00
-last_commit: 70e120b
+updated_at: 2026-08-22T23:16:48+08:00
+last_commit: 5864746
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `70e120b` feat(orchestrator): pass _doc_dir through in draft_complete payload (N1) (0 seconds ago)
-- `30a4894` plan: source-gate — data-source gate before generation (sealed) (2 minutes ago)
+- `5864746` feat(agent): source-gate — pause and ask before generating sourceless chapters (N2) (0 seconds ago)
+- `70e120b` feat(orchestrator): pass _doc_dir through in draft_complete payload (N1) (2 minutes ago)
+- `30a4894` plan: source-gate — data-source gate before generation (sealed) (3 minutes ago)
 - `a8f9d16` Merge pull request #70 from alerlocked/fix/project-delete-keep-materials (2 hours ago)
 - `d444799` fix(creation): project delete no longer shreds shared materials (2 hours ago)
 - `57b2367` Merge pull request #69 from alerlocked/feat/source-visibility (2 hours ago)
@@ -19,7 +20,6 @@ task_state: done
 - `4534652` feat(editor): render plain-text REF appendix chapters read-only (N4) (2 hours ago)
 - `d428e0a` chore(data): profile relearn with per-triple source tags (N3) (2 hours ago)
 - `16106fc` feat(generate): append plain-text reference appendix of working-area materials (N2) (2 hours ago)
-- `83f5ef9` feat(profile): tag triples with source_doc at learn time (N1) (3 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
