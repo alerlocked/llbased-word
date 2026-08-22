@@ -1066,6 +1066,23 @@ class ProcessOrchestrator:
             return True
         return doc_dir in source_ids
 
+    def _match_doc_dir_for_title(
+        self, title: str, chapter_indexes: List[Dict[str, Any]],
+    ) -> str:
+        """Find a working-area doc whose index contains a chapter matching
+        this title (template-driven skeleton: the material index only ever
+        supplies DATA for template chapters, never chapters of its own).
+        Returns "" when nothing in the working area matches."""
+        for _idx in chapter_indexes:
+            _idx_dir = _idx.get("_doc_dir", "")
+            if not self._doc_dir_in_working_area(_idx_dir):
+                continue
+            for _c in _idx.get("chapters", []):
+                _ct = _c.get("title", "")
+                if title in _ct or _ct in title:
+                    return _idx_dir
+        return ""
+
     def _enrich_names_from_catalog(
         self,
         rows: List[Dict[str, Any]],
@@ -1752,20 +1769,36 @@ class ProcessOrchestrator:
             # 2. 加载画像
             profile_context = await self._load_profile_context(context)
 
-            # 3. 加载章节索引
+            # 3. 加载章节索引 + 模板章节（骨架唯一来源）
             from app.services.hierarchical_context import hierarchical_context
             chapter_indexes = hierarchical_context.get_all_chapter_indexes()
 
-            # Build a compact chapter summary for the LLM
-            chapter_summary_lines = []
-            for idx in chapter_indexes:
-                for ch in idx.get("chapters", []):
-                    pages = ch["pages"]
-                    page_range = f"第{pages[0]}-{pages[-1]}页" if len(pages) > 1 else f"第{pages[0]}页"
-                    chapter_summary_lines.append(
-                        f"- {ch['title']} ({page_range}, {ch['page_count']}页)"
-                    )
-            chapter_summary = "\n".join(chapter_summary_lines) if chapter_summary_lines else "（无章节索引）"
+            # Template-driven skeleton (user decision 2026-08-22): chapters
+            # come ONLY from the fixed editor template (G4a..G25a). Material
+            # chapter indexes never contribute chapters — they only supply
+            # data (source text / injections) matched by title. Previously
+            # the summary (and thus the diff skeleton) was built from ALL
+            # material index entries, which turned pages ("第1页"...) and
+            # cross-material titles into "chapters" and exploded the report
+            # (24/224-chapter analyses on a 9-chapter template).
+            template_editor_chapters: List[Dict[str, Any]] = []
+            try:
+                from app.services.template_loader import load_template, get_editor_chapters
+                _tmpl = load_template("assembly_process_cable")
+                template_editor_chapters = [
+                    {"title": t.title, "code": t.code}
+                    for t in get_editor_chapters(_tmpl)
+                ]
+            except Exception as e:
+                logger.warning("template_editor_chapters_load_failed", error=str(e))
+            if not template_editor_chapters:
+                logger.warning("template_editor_chapters_empty")
+
+            chapter_summary_lines = [
+                f"- {t['title']} ({t['code']}，固定模板章节)"
+                for t in template_editor_chapters
+            ]
+            chapter_summary = "\n".join(chapter_summary_lines) if chapter_summary_lines else "（无模板章节）"
             doc_name = chapter_indexes[0]["doc_name"] if chapter_indexes else ""
 
             # 4. 构建素材状态
@@ -1795,26 +1828,24 @@ class ProcessOrchestrator:
                             "state": self.state_machine.current_state.value,
                         }
 
-            # 6. 结构对比 Agent：章节索引 vs 初稿 → 缺失章节
+            # 6. 结构对比 Agent：模板章节 vs 初稿 → 缺失章节
             # (force_all already determined above, may be overridden for fill-no-draft fallback)
             if force_all:
-                # generate mode: treat ALL indexed chapters as missing
+                # generate mode, template-driven: every template editor
+                # chapter is missing. Step 9b-2 below appends them with a
+                # working-area-matched _doc_dir — material index chapters
+                # (pages, cross-material titles) never enter the queue.
                 missing_chapters = []
-                for idx in chapter_indexes:
-                    for ch in idx.get("chapters", []):
-                        missing_chapters.append({
-                            "title": ch["title"],
-                            "pages": ch["pages"],
-                            "page_count": ch["page_count"],
-                            "_doc_dir": idx.get("_doc_dir", ""),
-                            "reason": "full generation",
-                        })
-                logger.info("force_all_chapters", count=len(missing_chapters))
+                logger.info(
+                    "force_all_template_driven",
+                    template_chapters=len(template_editor_chapters),
+                )
             else:
                 missing_chapters = await self._detect_missing_chapters(
                     chapter_summary=chapter_summary,
                     draft_content=draft_content,
                     user_requirement=user_input,
+                    template_editor_chapters=template_editor_chapters,
                 )
 
             logger.info(
@@ -1991,22 +2022,10 @@ class ProcessOrchestrator:
                     if tch.title not in existing_titles:
                         # Look up doc_dir from chapter_indexes so source-driven
                         # injection (e.g. G22a process_card_steps) can find the
-                        # source doc, instead of hardcoding empty.
-                        # source-inject-isolation: only accept a doc_dir inside
-                        # the working area — keep scanning on mismatch so a
-                        # working-area doc with the same chapter wins.
-                        chap_doc_dir = ""
-                        for _idx in chapter_indexes:
-                            _idx_dir = _idx.get("_doc_dir", "")
-                            if not self._doc_dir_in_working_area(_idx_dir):
-                                continue
-                            for _c in _idx.get("chapters", []):
-                                _ct = _c.get("title", "")
-                                if tch.title in _ct or _ct in tch.title:
-                                    chap_doc_dir = _idx_dir
-                                    break
-                            if chap_doc_dir:
-                                break
+                        # source doc. Working-area guarded (isolation fix).
+                        chap_doc_dir = self._match_doc_dir_for_title(
+                            tch.title, chapter_indexes,
+                        )
                         if not chap_doc_dir:
                             logger.warning(
                                 "template_chapter_no_working_area_source",
@@ -2112,18 +2131,26 @@ class ProcessOrchestrator:
         chapter_summary: str,
         draft_content: str,
         user_requirement: str,
+        template_editor_chapters: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        """Use LLM to compare chapter index against user draft and find missing chapters.
+        """Use LLM to compare the FIXED TEMPLATE chapters against the user
+        draft and find missing ones.
+
+        Template-driven skeleton (user decision 2026-08-22): the chapter
+        universe is the editor template (G4a..G25a), NOT the material index.
+        The material index only supplies _doc_dir data for a matched
+        template chapter — never chapters of its own.
 
         Returns:
-            List of {"title": str, "pages": [int], "_doc_dir": str, "page_count": int}
+            List of {"title": str, "_doc_dir": str, "reason": str}
         """
         from app.services.hierarchical_context import hierarchical_context
         chapter_indexes = hierarchical_context.get_all_chapter_indexes()
+        template_editor_chapters = template_editor_chapters or []
 
-        prompt = f"""你是工艺文件结构对比助手。请对比知识库文档的完整章节列表和用户的初稿，找出初稿中缺失的章节。
+        prompt = f"""你是工艺文件结构对比助手。工艺文件的章节结构由固定模板决定（章节清单如下）。请对比模板要求的章节和用户的初稿，找出初稿中缺失或不完整的章节。
 
-## 知识库文档完整章节列表
+## 模板要求的固定章节清单
 {chapter_summary}
 
 ## 用户初稿内容
@@ -2132,14 +2159,15 @@ class ProcessOrchestrator:
 ## 用户需求
 {user_requirement}
 
-请输出一个 JSON 数组，每个元素代表一个初稿中确实缺失或内容不完整的章节：
+请输出一个 JSON 数组，每个元素代表一个初稿中确实缺失或内容不完整的模板章节：
 ```json
 [
-  {{"chapter": "章节名称", "reason": "缺失原因"}}
+  {{"chapter": "模板章节名称", "reason": "缺失原因"}}
 ]
 ```
 
 要求：
+- 只能从上面的模板章节清单里选，不得发明清单之外的章节
 - 只列出初稿中确实缺失或内容严重不完整的章节
 - 不要列已有完整内容的章节
 - 如果没有缺失，输出空数组 []
@@ -2155,7 +2183,9 @@ class ProcessOrchestrator:
             )
             if result.get("status") == "error":
                 logger.warning("missing_chapter_detection_llm_failed", error=result.get("error"))
-                return self._fallback_missing_detection(chapter_indexes, draft_content)
+                return self._fallback_missing_detection(
+                    template_editor_chapters, chapter_indexes, draft_content,
+                )
 
             content = result.get("content", "").strip()
             # Strip markdown code fences
@@ -2169,48 +2199,50 @@ class ProcessOrchestrator:
             if not isinstance(detected, list):
                 return []
 
-            # Map detected chapter names back to index entries
+            # Map detected chapter names back to TEMPLATE chapters only
             missing = []
             for item in detected:
                 ch_name = item.get("chapter", "")
-                for idx in chapter_indexes:
-                    for ch in idx.get("chapters", []):
-                        if ch_name in ch["title"] or ch["title"] in ch_name:
-                            missing.append({
-                                "title": ch["title"],
-                                "pages": ch["pages"],
-                                "page_count": ch["page_count"],
-                                "sub_chapters": ch.get("sub_chapters", []),
-                                "_doc_dir": idx.get("_doc_dir", ""),
-                                "reason": item.get("reason", ""),
-                            })
-                            break
+                for t in template_editor_chapters:
+                    t_title = t.get("title", "")
+                    if ch_name in t_title or t_title in ch_name:
+                        missing.append({
+                            "title": t_title,
+                            "pages": [],
+                            "page_count": 0,
+                            "_doc_dir": self._match_doc_dir_for_title(t_title, chapter_indexes),
+                            "reason": item.get("reason", ""),
+                        })
+                        break
 
             return missing
 
         except Exception as e:
             logger.warning("missing_chapter_detection_failed", error=str(e))
-            return self._fallback_missing_detection(chapter_indexes, draft_content)
+            return self._fallback_missing_detection(
+                template_editor_chapters, chapter_indexes, draft_content,
+            )
 
     def _fallback_missing_detection(
         self,
+        template_editor_chapters: List[Dict[str, Any]],
         chapter_indexes: List[Dict[str, Any]],
         draft_content: str,
     ) -> List[Dict[str, Any]]:
-        """Fallback: mark all chapters as missing if LLM detection fails."""
+        """Fallback: mark every template chapter whose title does not appear
+        in the draft as missing (LLM detection failed). Template-driven —
+        material index entries never enter the skeleton."""
         missing = []
-        for idx in chapter_indexes:
-            for ch in idx.get("chapters", []):
-                # Simple heuristic: check if chapter title appears in draft
-                if ch["title"] not in draft_content:
-                    missing.append({
-                        "title": ch["title"],
-                        "pages": ch["pages"],
-                        "page_count": ch["page_count"],
-                        "sub_chapters": ch.get("sub_chapters", []),
-                        "_doc_dir": idx.get("_doc_dir", ""),
-                        "reason": "章节标题未出现在初稿中",
-                    })
+        for t in template_editor_chapters:
+            title = t.get("title", "")
+            if title not in draft_content:
+                missing.append({
+                    "title": title,
+                    "pages": [],
+                    "page_count": 0,
+                    "_doc_dir": self._match_doc_dir_for_title(title, chapter_indexes),
+                    "reason": "章节标题未出现在初稿中",
+                })
         return missing
 
     async def _load_profile_context(self, context: Dict[str, Any]) -> str:
