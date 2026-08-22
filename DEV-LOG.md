@@ -2,27 +2,30 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feat/source-visibility
-updated_at: 2026-08-22T20:54:39+08:00
-last_commit: d428e0a
+updated_at: 2026-08-22T20:59:36+08:00
+last_commit: 4534652
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `d428e0a` chore(data): profile relearn with per-triple source tags (N3) (0 seconds ago)
-- `16106fc` feat(generate): append plain-text reference appendix of working-area materials (N2) (71 seconds ago)
-- `83f5ef9` feat(profile): tag triples with source_doc at learn time (N1) (9 minutes ago)
-- `b750d1b` plan: source-visibility — profile source tagging + reference appendix (sealed) (11 minutes ago)
-- `77f5cbf` docs(todo): profile-system semantics decision (cross-material experience, domain-split + source-tagged, learning frozen) (65 minutes ago)
+- `4534652` feat(editor): render plain-text REF appendix chapters read-only (N4) (1 second ago)
+- `d428e0a` chore(data): profile relearn with per-triple source tags (N3) (5 minutes ago)
+- `16106fc` feat(generate): append plain-text reference appendix of working-area materials (N2) (6 minutes ago)
+- `83f5ef9` feat(profile): tag triples with source_doc at learn time (N1) (14 minutes ago)
+- `b750d1b` plan: source-visibility — profile source tagging + reference appendix (sealed) (16 minutes ago)
+- `77f5cbf` docs(todo): profile-system semantics decision (cross-material experience, domain-split + source-tagged, learning frozen) (70 minutes ago)
 - `8478cb2` Merge pull request #68 from alerlocked/fix/template-driven-skeleton (2 hours ago)
 - `ddfe0e7` feat(orchestrator): template-driven chapter skeleton — material index never contributes chapters (2 hours ago)
-- `5456a53` Merge pull request #67 from alerlocked/fix/source-inject-isolation (2 hours ago)
-- `3c192d8` fix(orchestrator): source-inject isolation — doc_dir must be inside working area (2 hours ago)
-- `4cd7f83` docs(todo): 8-22 evening findings — dual-instance root cause, deleted-project request leak, result-extract chain break (3 hours ago)
+- `5456a53` Merge pull request #67 from alerlocked/fix/source-inject-isolation (3 hours ago)
+- `3c192d8` fix(orchestrator): source-inject isolation — doc_dir must be inside working area (3 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态
+
+- **完成（source-visibility，2026-08-22 开/收，PLAN `b750d1b` seal，分支 feat/source-visibility）**: 画像来源标注 + 生成产物附参考资料。用户拍板语义：画像=跨素材通用经验（取用不过滤、来源仅溯源）/ 参考资料纯文字不走模板 / 存量清空重学。4 节点：N1 ✅ `83f5ef9` learn_from_content 组装层统一给 triples 打 `source_doc`（+2 测试，穿透提取函数的最小路径）；N2 ✅ `16106fc` agent.py 三条产物组装路径（no-md template / template+md / 纯 md）末尾附 REF 参考资料章节（工作区素材名文字块，空区不附 fail-soft）；N3 ✅ `d428e0a` 画像清空重学（29 条 triples 来源归位：弹体 23 / 摩托车 6，principles 11 条保留）；N4 ✅ `4534652` 前端 text 渲染分支——**Explore 推断的挂点（ChapterTableEditor）不是真分发点，Playwright 实测发现走 ProcessTableEditor"暂无数据"空态，实证后加对位置**。验证：全量 958 passed 0 回归 + tsc 0 错 + 真实生成（project 3 勾素材 2）产物含 REF 章节素材名正确 + 前端 DOM 渲染确认（截图 .test-runs/source-visibility/）。**task_state: done。**
+
 > 待办池见 [TODO.md](TODO.md)（P0 优先）；当前任务见 frontmatter `task_state`。
 
 - **完成（source-scoped-knowledge，2026-08-20 开，PLAN `c2ef1ef` seal，分支 `feature/source-scoped-knowledge`）**: 数据库治理·来源维度落地。2026-08-20 评估发现三处多型号扩展隐患（MaterialCatalog.model 存的是规格非产品型号→代号 enrich 无来源过滤会跨型号串名 / craft KG 参数值跨来源覆盖或丢弃 / specialty NULL 50行），用户拍板：**不建型号维度（素材无明确型号，来源=素材文件作一等维度，型号判断交给工艺员勾选）**。核心设计：工作区域正源 = `CreationProject.material_ids`（生成请求已带 project_id 后端自读，空列表=不过滤兼容现状）；KG 节点 id 加 `{doc_id}::` 前缀分开录（跨来源不合并、同来源重学幂等、label 不带前缀 seed 匹配不受影响）；存量 craft_kg 清空重学（用户同意，全来自 documents/1）。5 节点：N1 检索基础设施（source filters + **修 _documents_cache 污染 bug** + knowledge_search source_ids）/ N2 录入侧（build_from_triples 前缀 + _feed_craft_kg 带 doc_id + extract_and_save 去重改源内）/ N3 生成链路穿透（orchestrator _project_source_ids + G18a enrich + G25a aux + agent.py L0/多轮检索）/ N4 工作区域 API+前端（DELETE 移除端点 + MaterialDrawer 勾选徽标 + AddMaterialDialog 文件夹级）/ N5 存量重学+删空壳 DB+ARCHITECTURE+全量回归（基线 918）。显式豁免：StandardClause 公共标准不按源过滤；漏勾→待补=正确行为非 bug（用户拍板）。N1-N3 触架构层→独立 PR+/pr-review。**进度：5/5 全节点完成。** N1 ✅ `0dcdc49` 检索基础+缓存污染修；N2 ✅ `bf07c54` KG 前缀+源内去重；N3 ✅ `89e3135` 生成链路穿透（get_material_status 豁免：共享 meta 缓存只影响提示）；N4 ✅ `ea60291` 工作区域 API+前端（顺带修 GET /materials 存量 500 + fetchMaterials 硬编码 /projects/0）；N5 ✅ 存量重学真实链路冒烟（照 learn-file 端点逻辑：10 assembly_steps+10 skeleton→25 triples→**26 nodes 全带 `1::` 前缀**；检索验证 src=['1'] 命中 372 字符 / src=['2'] 0（跨源隔离生效）/ 无过滤=全量；产物 `.test-runs/source-scoped-knowledge/smoke-relearn.md`）+ 删两个 0 字节空壳 DB + ARCHITECTURE §4/§5 更新。**全量回归 950 passed 0 failed**（基线 918 + 32 新增零回归）。**留部署环境验**：web 端勾选交互（MaterialDrawer 已选 Tag 切换/文件夹整组/添加对话框文件夹列）+ 双型号真实素材端到端。**task_state: done。**
