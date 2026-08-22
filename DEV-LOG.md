@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-22T16:36:35+08:00
-last_commit: 632ab83
+updated_at: 2026-08-22T17:37:09+08:00
+last_commit: 4cd7f83
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `632ab83` docs: devlog sync point (0 seconds ago)
-- `34a464a` chore(data): clean profile relearn — drop test-data KG leftovers, keep seed principles (13 seconds ago)
-- `7c812fa` docs: devlog refresh (31 minutes ago)
-- `e16b647` chore(data): devlog refresh + assembly profile after motorcycle material learn (31 minutes ago)
-- `7e34f73` docs(todo): dual-model acceptance findings — project-2 deletion incident, craft_kg rollback trace, isolation verified (31 minutes ago)
-- `5226445` Merge pull request #66 from alerlocked/feature/workspace-empty-gate (65 minutes ago)
-- `3a89c97` docs(todo): record domain-break fix done + learn-feedback hardcoded-assembly tail (80 minutes ago)
-- `a60dfa9` fix(materials): carry specialty in project materials list so profile learning lands in the right domain (81 minutes ago)
-- `629d83d` feat(ui): remove fake knowledge-scope tab + gate AI input on empty working area (2 hours ago)
-- `c6ce06a` Merge pull request #65 from alerlocked/feature/source-scoped-knowledge (22 hours ago)
+- `4cd7f83` docs(todo): 8-22 evening findings — dual-instance root cause, deleted-project request leak, result-extract chain break (0 seconds ago)
+- `632ab83` docs: devlog sync point (61 minutes ago)
+- `34a464a` chore(data): clean profile relearn — drop test-data KG leftovers, keep seed principles (61 minutes ago)
+- `7c812fa` docs: devlog refresh (2 hours ago)
+- `e16b647` chore(data): devlog refresh + assembly profile after motorcycle material learn (2 hours ago)
+- `7e34f73` docs(todo): dual-model acceptance findings — project-2 deletion incident, craft_kg rollback trace, isolation verified (2 hours ago)
+- `5226445` Merge pull request #66 from alerlocked/feature/workspace-empty-gate (2 hours ago)
+- `3a89c97` docs(todo): record domain-break fix done + learn-feedback hardcoded-assembly tail (2 hours ago)
+- `a60dfa9` fix(materials): carry specialty in project materials list so profile learning lands in the right domain (2 hours ago)
+- `629d83d` feat(ui): remove fake knowledge-scope tab + gate AI input on empty working area (3 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

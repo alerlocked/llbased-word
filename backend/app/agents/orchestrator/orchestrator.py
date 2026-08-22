@@ -1050,6 +1050,22 @@ class ProcessOrchestrator:
         project_id = (self._collected_info.get("context") or {}).get("project_id")
         return hc.get_project_source_ids(project_id)
 
+    def _doc_dir_in_working_area(self, doc_dir: str) -> bool:
+        """Source-inject isolation guard (source-inject-isolation fix).
+
+        Every source-driven injection point (G25a assembly steps / G22a
+        process card / G5a file refs / G4a catalog) must only consume a
+        doc_dir that belongs to the project working area. Without this
+        guard the doc_dir picked from the global chapter indexes silently
+        injects ANOTHER material's data (e.g. missile assembly steps into
+        a motorcycle project) — a silent cross-source fallback. True when
+        no working-area filter applies (None = no filtering convention).
+        """
+        source_ids = self._project_source_ids()
+        if source_ids is None:
+            return True
+        return doc_dir in source_ids
+
     def _enrich_names_from_catalog(
         self,
         rows: List[Dict[str, Any]],
@@ -1825,8 +1841,16 @@ class ProcessOrchestrator:
                 page_count = mc.get("page_count", 0)
                 sub_chapters = mc.get("sub_chapters", [])
 
-                # Chapters without doc_dir: generate from overall context
-                if not doc_dir:
+                # Chapters without doc_dir: generate from overall context.
+                # source-inject-isolation: a doc_dir outside the working area
+                # is treated as no-source too — never feed another material's
+                # raw text into this project's generation.
+                if not doc_dir or not self._doc_dir_in_working_area(doc_dir):
+                    if doc_dir:
+                        logger.warning(
+                            "source_text_not_in_working_area",
+                            title=title, doc_dir=doc_dir,
+                        )
                     no_source_titles.append(title)
                     chapter_source_texts[title] = ""
                     available_titles.append(title)
@@ -1968,15 +1992,27 @@ class ProcessOrchestrator:
                         # Look up doc_dir from chapter_indexes so source-driven
                         # injection (e.g. G22a process_card_steps) can find the
                         # source doc, instead of hardcoding empty.
+                        # source-inject-isolation: only accept a doc_dir inside
+                        # the working area — keep scanning on mismatch so a
+                        # working-area doc with the same chapter wins.
                         chap_doc_dir = ""
                         for _idx in chapter_indexes:
+                            _idx_dir = _idx.get("_doc_dir", "")
+                            if not self._doc_dir_in_working_area(_idx_dir):
+                                continue
                             for _c in _idx.get("chapters", []):
                                 _ct = _c.get("title", "")
                                 if tch.title in _ct or _ct in tch.title:
-                                    chap_doc_dir = _idx.get("_doc_dir", "")
+                                    chap_doc_dir = _idx_dir
                                     break
                             if chap_doc_dir:
                                 break
+                        if not chap_doc_dir:
+                            logger.warning(
+                                "template_chapter_no_working_area_source",
+                                title=tch.title,
+                                code=tch.code,
+                            )
                         missing_chapters.append({
                             "title": tch.title,
                             "pages": [],
@@ -2842,12 +2878,17 @@ class ProcessOrchestrator:
                         # G25a, locate the source doc by scanning chapter
                         # indexes for the 装配工艺卡片 chapter. Ensures G25a
                         # always gets real substeps even in fill/补齐 mode.
+                        # source-inject-isolation: only accept docs inside the
+                        # working area — never borrow another material's card.
                         if not _doc_dir:
                             try:
                                 from app.services.hierarchical_context import hierarchical_context
                                 for _idx in hierarchical_context.get_all_chapter_indexes():
+                                    _idx_dir = _idx.get("_doc_dir", "")
+                                    if not self._doc_dir_in_working_area(_idx_dir):
+                                        continue
                                     if any("装配" in c.get("title", "") for c in _idx.get("chapters", [])):
-                                        _doc_dir = _idx.get("_doc_dir", "")
+                                        _doc_dir = _idx_dir
                                         if _doc_dir:
                                             break
                             except Exception:
@@ -2980,6 +3021,11 @@ class ProcessOrchestrator:
                     if not doc_dir:
                         logger.warning("g25a_no_doc_dir_fallback", chapter=title)
                         continue
+                    if not self._doc_dir_in_working_area(doc_dir):
+                        logger.warning(
+                            "g25a_source_not_in_working_area", chapter=title, doc_dir=doc_dir,
+                        )
+                        continue
                     try:
                         from app.services.hierarchical_context import hierarchical_context
                         assembly_steps = hierarchical_context.extract_assembly_steps(doc_dir)
@@ -3016,6 +3062,11 @@ class ProcessOrchestrator:
                     if not doc_dir:
                         logger.warning("g22a_no_doc_dir_fallback", chapter=title)
                         continue
+                    if not self._doc_dir_in_working_area(doc_dir):
+                        logger.warning(
+                            "g22a_source_not_in_working_area", chapter=title, doc_dir=doc_dir,
+                        )
+                        continue
                     try:
                         from app.services.hierarchical_context import hierarchical_context
                         card_steps = hierarchical_context.extract_process_card_steps(doc_dir)
@@ -3045,6 +3096,11 @@ class ProcessOrchestrator:
                     if not doc_dir:
                         logger.warning("g5a_no_doc_dir_fallback", chapter=title)
                         continue
+                    if not self._doc_dir_in_working_area(doc_dir):
+                        logger.warning(
+                            "g5a_source_not_in_working_area", chapter=title, doc_dir=doc_dir,
+                        )
+                        continue
                     try:
                         from app.services.hierarchical_context import hierarchical_context
                         file_refs = hierarchical_context.extract_file_references(doc_dir)
@@ -3073,6 +3129,11 @@ class ProcessOrchestrator:
                             break
                     if not doc_dir:
                         logger.warning("g4a_no_doc_dir_fallback", chapter=title)
+                        continue
+                    if not self._doc_dir_in_working_area(doc_dir):
+                        logger.warning(
+                            "g4a_source_not_in_working_area", chapter=title, doc_dir=doc_dir,
+                        )
                         continue
                     try:
                         from app.services.hierarchical_context import hierarchical_context
