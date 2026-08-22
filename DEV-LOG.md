@@ -2,24 +2,24 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: feat/source-gate
-updated_at: 2026-08-22T23:18:53+08:00
-last_commit: 57fe3fc
+updated_at: 2026-08-22T23:22:05+08:00
+last_commit: 0b97927
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `57fe3fc` feat(generate): sourceless chapters become 待补 placeholders, zero LLM (N3) (1 second ago)
-- `5864746` feat(agent): source-gate — pause and ask before generating sourceless chapters (N2) (2 minutes ago)
-- `70e120b` feat(orchestrator): pass _doc_dir through in draft_complete payload (N1) (4 minutes ago)
-- `30a4894` plan: source-gate — data-source gate before generation (sealed) (5 minutes ago)
+- `0b97927` feat(ui): source-gate confirm card — continue (sourceless→待补) or cancel (N4) (1 second ago)
+- `57fe3fc` feat(generate): sourceless chapters become 待补 placeholders, zero LLM (N3) (3 minutes ago)
+- `5864746` feat(agent): source-gate — pause and ask before generating sourceless chapters (N2) (5 minutes ago)
+- `70e120b` feat(orchestrator): pass _doc_dir through in draft_complete payload (N1) (7 minutes ago)
+- `30a4894` plan: source-gate — data-source gate before generation (sealed) (9 minutes ago)
 - `a8f9d16` Merge pull request #70 from alerlocked/fix/project-delete-keep-materials (2 hours ago)
 - `d444799` fix(creation): project delete no longer shreds shared materials (2 hours ago)
 - `57b2367` Merge pull request #69 from alerlocked/feat/source-visibility (2 hours ago)
 - `2c0061e` docs: devlog done for source-visibility (4/4 nodes) (2 hours ago)
 - `4534652` feat(editor): render plain-text REF appendix chapters read-only (N4) (2 hours ago)
-- `d428e0a` chore(data): profile relearn with per-triple source tags (N3) (2 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

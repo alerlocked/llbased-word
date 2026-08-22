@@ -775,7 +775,7 @@ class ProcessOrchestrator:
 
                 # Pass template fields for structured JSON output
                 for key in ("template_slots", "chapter_code", "chapter_type",
-                            "chapter_title", "ai_guidance"):
+                            "chapter_title", "ai_guidance", "source_missing"):
                     if key in task:
                         agent_task[key] = task[key]
 
@@ -2903,7 +2903,10 @@ class ProcessOrchestrator:
                         _mc_doc_dir = _mc.get("_doc_dir", "")
                         break
                 if not _mc_doc_dir:
+                    # Top-level AND params: dispatch whitelists keys, params
+                    # get flattened — belt and braces so the flag survives.
                     task["source_missing"] = True
+                    task.setdefault("params", {})["source_missing"] = True
 
                 # Inject template slots for structured JSON output
                 tmpl_info = (chapter_template_map or {}).get(title)
