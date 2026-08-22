@@ -296,3 +296,38 @@ def test_substeps_material_triple_skipped_when_empty():
     triples = learner._extract_triples_from_substeps(asm, skeleton)
     assert not any(t["r"] == "使用" for t in triples), triples
 
+
+
+# ---------------------------------------------------------------------------
+# source-visibility: triples carry source_doc (user decision 2026-08-22 —
+# profile entries are cross-material shared experience; the tag is provenance
+# only, never a retrieval filter)
+# ---------------------------------------------------------------------------
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_learn_from_content_tags_source_doc():
+    """learn with document_id → every produced triple carries source_doc."""
+    learner = _learner()
+    content = "1 装配\n用 M5×8 螺栓 2 个拧紧,拧紧力矩为3.6±0.4N·m。按GB/T1234标准执行。"
+    features = await learner.learn_from_content(
+        content=content, domain="assembly", document_id="7", skip_llm_validate=True,
+    )
+    triples = features["triples"]
+    assert triples, "expected triples to be extracted"
+    for t in triples:
+        assert t.get("source_doc") == "7", f"triple missing source_doc: {t}"
+
+
+@pytest.mark.asyncio
+async def test_learn_without_document_id_leaves_untagged():
+    """learn without document_id → triples carry no source_doc (legacy path)."""
+    learner = _learner()
+    content = "1 装配\n用 M5×8 螺栓 2 个拧紧,拧紧力矩为3.6±0.4N·m。"
+    features = await learner.learn_from_content(
+        content=content, domain="assembly", skip_llm_validate=True,
+    )
+    for t in features["triples"]:
+        assert "source_doc" not in t or t["source_doc"] is None, t

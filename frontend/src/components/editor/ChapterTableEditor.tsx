@@ -68,6 +68,28 @@ const ChapterTableEditor: React.FC<Props> = ({ section, aiGeneratedKeys, onChang
     )
   }
 
+  // Plain-text chapters (source-visibility REF appendix): read-only block.
+  // Provenance info only — not editable, never part of feedback diff.
+  if (section.content_type === 'text') {
+    const text = section.field_values?.content
+    if (typeof text === 'string' && text.trim()) {
+      return (
+        <div
+          style={{
+            whiteSpace: 'pre-wrap',
+            fontSize: 14,
+            lineHeight: 1.8,
+            padding: '8px 4px',
+            color: '#444',
+          }}
+        >
+          {text}
+        </div>
+      )
+    }
+    return null
+  }
+
   // Standard single table
   const columns = section.columns || []
   const rows = section.rows || []

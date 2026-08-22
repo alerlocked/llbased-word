@@ -850,6 +850,34 @@ async def chat(request: ChatRequest):
         )
 
 
+def _reference_appendix_lines(project_id) -> list:
+    """Reference appendix (source-visibility, user decision 2026-08-22):
+    plain-text list of the working-area materials the generation consumed —
+    for 工艺员 provenance ("内容从哪来、有没有错"). NOT a template chapter.
+    Returns [] when nothing is selected / lookup fails (fail-soft, warned)."""
+    if not project_id:
+        return []
+    try:
+        from app.services.hierarchical_context import hierarchical_context
+        source_ids = hierarchical_context.get_project_source_ids(project_id)
+        if not source_ids:
+            return []
+        from app.database import SessionLocal
+        from app.models.database import Material
+        db = SessionLocal()
+        try:
+            mats = db.query(Material).filter(
+                Material.id.in_([int(s) for s in source_ids])
+            ).all()
+            names = sorted(m.name for m in mats if m.name)
+        finally:
+            db.close()
+        return [f"{i}. {n}" for i, n in enumerate(names, 1)]
+    except Exception as e:
+        logger.warning("reference_appendix_failed", error=str(e))
+        return []
+
+
 @router.post("/generate-stream")
 async def generate_stream(request: GenerateStreamRequest):
     """
@@ -1143,6 +1171,19 @@ async def generate_stream(request: GenerateStreamRequest):
                                         fill_sources=data.get("fill_sources"),
                                     ))
 
+                            # source-visibility: append plain-text reference
+                            # appendix (working-area materials) as a trailing
+                            # text chapter — NOT part of the template.
+                            _ref_lines = _reference_appendix_lines(project_id)
+                            if _ref_lines:
+                                chapters.append(ChapterData(
+                                    chapter_code="REF",
+                                    chapter_title="参考资料",
+                                    table_type="text",
+                                    filled_data=[],
+                                    field_values={"content": "本文件生成取用的素材：\n" + "\n".join(_ref_lines)},
+                                ))
+
                             doc = StructuredDocument(
                                 template_id="assembly_process_cable",
                                 template_name=tmpl_name,
@@ -1150,9 +1191,12 @@ async def generate_stream(request: GenerateStreamRequest):
                             )
                             template_json = doc.to_dict()
 
+                            _chapter_note = f"共生成 {len(structured_results)} 个章节的结构化表格数据"
+                            if _ref_lines:
+                                _chapter_note += "（附参考资料）"
                             summary = (
                                 "工艺文件表格已生成。\n\n"
-                                f"共生成 {len(chapters)} 个章节的结构化表格数据，"
+                                f"{_chapter_note}，"
                                 "请在编辑器中查看和编辑。"
                             )
                             yield f"data: {json.dumps({'type': 'content', 'content': summary}, ensure_ascii=False)}\n\n"
@@ -1245,6 +1289,17 @@ async def generate_stream(request: GenerateStreamRequest):
                                             fill_sources=data.get("fill_sources"),
                                         ))
 
+                                # source-visibility: reference appendix (text chapter)
+                                _ref_lines = _reference_appendix_lines(project_id)
+                                if _ref_lines:
+                                    chapters.append(ChapterData(
+                                        chapter_code="REF",
+                                        chapter_title="参考资料",
+                                        table_type="text",
+                                        filled_data=[],
+                                        field_values={"content": "本文件生成取用的素材：\n" + "\n".join(_ref_lines)},
+                                    ))
+
                                 doc = StructuredDocument(
                                     template_id="assembly_process_cable",
                                     template_name=tmpl_name,
@@ -1264,6 +1319,11 @@ async def generate_stream(request: GenerateStreamRequest):
                                 'template_data': template_json,
                             }
                         else:
+                            # source-visibility: append plain-text reference
+                            # appendix to the markdown output as well
+                            _ref_lines = _reference_appendix_lines(project_id)
+                            if _ref_lines:
+                                new_content += "\n\n## 参考资料\n\n本文件生成取用的素材：\n" + "\n".join(_ref_lines)
                             sse_result = {
                                 'type': 'result',
                                 'has_editor': True,

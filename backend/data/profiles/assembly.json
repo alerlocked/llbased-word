@@ -177,175 +177,204 @@
       "s": "开关按钮拧紧",
       "r": "力矩",
       "o": "1.1N·m",
-      "process": null
+      "process": null,
+      "source_doc": "1"
     },
     {
       "s": "M4螺钉",
       "r": "力矩",
       "o": "1.9N·m",
-      "process": null
+      "process": null,
+      "source_doc": "1"
     },
     {
       "s": "插头安装",
       "r": "力矩",
       "o": "0.5N·m",
-      "process": null
+      "process": null,
+      "source_doc": "1"
     },
     {
       "s": "装前准备",
       "r": "使用",
       "o": "无水乙醇",
-      "process": "装前准备"
+      "process": "装前准备",
+      "source_doc": "1"
     },
     {
       "s": "安装密封圈2",
       "r": "使用",
       "o": "804抗化学润滑脂",
-      "process": "安装密封圈2"
+      "process": "安装密封圈2",
+      "source_doc": "1"
     },
     {
       "s": "安装行程延时开关组合",
       "r": "使用",
       "o": "白棉布",
-      "process": "安装行程延时开关组合"
+      "process": "安装行程延时开关组合",
+      "source_doc": "1"
     },
     {
       "s": "安装行程延时开关组合",
       "r": "使用",
       "o": "乐泰粘胶剂",
-      "process": "安装行程延时开关组合"
+      "process": "安装行程延时开关组合",
+      "source_doc": "1"
     },
     {
       "s": "安装行程延时开关组合",
       "r": "使用",
       "o": "室温硫化硅橡胶",
-      "process": "安装行程延时开关组合"
+      "process": "安装行程延时开关组合",
+      "source_doc": "1"
     },
     {
       "s": "安装行程延时开关组合",
       "r": "使用",
       "o": "GD414",
-      "process": "安装行程延时开关组合"
+      "process": "安装行程延时开关组合",
+      "source_doc": "1"
     },
     {
       "s": "四五仓对接",
       "r": "使用",
       "o": "无碱玻璃布单面",
-      "process": "四五仓对接"
+      "process": "四五仓对接",
+      "source_doc": "1"
     },
     {
       "s": "四五仓对接",
       "r": "使用",
       "o": "白棉布",
-      "process": "四五仓对接"
+      "process": "四五仓对接",
+      "source_doc": "1"
     },
     {
       "s": "四五仓对接",
       "r": "使用",
       "o": "乐泰粘胶剂",
-      "process": "四五仓对接"
+      "process": "四五仓对接",
+      "source_doc": "1"
     },
     {
       "s": "五仓装配",
       "r": "使用",
       "o": "胶带",
-      "process": "五仓装配"
+      "process": "五仓装配",
+      "source_doc": "1"
     },
     {
       "s": "五仓装配",
       "r": "使用",
       "o": "无碱玻璃面胶带",
-      "process": "五仓装配"
+      "process": "五仓装配",
+      "source_doc": "1"
     },
     {
       "s": "五仓装配",
       "r": "使用",
       "o": "无碱玻璃单面胶",
-      "process": "五仓装配"
+      "process": "五仓装配",
+      "source_doc": "1"
     },
     {
       "s": "五仓装配",
       "r": "使用",
       "o": "乐泰粘胶剂",
-      "process": "五仓装配"
+      "process": "五仓装配",
+      "source_doc": "1"
     },
     {
       "s": "五仓装配",
       "r": "使用",
       "o": "白棉布",
-      "process": "五仓装配"
+      "process": "五仓装配",
+      "source_doc": "1"
     },
     {
       "s": "螺钉安装",
       "r": "力矩",
       "o": "1.9N·m",
-      "process": "五仓装配"
+      "process": "五仓装配",
+      "source_doc": "1"
     },
     {
       "s": "整机外观检查",
       "r": "使用",
       "o": "白棉布",
-      "process": "整机外观检查"
+      "process": "整机外观检查",
+      "source_doc": "1"
     },
     {
       "s": "测试前准备",
       "r": "使用",
       "o": "白棉布",
-      "process": "测试前准备"
+      "process": "测试前准备",
+      "source_doc": "1"
     },
     {
       "s": "测试前准备",
       "r": "使用",
       "o": "乐泰粘胶剂",
-      "process": "测试前准备"
+      "process": "测试前准备",
+      "source_doc": "1"
     },
     {
       "s": "测试前准备",
       "r": "使用",
       "o": "室温硫化硅橡胶",
-      "process": "测试前准备"
+      "process": "测试前准备",
+      "source_doc": "1"
     },
     {
       "s": "测试前准备",
       "r": "使用",
       "o": "22-9.50-2002",
-      "process": "测试前准备"
+      "process": "测试前准备",
+      "source_doc": "1"
     },
     {
       "s": "包装箱上应标有中文制",
       "r": "禁止",
       "o": "使用",
-      "process": null
+      "process": null,
+      "source_doc": "2"
     },
     {
       "s": "包装箱上应标有中文制",
       "r": "禁止",
       "o": "打击或使用不合适的旋具和扳手",
-      "process": null
+      "process": null,
+      "source_doc": "2"
     },
     {
       "s": "包装箱上应标有中文制",
       "r": "禁止",
       "o": "用低性能紧固件替代高性能紧固件",
-      "process": null
+      "process": null,
+      "source_doc": "2"
     },
     {
       "s": "包装箱上应标有中文制",
       "r": "禁止",
       "o": "有轴向窜动",
-      "process": null
+      "process": null,
+      "source_doc": "2"
     },
     {
       "s": "包装箱上应标有中文制",
       "r": "禁止",
       "o": "有磕碰",
-      "process": null
+      "process": null,
+      "source_doc": "2"
     },
     {
       "s": "包装箱上应标有中文制",
       "r": "禁止",
       "o": "遗漏附件",
-      "process": null
+      "process": null,
+      "source_doc": "2"
     }
   ],
   "preferences": {
