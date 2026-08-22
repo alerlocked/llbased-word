@@ -204,27 +204,17 @@ async def delete_project(
         # 查找项目
         project = get_or_404(db, CreationProject, CreationProject.id == project_id, "项目不存在")
 
-        # 1. Collect material IDs before deletion
-        material_ids = project.material_ids or []
+        # Materials are GLOBAL shared assets (library-wide), never project
+        # property. Deleting a project only unbinds them (the project row —
+        # and with it material_ids — is deleted below). Physical material
+        # deletion has exactly one entry point: DELETE /materials/{id}.
+        # (2026-08-22: the old clean-chain silently shredded shared materials
+        # on project delete — real data loss, twice in one day.)
 
-        # 2. Delete associated materials (DB + filesystem)
-        for mid in material_ids:
-            # Remove filesystem directories for this material
-            for subdir in ["materials", "uploads", "documents"]:
-                mat_dir = Path(settings.DATA_DIR) / subdir / str(mid)
-                if mat_dir.exists():
-                    shutil.rmtree(mat_dir, ignore_errors=True)
-                    logger.info("deleted_material_dir", dir=str(mat_dir))
-
-        if material_ids:
-            db.query(Material).filter(Material.id.in_(material_ids)).delete(synchronize_session=False)
-            db.query(MaterialPage).filter(MaterialPage.material_id.in_(material_ids)).delete(synchronize_session=False)
-            db.query(Figure).filter(Figure.material_id.in_(material_ids)).delete(synchronize_session=False)
-
-        # 3. Delete version history
+        # 1. Delete version history
         db.query(EditorVersion).filter(EditorVersion.project_id == project_id).delete()
 
-        # 4. Delete uploaded images
+        # 2. Delete uploaded images
         image_count = db.query(UploadedImage).filter(UploadedImage.project_id == project_id).count()
         if image_count > 0:
             # Remove image files from filesystem
@@ -235,25 +225,18 @@ async def delete_project(
             db.query(UploadedImage).filter(UploadedImage.project_id == project_id).delete(synchronize_session=False)
             logger.info("deleted_project_images", project_id=project_id, count=image_count)
 
-        # 5. Delete project row
+        # 3. Delete project row (material binding dies with it)
         db.delete(project)
         db.commit()
 
-        # Invalidate retrieval cache so deleted materials drop from search
-        try:
-            from app.services.hierarchical_context import hierarchical_context
-            hierarchical_context.invalidate_cache()
-        except Exception as e:
-            logger.warning("invalidate_cache_failed", error=str(e))
-
-        # 6. Clean project-specific filesystem dirs
+        # 4. Clean project-specific filesystem dirs
         for subdir in ["documents", "uploads"]:
             proj_dir = Path(settings.DATA_DIR) / subdir / str(project_id)
             if proj_dir.exists():
                 shutil.rmtree(proj_dir, ignore_errors=True)
                 logger.info("deleted_project_dir", dir=str(proj_dir))
 
-        logger.info("project_deleted", project_id=project_id, materials_removed=len(material_ids))
+        logger.info("project_deleted", project_id=project_id)
 
         return {"message": "删除成功"}
         
