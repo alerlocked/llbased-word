@@ -453,6 +453,9 @@ async def get_project_materials(
                     "name": material.name,
                     "type": material.material_type,
                     "folderId": material.folder_id,
+                    # domain of the material (LLM-inferred at upload) so the
+                    # frontend learns the profile into the right domain library
+                    "specialty": material.specialty,
                     "parse_status": parse_status,
                     "parse_progress": parse_progress,
                     "parse_error": parse_error,

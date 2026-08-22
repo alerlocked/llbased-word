@@ -114,6 +114,16 @@ class TestProjectMaterialsSelected:
         data = client.get("/api/creation/projects/100/materials").json()
         assert data["selected_material_ids"] == [1]
 
+    def test_documents_carry_specialty_for_profile_learning(self, harness):
+        """domain fix: list must expose specialty so the frontend learns
+        the profile into the right domain library (not always assembly)."""
+        client, factory = harness
+        _seed(factory)
+
+        docs = {d["id"]: d for d in client.get("/api/creation/projects/100/materials").json()["documents"]}
+        assert docs[1]["specialty"] == "assembly"
+        assert docs[2]["specialty"] is None  # explicit key, frontend falls back
+
     def test_unknown_project_returns_empty_selection(self, harness):
         client, _ = harness
         data = client.get("/api/creation/projects/0/materials").json()

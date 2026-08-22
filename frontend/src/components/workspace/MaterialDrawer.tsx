@@ -263,6 +263,7 @@ const MaterialDrawer: React.FC<MaterialDrawerProps> = ({
               type: (doc.type as string) || 'document',
               created_at: (doc.createdAt as string) || new Date().toISOString(),
               content: (doc.content as string) || '',
+              domain: (doc.specialty as string) || undefined,
               parse_status: (doc.parse_status as MaterialFile['parse_status']) || 'unknown',
               parse_progress: (doc.parse_progress as number) || 0,
               parse_error: doc.parse_error as string | undefined,
