@@ -2,15 +2,16 @@
 project: localknowledgebase-word
 path: D:/Project Nantianmen/projects/localknowledgebase-word
 branch: main
-updated_at: 2026-08-22T16:36:22+08:00
-last_commit: 34a464a
+updated_at: 2026-08-22T16:36:35+08:00
+last_commit: 632ab83
 status: source-scoped-knowledge done（5节点全过:工作区域=CreationProject.material_ids+KG前缀分开录+前端勾选UI;950 passed 0 failed+真实链路冒烟26 nodes全1::前缀;待开PR+pr-review）;前序:g25a-step-prefix-fixes done(PR64已合 a562523)
 task_state: done
 ---
 
 <!--AUTO:GIT-->
 ## 最近变更
-- `34a464a` chore(data): clean profile relearn — drop test-data KG leftovers, keep seed principles (0 seconds ago)
+- `632ab83` docs: devlog sync point (0 seconds ago)
+- `34a464a` chore(data): clean profile relearn — drop test-data KG leftovers, keep seed principles (13 seconds ago)
 - `7c812fa` docs: devlog refresh (31 minutes ago)
 - `e16b647` chore(data): devlog refresh + assembly profile after motorcycle material learn (31 minutes ago)
 - `7e34f73` docs(todo): dual-model acceptance findings — project-2 deletion incident, craft_kg rollback trace, isolation verified (31 minutes ago)
@@ -19,7 +20,6 @@ task_state: done
 - `a60dfa9` fix(materials): carry specialty in project materials list so profile learning lands in the right domain (81 minutes ago)
 - `629d83d` feat(ui): remove fake knowledge-scope tab + gate AI input on empty working area (2 hours ago)
 - `c6ce06a` Merge pull request #65 from alerlocked/feature/source-scoped-knowledge (22 hours ago)
-- `77a16b7` fix(agents): read source_ids top-level — dispatch flattens params (N6 fix-3 follow-up) (23 hours ago)
 <!--/AUTO:GIT-->
 
 ## 当前状态

@@ -34,8 +34,11 @@
 
 ### 3e. ⚠ 双型号验收现场发现（2026-08-22 晚，待排查）
 - **project=2 消失**（15:32 前后，删除者不明）：其 15317 字符编辑器内容随删除丢失（7 月装配卡验收存量）。`delete_project` 是 clean chain——**连带删除项目勾选的所有素材**（DB 行+documents/uploads/materials 文件），危险默认；本次素材 1 因当时未勾选幸免。待用户确认是否本人操作；后续应改"删项目前强制确认勾选素材将一并删除"或素材只解绑不删
-- **craft_kg.json 曾被回退**：N5（8-21）学的 26 个 `1::` 节点被覆盖回 6 月旧数据（11 个无前缀节点，写入路径不明，疑某 learn 调用 `source=None`）。已重学恢复 `1::`=26；残留 11 个无前缀旧节点待清；learn（非 learn-file）端点的 doc_id 链路待排查
-- ✅ 已同轮修完：假 scope tab / 空工作区 gate / specialty 断链（PR #66）；检索双向隔离验证通过（勾 doc1 摩托车内容零泄漏 / 勾 doc2 导弹内容零泄漏 / 无过滤全量）
+- **craft_kg.json 回退根因高度指向双后端实例**：8-22 晚实测 8000 端口曾同时挂 2-3 个 main.py 进程（各持 KG/文档内存缓存，save 互覆盖旧内存态写回文件→数据回退）。已清至单实例（用户 17:00 起的 174164）。**测试前必查单实例**；后续可考虑 main.py 启动时锁端口/检测已存在实例拒绝启动
+- **前端可携已删项目号发请求（2026-08-22 17:29 生成实测）**：`?project=2` 旧标签页发出 generate-stream 带 project=2（项目已删）→ `resolve_source_filters` 对不存在项目 fallback None=不过滤→**该次生成实为全库检索**（产物没串摩托车纯因关键词未命中，运气非隔离）。且编辑器内容实际存到 project=1——同页两套项目号打架。修法：前端 AIChatPanel 发送前校验 projectId 存在于项目列表；后端 generate 对不存在项目显式报错而非静默不过滤
+- **生成结果提取断链复现**：`[draft_complete] 提取到 new_content 长度=0` → template fallback 输出 9 章（24 缺章并行生成完成但主通道 result.content 空）。与 8-19 记录的 derive_strong→structured_results→ChapterData 断链同族，待立项根治
+- 对话面板上传 docx=临时 query 拼接通道（`draft_loaded_from_temp_upload`），不进素材库不学画像——用户若要系统长期掌握需走素材库上传+学习（产品语义需对用户明示）
+- ✅ 已同轮修完：假 scope tab / 空工作区 gate / specialty 断链（PR #66）；检索双向隔离验证通过（勾 doc1 摩托车内容零泄漏 / 勾 doc2 导弹内容零泄漏 / 无过滤全量）；画像+KG 已清干净重学（KG=26 个 1:: + 1 个 2:: 零杂质）
 - 素材 2（装配技术规范_摩托车整车型.pdf，specialty=assembly，条款型文档）已入库+解析+学习；条款型文档走 LLM 提取仅 1 条 triple（工序卡抽取器吃不动条款格式，预期内，检索层主力不受影响）
 
 ### 3c. ✅ G25a 工序名称前置直拼 + 工序8无编号引子提取修复（2026-08-18 用户实测报告，2026-08-19 修，PLAN `c5da04b` + N6 重 seal `39a0c2e`）
