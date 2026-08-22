@@ -128,3 +128,23 @@ class TestProjectMaterialsSelected:
         client, _ = harness
         data = client.get("/api/creation/projects/0/materials").json()
         assert data["selected_material_ids"] == []
+
+
+class TestProjectDeleteKeepsMaterials:
+    """2026-08-22 incident: deleting a project silently shredded the shared
+    materials checked into its working area. Materials are global library
+    assets — project delete must only unbind, never delete."""
+
+    def test_delete_project_preserves_selected_materials(self, harness, tmp_path, monkeypatch):
+        client, factory = harness
+        _seed(factory)
+        # material 1 is checked into project 100's working area
+        from app.config import settings
+        monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path))
+
+        resp = client.delete("/api/creation/projects/100")
+        assert resp.status_code == 200
+
+        with factory() as db:
+            assert db.get(Material, 1) is not None, "material must survive project deletion"
+            assert db.get(Material, 2) is not None
